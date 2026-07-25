@@ -16,22 +16,22 @@ struct ProgressViewScreen: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Progress")
+                Text("Your progress")
                     .iqraStyle(.h1)
                     .padding(.top, 8)
 
                 streakCard
 
                 HStack(spacing: 12) {
-                    statCard(title: "Pages", value: "\(stats.pagesReadTotal)")
-                    statCard(title: "Surahs", value: "\(stats.surahsCompleted)")
-                    statCard(title: "Reclaimed", value: stats.hoursReclaimedLabel)
+                    statCard(value: "\(stats.pagesReadTotal)", label: "pages read")
+                    statCard(value: stats.hoursReclaimedLabel, label: "reclaimed")
+                    statCard(value: "\(stats.surahsCompleted)", label: "surahs")
                 }
 
                 SectionCard {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Minutes read · last 7 days")
-                            .iqraStyle(.bodyStrong)
+                            .iqraStyle(.caption, color: IQColor.textMuted)
                         barChart
                     }
                 }
@@ -39,46 +39,59 @@ struct ProgressViewScreen: View {
             .padding(.horizontal, IQSpace.gutter)
             .padding(.bottom, 28)
         }
-        .background(IQColor.welcomeRadial.ignoresSafeArea())
+        .background(IQColor.bgSand.ignoresSafeArea())
     }
 
     private var streakCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text("🔥")
-                    .font(.system(size: 36))
-                Text("\(stats.streakDays)")
-                    .font(.custom("Nunito-Bold", size: 52))
-                    .foregroundStyle(IQColor.textOnDark)
-                Text("day streak")
-                    .iqraStyle(.body, color: IQColor.textOnDark.opacity(0.8))
-            }
+        VStack(spacing: 14) {
+            Text("🔥").font(.system(size: 36))
+            Text("\(stats.streakDays)")
+                .font(.custom("Nunito-Bold", size: 52))
+                .foregroundStyle(.white)
+            Text("day streak · keep it going")
+                .iqraStyle(.body, color: .white.opacity(0.85))
+
             HStack(spacing: 10) {
                 ForEach(0..<7, id: \.self) { i in
-                    Circle()
-                        .fill(stats.weekCompletion[i] ? IQColor.goldBright : Color.white.opacity(0.15))
-                        .frame(width: 12, height: 12)
-                        .accessibilityLabel(stats.weekCompletion[i] ? "Day \(i + 1) complete" : "Day \(i + 1) incomplete")
+                    let labels = ["M", "T", "W", "T", "F", "S", "S"]
+                    VStack(spacing: 6) {
+                        Text(labels[i])
+                            .font(.custom("Nunito-SemiBold", size: 11))
+                            .foregroundStyle(IQColor.accentGoldOnDark.opacity(0.8))
+                        ZStack {
+                            Circle()
+                                .fill(stats.weekCompletion[i]
+                                      ? IQColor.accentGoldOnDark
+                                      : Color.white.opacity(0.12))
+                                .frame(width: 22, height: 22)
+                            if stats.weekCompletion[i] {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(IQColor.bgDark)
+                            }
+                        }
+                        .accessibilityLabel(stats.weekCompletion[i] ? "\(labels[i]) complete" : "\(labels[i]) incomplete")
+                    }
                 }
             }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(22)
+        .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: IQRadius.xl, style: .continuous)
                 .fill(IQColor.bgDark)
         )
     }
 
-    private func statCard(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).iqraStyle(.caption, color: IQColor.textSecondary)
-            Text(value).iqraStyle(.stat, color: IQColor.olive)
+    private func statCard(value: String, label: String) -> some View {
+        VStack(spacing: 6) {
+            Text(value).iqraStyle(.stat, color: IQColor.accentOlive)
+            Text(label).iqraStyle(.caption, color: IQColor.textMuted)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: IQRadius.md, style: .continuous)
+            RoundedRectangle(cornerRadius: IQRadius.card, style: .continuous)
                 .fill(Color.white)
                 .shadow(color: IQShadow.card.color, radius: IQShadow.card.radius, y: IQShadow.card.y)
         )
@@ -90,23 +103,15 @@ struct ProgressViewScreen: View {
             ForEach(0..<7, id: \.self) { i in
                 let value = stats.minutesLast7Days[i]
                 let height = max(8, CGFloat(value) / CGFloat(maxM) * 100)
-                VStack(spacing: 6) {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(value > 0 ? IQColor.olive : IQColor.chartNeutral)
-                        .frame(height: height)
-                    Text(dayLabel(i))
-                        .iqraStyle(.caption, color: IQColor.textSecondary)
-                }
-                .frame(maxWidth: .infinity)
-                .accessibilityLabel("\(dayLabel(i)): \(value) minutes")
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(value > 0 && (i == 3 || i == 6 || stats.weekCompletion[i])
+                          ? IQColor.accentOlive
+                          : IQColor.chartNeutral)
+                    .frame(height: height)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("Day \(i + 1): \(value) minutes")
             }
         }
-        .frame(height: 130, alignment: .bottom)
-    }
-
-    private func dayLabel(_ index: Int) -> String {
-        let days = ["M", "T", "W", "T", "F", "S", "S"]
-        // Map last-7 window ending today onto weekday letters approximately
-        return days[index % 7]
+        .frame(height: 120, alignment: .bottom)
     }
 }

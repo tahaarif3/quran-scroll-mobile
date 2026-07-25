@@ -5,6 +5,7 @@ import IqraLockKit
 struct ReaderView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @Query private var profiles: [UserProfile]
     @Query private var positions: [ReadingPosition]
 
@@ -14,25 +15,34 @@ struct ReaderView: View {
     @State private var surah: SurahMeta?
     @State private var textSize: CGFloat = 26
     @State private var showSize = false
-    @State private var encouragement = "Keep going — every page counts."
+    @State private var encouragement = "Almost there!"
     @State private var repository: BundledQuranRepository?
 
     private let unlock = UnlockCoordinator()
     private let bottomBarHeight: CGFloat = 110
-
     private var goal: Int { profiles.first?.dailyGoalPages ?? appModel.store.dailyGoalPages }
     private var style: ReadingStyleAnswer { profiles.first?.readingStyle ?? .arabicTranslation }
     private var pagesToday: Int { appModel.store.pagesReadToday }
+    private var pageOfGoal: Int { min(pagesToday + 1, goal) }
 
     var body: some View {
         VStack(spacing: 0) {
             topBar
-            progressBar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Rectangle().fill(IQColor.trackReader)
+                    Rectangle()
+                        .fill(IQColor.accentOlive)
+                        .frame(width: geo.size.width * min(1, Double(pagesToday) / Double(max(goal, 1))))
+                }
+            }
+            .frame(height: 4)
+
             ScrollView {
                 LazyVStack(spacing: 0) {
                     Text("بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ")
-                        .font(.custom("Amiri-Regular", size: 28))
-                        .foregroundStyle(IQColor.textPrimary)
+                        .font(.custom("Amiri-Regular", size: 24))
+                        .foregroundStyle(IQColor.brandPrimary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 20)
                         .environment(\.layoutDirection, .rightToLeft)
@@ -47,12 +57,14 @@ struct ReaderView: View {
             .background(IQColor.bgReader)
         }
         .background(IQColor.bgReader.ignoresSafeArea())
-        .safeAreaInset(edge: .bottom) {
-            bottomBar
-        }
+        .safeAreaInset(edge: .bottom) { bottomBar }
         .sheet(isPresented: $showSize) {
-            sizeSheet
-                .presentationDetents([.height(180)])
+            VStack(spacing: 16) {
+                Text("Arabic text size").iqraStyle(.h3)
+                Slider(value: $textSize, in: 20...36, step: 1).tint(IQColor.accentOlive).padding(.horizontal)
+            }
+            .padding()
+            .presentationDetents([.height(180)])
         }
         .task { await load() }
         .navigationBarHidden(true)
@@ -60,76 +72,62 @@ struct ReaderView: View {
 
     private var topBar: some View {
         HStack {
-            // Embedded in tab — show title; back only when pushed
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(IQColor.textFaint)
+                    .frame(width: 44, height: 44)
+            }
             VStack(spacing: 2) {
                 Text(surah?.nameEnglish ?? "Al-Mulk")
-                    .iqraStyle(.bodyStrong)
-                Text(surah?.subtitle ?? "67 · The Sovereignty")
-                    .iqraStyle(.caption, color: IQColor.textSecondary)
+                    .iqraStyle(.bodyStrong, color: IQColor.textInk)
+                Text(surah.map { "\($0.number) · \($0.nameTransliteration)" } ?? "67 · The Sovereignty")
+                    .iqraStyle(.caption, color: IQColor.textMuted)
             }
             .frame(maxWidth: .infinity)
-            Button {
-                showSize = true
-            } label: {
+            Button { showSize = true } label: {
                 Text("Aa")
-                    .iqraStyle(.bodyStrong, color: IQColor.olive)
+                    .font(.custom("Nunito-Bold", size: 17))
+                    .foregroundStyle(IQColor.brandGold)
                     .frame(width: 44, height: 44)
             }
             .accessibilityLabel("Text size")
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 4)
         .background(IQColor.bgReader)
-    }
-
-    private var progressBar: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Rectangle().fill(IQColor.bgReaderBar)
-                Rectangle()
-                    .fill(IQColor.olive)
-                    .frame(width: geo.size.width * min(1, Double(pagesToday) / Double(max(goal, 1))))
-            }
-        }
-        .frame(height: 4)
     }
 
     private func ayahBlock(_ ayah: Ayah) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(ayah.textUthmani)
-                    .font(.custom("Amiri-Regular", size: textSize))
+                    .font(.custom("Amiri-Bold", size: textSize))
                     .lineSpacing(textSize * 1.1)
-                    .foregroundStyle(IQColor.textPrimary)
+                    .foregroundStyle(IQColor.textInk)
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .environment(\.layoutDirection, .rightToLeft)
 
                 Text(arabicIndic(ayah.ayah))
-                    .font(.custom("Amiri-Regular", size: 13))
-                    .foregroundStyle(IQColor.olive)
-                    .frame(width: 28, height: 28)
-                    .background(Circle().strokeBorder(IQColor.olive, lineWidth: 1.2))
+                    .font(.custom("Amiri-Bold", size: 12))
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(IQColor.accentOlive))
             }
 
             if style != .arabicOnly {
-                if style == .arabicTransliteration || style == .allThree, let t = ayah.transliteration {
-                    Text(t)
-                        .iqraStyle(.caption, color: IQColor.textSecondary)
-                        .italic()
-                }
-                if style == .arabicTranslation || style == .allThree {
+                if style == .translationFirst {
                     Text(ayah.translationEn)
-                        .font(.custom("Nunito-Medium", size: 15))
-                        .foregroundStyle(IQColor.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .iqraStyle(.translation, color: IQColor.textMuted2)
+                } else if style == .arabicTranslation || style == .arabicTransliteration {
+                    Text(ayah.translationEn)
+                        .iqraStyle(.translation, color: IQColor.textMuted2)
                 }
             }
 
-            Rectangle()
-                .fill(IQColor.hairline)
-                .frame(height: 1)
-                .padding(.top, 8)
+            Rectangle().fill(IQColor.hairline).frame(height: 1).padding(.top, 6)
         }
         .padding(.vertical, 12)
     }
@@ -137,32 +135,24 @@ struct ReaderView: View {
     private var bottomBar: some View {
         VStack(spacing: 10) {
             HStack {
-                Text("Page \(pageNumber) of 604")
-                    .iqraStyle(.captionStrong, color: IQColor.textPrimary)
+                Text("Page \(pageOfGoal) of \(goal)")
+                    .iqraStyle(.caption, color: IQColor.textMuted)
                 Spacer()
                 Text(encouragement)
-                    .iqraStyle(.caption, color: IQColor.textSecondary)
-                    .lineLimit(1)
+                    .iqraStyle(.captionStrong, color: IQColor.accentOlive)
             }
-            ChunkyButton("✓ Mark page as read", kind: .primary) {
-                markPage()
-            }
+            ChunkyButton("✓ Mark page as read", kind: .primary) { markPage() }
         }
         .padding(.horizontal, IQSpace.gutter)
         .padding(.top, 12)
         .padding(.bottom, 10)
         .frame(minHeight: bottomBarHeight)
-        .background(IQColor.bgReader.opacity(0.98))
-    }
-
-    private var sizeSheet: some View {
-        VStack(spacing: 16) {
-            Text("Arabic text size").iqraStyle(.h3)
-            Slider(value: $textSize, in: 20...36, step: 1)
-                .tint(IQColor.olive)
-                .padding(.horizontal)
-        }
-        .padding()
+        .background(
+            IQColor.bgReader
+                .overlay(alignment: .top) {
+                    Rectangle().fill(IQColor.hairline).frame(height: 1)
+                }
+        )
     }
 
     private func load() async {
@@ -174,24 +164,20 @@ struct ReaderView: View {
                 pageNumber = pos.pageNumber
             }
             surah = try repo.surah(number: surahNumber)
-            let page = try repo.page(pageNumber)
-            ayahs = page.ayahs
+            ayahs = try repo.page(pageNumber).ayahs
             textSize = profiles.first?.arabicTextSize ?? 26
         } catch {
-            // Demo ayahs if DB missing in a partial build
             ayahs = [
-                Ayah(id: 1, surah: 67, ayah: 1, verseKey: "67:1",
-                     textUthmani: "تَبَارَكَ ٱلَّذِى بِيَدِهِ ٱلْمُلْكُ وَهُوَ عَلَىٰ كُلِّ شَىْءٍۢ قَدِيرٌ",
-                     translationEn: "Blessed is He in whose hand is dominion, and He is over all things competent.",
-                     page: 562)
+                Ayah(
+                    id: 1, surah: 67, ayah: 1, verseKey: "67:1",
+                    textUthmani: "تَبَارَكَ ٱلَّذِى بِيَدِهِ ٱلْمُلْكُ وَهُوَ عَلَىٰ كُلِّ شَىْءٍۢ قَدِيرٌ",
+                    translationEn: "Blessed is He in whose hand is dominion, and He is over all things competent.",
+                    page: 562
+                )
             ]
             surah = SurahMeta(
-                number: 67,
-                nameArabic: "الملك",
-                nameEnglish: "Al-Mulk",
-                nameTransliteration: "The Sovereignty",
-                ayahCount: 30,
-                revelationPlace: "makkah"
+                number: 67, nameArabic: "الملك", nameEnglish: "Al-Mulk",
+                nameTransliteration: "The Sovereignty", ayahCount: 30, revelationPlace: "makkah"
             )
         }
     }
@@ -200,7 +186,6 @@ struct ReaderView: View {
         appModel.store.ensureCurrentDay()
         appModel.store.pagesReadToday += 1
         let day = Calendar.current.startOfDay(for: Date())
-        // Upsert daily record
         let descriptor = FetchDescriptor<DailyRecord>()
         if let existing = try? modelContext.fetch(descriptor).first(where: {
             Calendar.current.isDate($0.day, inSameDayAs: day)
@@ -238,7 +223,7 @@ struct ReaderView: View {
         pos.updatedAt = Date()
         try? modelContext.save()
         _ = unlock.evaluateAfterPageMarked()
-        encouragement = appModel.store.goalMetToday ? "Goal met — apps unlocked!" : "Beautiful. \(appModel.store.pagesRemaining) to go."
+        encouragement = appModel.store.goalMetToday ? "Goal met!" : "Almost there!"
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 

@@ -14,7 +14,7 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterialDark,
-            backgroundColor: UIColor(red: 0x2A / 255, green: 0x18 / 255, blue: 0x10 / 255, alpha: 1),
+            backgroundColor: UIColor(red: 0x25 / 255, green: 0x15 / 255, blue: 0x0C / 255, alpha: 1),
             icon: Self.lockIcon(),
             title: ShieldConfiguration.Label(
                 text: "\(name) is locked",

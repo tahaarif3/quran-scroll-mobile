@@ -4,18 +4,14 @@ import XCTest
 final class GoalDeriverTests: XCTestCase {
     func testBaselineIsThree() {
         XCTAssertEqual(
-            GoalDeriver.dailyGoalPages(arabicAbility: .notYet, readFrequency: .rarely),
-            2 // rarely floors down from 3
-        )
-        XCTAssertEqual(
-            GoalDeriver.dailyGoalPages(arabicAbility: .some, readFrequency: .days1to2),
+            GoalDeriver.dailyGoalPages(arabicAbility: .soundOut, readFrequency: .days1to2),
             3
         )
     }
 
     func testFrequencyBoost() {
         XCTAssertEqual(
-            GoalDeriver.dailyGoalPages(arabicAbility: .some, readFrequency: .everyDay),
+            GoalDeriver.dailyGoalPages(arabicAbility: .soundOut, readFrequency: .everyDay),
             4
         )
     }
@@ -29,18 +25,14 @@ final class GoalDeriverTests: XCTestCase {
 
     func testBothBoostsCapAtFive() {
         XCTAssertEqual(
-            GoalDeriver.dailyGoalPages(
-                arabicAbility: .fluent,
-                readFrequency: .everyDay,
-                goals: [.completeKhatm]
-            ),
+            GoalDeriver.dailyGoalPages(arabicAbility: .fluent, readFrequency: .everyDay),
             5
         )
     }
 
-    func testFloorTwo() {
+    func testRareReadingFloorsToTwo() {
         XCTAssertEqual(
-            GoalDeriver.dailyGoalPages(arabicAbility: .notYet, readFrequency: .rarely, goals: []),
+            GoalDeriver.dailyGoalPages(arabicAbility: .learningLetters, readFrequency: .lessThanWeekly),
             2
         )
     }

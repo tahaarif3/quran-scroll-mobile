@@ -7,6 +7,7 @@ public struct OnboardingScaffold<Content: View>: View {
     let ctaTitle: String
     let ctaEnabled: Bool
     let ctaKind: ChunkyButtonStyle.Kind
+    let centersContent: Bool
     let onCTA: () -> Void
     let content: Content
 
@@ -17,6 +18,7 @@ public struct OnboardingScaffold<Content: View>: View {
         ctaTitle: String,
         ctaEnabled: Bool = true,
         ctaKind: ChunkyButtonStyle.Kind = .primary,
+        centersContent: Bool = false,
         onCTA: @escaping () -> Void,
         @ViewBuilder content: () -> Content
     ) {
@@ -26,6 +28,7 @@ public struct OnboardingScaffold<Content: View>: View {
         self.ctaTitle = ctaTitle
         self.ctaEnabled = ctaEnabled
         self.ctaKind = ctaKind
+        self.centersContent = centersContent
         self.onCTA = onCTA
         self.content = content()
     }
@@ -36,11 +39,18 @@ public struct OnboardingScaffold<Content: View>: View {
 
             VStack(spacing: 0) {
                 topBar
-                ScrollView(showsIndicators: false) {
+                if centersContent {
+                    Spacer(minLength: 8)
                     content
                         .padding(.horizontal, IQSpace.gutter)
-                        .padding(.top, 8)
-                        .padding(.bottom, 120)
+                    Spacer(minLength: 8)
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        content
+                            .padding(.horizontal, IQSpace.gutter)
+                            .padding(.top, 8)
+                            .padding(.bottom, 130)
+                    }
                 }
             }
         }
@@ -48,17 +58,8 @@ public struct OnboardingScaffold<Content: View>: View {
             ChunkyButton(ctaTitle, kind: ctaKind, enabled: ctaEnabled, action: onCTA)
                 .padding(.horizontal, IQSpace.gutterWide)
                 .padding(.bottom, IQSpace.ctaBottom)
-                .padding(.top, 12)
-                .background(
-                    LinearGradient(
-                        colors: [IQColor.bgSand.opacity(0), IQColor.bgSand],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 40)
-                    .offset(y: -28)
-                    , alignment: .top
-                )
+                .padding(.top, 10)
+                .background(IQColor.bgSand.opacity(0.92))
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
     }
@@ -67,12 +68,10 @@ public struct OnboardingScaffold<Content: View>: View {
     private var topBar: some View {
         HStack(spacing: 12) {
             if showsBack {
-                Button {
-                    onBack?()
-                } label: {
+                Button { onBack?() } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(IQColor.textPrimary)
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(IQColor.textFaint)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
@@ -84,13 +83,13 @@ public struct OnboardingScaffold<Content: View>: View {
             if let progress {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        Capsule().fill(IQColor.chartNeutral)
+                        Capsule().fill(IQColor.track)
                         Capsule()
-                            .fill(IQColor.olive)
+                            .fill(IQColor.accentOlive)
                             .frame(width: max(8, geo.size.width * progress))
                     }
                 }
-                .frame(height: 6)
+                .frame(height: 7)
                 .accessibilityLabel("Progress")
                 .accessibilityValue("\(Int((progress * 100).rounded())) percent")
             } else {
@@ -100,6 +99,6 @@ public struct OnboardingScaffold<Content: View>: View {
             Color.clear.frame(width: 44, height: 44)
         }
         .padding(.horizontal, 8)
-        .padding(.top, 4)
+        .padding(.top, 2)
     }
 }

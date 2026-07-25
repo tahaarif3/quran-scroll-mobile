@@ -5,15 +5,14 @@ import IqraLockKit
 struct HomeView: View {
     @Environment(AppModel.self) private var appModel
     @Query private var profiles: [UserProfile]
-    @Query private var positions: [ReadingPosition]
     @Query(sort: \DailyRecord.day, order: .reverse) private var records: [DailyRecord]
     @State private var ringProgress: Double = 0
 
-    private var profile: UserProfile? { profiles.first }
-    private var name: String { profile?.displayName ?? appModel.store.userDisplayName }
-    private var goal: Int { profile?.dailyGoalPages ?? appModel.store.dailyGoalPages }
+    private var name: String { profiles.first?.displayName ?? appModel.store.userDisplayName }
+    private var goal: Int { profiles.first?.dailyGoalPages ?? appModel.store.dailyGoalPages }
     private var pagesToday: Int { appModel.store.pagesReadToday }
     private var lockedCount: Int { appModel.screenTime.selectedAppCount }
+    private var remaining: Int { max(0, goal - pagesToday) }
 
     private var stats: HabitStats {
         HabitStatsCalculator.compute(
@@ -26,23 +25,44 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 18) {
                     header
                     ayahCard
                     todayCard
-                    if lockedCount > 0 && !appModel.store.goalMetToday && appModel.purchases.gate.canBlockApps {
-                        Text("🔒 \(lockedCount) apps locked until you finish")
-                            .iqraStyle(.bodyStrong, color: IQColor.olive)
-                    } else if !appModel.purchases.gate.canBlockApps {
-                        Text("Blocking is off — subscribe to shield apps.")
-                            .iqraStyle(.caption, color: IQColor.textSecondary)
+                    NavigationLink {
+                        ReaderView()
+                    } label: {
+                        Text("Continue reading →")
+                            .font(IQFontStyle.button.font)
+                            .foregroundStyle(IQColor.textInverse)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: IQSpace.buttonHeight)
+                            .background(
+                                RoundedRectangle(cornerRadius: IQRadius.button, style: .continuous)
+                                    .fill(IQColor.brandPrimaryShadow)
+                                    .offset(y: IQShadow.chunkyOffset)
+                            )
+                            .background(
+                                RoundedRectangle(cornerRadius: IQRadius.button, style: .continuous)
+                                    .fill(IQColor.brandPrimary)
+                            )
+                    }
+                    .buttonStyle(.plain)
+
+                    if lockedCount > 0 && !appModel.store.goalMetToday {
+                        HStack(spacing: 6) {
+                            Spacer()
+                            Text("🔒 \(lockedCount) apps locked until you finish")
+                                .iqraStyle(.captionStrong, color: IQColor.textMuted2)
+                            Spacer()
+                        }
                     }
                 }
                 .padding(.horizontal, IQSpace.gutter)
                 .padding(.top, 12)
                 .padding(.bottom, 28)
             }
-            .background(IQColor.welcomeRadial.ignoresSafeArea())
+            .background(IQColor.bgSand.ignoresSafeArea())
             .navigationBarHidden(true)
             .onAppear {
                 appModel.store.ensureCurrentDay()
@@ -55,84 +75,62 @@ struct HomeView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(greeting)
-                    .iqraStyle(.caption, color: IQColor.textSecondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Assalamu ʿalaykum,")
+                    .iqraStyle(.subtitle, color: IQColor.textMuted)
                 Text(name)
-                    .iqraStyle(.h1, color: IQColor.textPrimary)
+                    .iqraStyle(.greetingName, color: IQColor.textInk)
             }
             Spacer()
             StreakPill(days: stats.streakDays)
         }
     }
 
-    private var greeting: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 5..<12: return "Good morning"
-        case 12..<17: return "Good afternoon"
-        default: return "Good evening"
-        }
-    }
-
     private var ayahCard: some View {
         SectionCard {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Ayah of the day")
-                    .iqraStyle(.captionStrong, color: IQColor.olive)
-                Text(ayahPreview.arabic)
-                    .font(.custom("Amiri-Regular", size: 22))
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+            VStack(spacing: 12) {
+                HStack {
+                    Text("AYAH OF THE DAY")
+                        .font(.custom("Nunito-ExtraBold", size: 11))
+                        .tracking(0.8)
+                        .foregroundStyle(IQColor.accentOlive)
+                    Spacer()
+                    Text("🔖")
+                }
+                Text("فَإِنَّ مَعَ ٱلْعُسْرِ يُسْرًا")
+                    .font(.custom("Amiri-Bold", size: 27))
+                    .foregroundStyle(IQColor.textInk)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
                     .environment(\.layoutDirection, .rightToLeft)
-                Text(ayahPreview.english)
-                    .iqraStyle(.body, color: IQColor.textSecondary)
-                Text(ayahPreview.ref)
-                    .iqraStyle(.caption, color: IQColor.textMuted)
+                Text("Indeed, with hardship comes ease.")
+                    .iqraStyle(.translation, color: IQColor.textMuted2)
+                    .multilineTextAlignment(.center)
+                Text("Ash-Sharh 94:6")
+                    .iqraStyle(.captionStrong, color: IQColor.textMuted2)
             }
         }
-    }
-
-    private var ayahPreview: (arabic: String, english: String, ref: String) {
-        // Fallback curated copy when repository isn't loaded in preview.
-        let key = AyahOfTheDay.key()
-        return (
-            "فَإِنَّ مَعَ ٱلْعُسْرِ يُسْرًا",
-            "For indeed, with hardship comes ease.",
-            "Qur'an \(key)"
-        )
     }
 
     private var todayCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Today's reading")
-                        .iqraStyle(.captionStrong, color: IQColor.textOnDark.opacity(0.8))
-                    Text("\(pagesToday) of \(goal) pages")
-                        .iqraStyle(.h2, color: IQColor.textOnDark)
-                }
-                Spacer()
-                ProgressRing(progress: ringProgress, size: 88, track: .white.opacity(0.12), fill: IQColor.gold)
-                    .overlay(
-                        Text("\(Int((ringProgress * 100).rounded()))%")
-                            .iqraStyle(.captionStrong, color: IQColor.gold)
-                    )
+        HStack(spacing: 16) {
+            ProgressRing(progress: ringProgress, lineWidth: 9, size: 84)
+                .overlay(
+                    Text("\(pagesToday)/\(goal)")
+                        .font(.custom("Nunito-ExtraBold", size: 18))
+                        .foregroundStyle(.white)
+                )
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Today's reading")
+                    .font(.custom("Nunito-ExtraBold", size: 18))
+                    .foregroundStyle(.white)
+                Text(remaining == 0
+                     ? "Goal met — apps unlocked"
+                     : "\(remaining) pages left to unlock your apps")
+                    .font(.custom("Nunito-SemiBold", size: 14))
+                    .foregroundStyle(.white.opacity(0.75))
             }
-            NavigationLink {
-                ReaderView()
-            } label: {
-                Text("Continue reading")
-                    .font(IQFontStyle.button.font)
-                    .foregroundStyle(IQColor.textOnGold)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: IQRadius.md, style: .continuous)
-                            .fill(IQColor.goldBright)
-                    )
-            }
-            .buttonStyle(.plain)
+            Spacer(minLength: 0)
         }
         .padding(18)
         .background(

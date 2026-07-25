@@ -28,7 +28,8 @@ public final class OnboardingViewModel {
         }
         if restoreDraft,
            let raw = defaults.string(forKey: stepKey),
-           let restored = OnboardingStep(rawValue: raw) {
+           let restored = OnboardingStep(rawValue: raw),
+           OnboardingStep.flowOrder.contains(restored) {
             self.step = restored
         } else {
             self.step = .welcome
@@ -37,24 +38,17 @@ public final class OnboardingViewModel {
 
     public var ctaTitle: String {
         switch step {
-        case .welcome: return "Begin"
-        case .howItWorks: return "Continue"
-        case .socialProof: return "I'm ready"
-        case .screenTime, .age, .gender, .faith, .arabic, .frequency, .readingStyle, .goals:
-            return "Continue"
-        case .reveal: return "Show me"
-        case .reframe: return "I want that"
-        case .promise: return "Build my plan"
-        case .permissionPrimer: return "Choose apps to lock"
-        case .appPicker: return "Continue"
-        case .systemPrompt: return "Continue"
-        case .rating: return "Continue"
-        case .planReady: return "See my plan"
-        case .paywall: return paywallCTATitle
+        case .welcome: return "See How it Works →"
+        case .howItWorks, .socialProof, .screenTime, .age, .gender, .faith,
+             .arabic, .frequency, .readingStyle, .goals, .permissionPrimer,
+             .appPicker, .systemPrompt, .rating, .reframe:
+            return "Continue →"
+        case .reveal: return "Wow →"
+        case .promise: return "Start Journey →"
+        case .planReady: return "Let's Go! →"
+        case .paywall: return "Start 3-day free trial →"
         }
     }
-
-    public var paywallCTATitle: String { "Start 3-day free trial" }
 
     public var ctaEnabled: Bool {
         switch step {
@@ -74,7 +68,7 @@ public final class OnboardingViewModel {
     public var projection: ProjectionResult {
         ProjectionCalculator.project(
             screenTime: answers.screenTime ?? .over8,
-            age: answers.age ?? .age25to34
+            age: answers.age ?? .age18to24
         )
     }
 
@@ -87,7 +81,7 @@ public final class OnboardingViewModel {
     }
 
     public func onAppear() {
-        let index = OnboardingStep.allCases.firstIndex(of: step) ?? 0
+        let index = OnboardingStep.flowOrder.firstIndex(of: step) ?? 0
         analytics.track("onboarding_step_viewed", properties: [
             "step": step.analyticsName,
             "index": index
@@ -96,15 +90,15 @@ public final class OnboardingViewModel {
 
     public func next() {
         persistDraft()
-        guard let idx = OnboardingStep.allCases.firstIndex(of: step),
-              idx + 1 < OnboardingStep.allCases.count else { return }
-        step = OnboardingStep.allCases[idx + 1]
+        guard let idx = OnboardingStep.flowOrder.firstIndex(of: step),
+              idx + 1 < OnboardingStep.flowOrder.count else { return }
+        step = OnboardingStep.flowOrder[idx + 1]
         onAppear()
     }
 
     public func back() {
-        guard let idx = OnboardingStep.allCases.firstIndex(of: step), idx > 0 else { return }
-        step = OnboardingStep.allCases[idx - 1]
+        guard let idx = OnboardingStep.flowOrder.firstIndex(of: step), idx > 0 else { return }
+        step = OnboardingStep.flowOrder[idx - 1]
     }
 
     public func selectScreenTime(_ value: ScreenTimeAnswer) {
@@ -173,7 +167,7 @@ public final class OnboardingViewModel {
 
     public func completeProfile() -> UserProfileDraft {
         let draft = UserProfileDraft(
-            displayName: answers.displayName.isEmpty ? "Friend" : answers.displayName,
+            displayName: answers.displayName.isEmpty ? "Yusuf" : answers.displayName,
             dailyGoalPages: derivedDailyGoal,
             readingStyle: answers.readingStyle ?? .arabicTranslation,
             gender: answers.gender,

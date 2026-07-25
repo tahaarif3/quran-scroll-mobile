@@ -6,7 +6,7 @@ public struct ChunkyButtonStyle: ButtonStyle {
         case primary
         case secondary
         case dark
-        case gold
+        case gold // lock CTA #F0C24B / shadow #C99A2C
     }
 
     public var kind: Kind
@@ -24,18 +24,16 @@ public struct ChunkyButtonStyle: ButtonStyle {
 
         return configuration.label
             .font(IQFontStyle.button.font)
-            .tracking(IQFontStyle.button.tracking)
             .foregroundStyle(textColor)
             .frame(maxWidth: fullWidth ? .infinity : nil)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .frame(height: IQSpace.buttonHeight)
             .background(
-                RoundedRectangle(cornerRadius: IQRadius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: IQRadius.button, style: .continuous)
                     .fill(edgeColor)
                     .offset(y: pressed ? 0 : IQShadow.chunkyOffset)
             )
             .background(
-                RoundedRectangle(cornerRadius: IQRadius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: IQRadius.button, style: .continuous)
                     .fill(faceColor)
                     .offset(y: pressed ? IQShadow.chunkyOffset : 0)
             )
@@ -47,20 +45,20 @@ public struct ChunkyButtonStyle: ButtonStyle {
     private var faceColor: Color {
         guard isEnabled else { return IQColor.buttonDisabledFace }
         switch kind {
-        case .primary: return IQColor.olive
+        case .primary: return IQColor.brandPrimary
         case .secondary: return Color.white
         case .dark: return IQColor.bgDark
-        case .gold: return IQColor.goldBright
+        case .gold: return IQColor.lockCTA
         }
     }
 
     private var edgeColor: Color {
         guard isEnabled else { return IQColor.buttonDisabledEdge }
         switch kind {
-        case .primary: return IQColor.oliveDeep
+        case .primary: return IQColor.brandPrimaryShadow
         case .secondary: return IQColor.borderSubtle
         case .dark: return Color(hex: 0x2A2418)
-        case .gold: return Color(hex: 0xC49A2A)
+        case .gold: return IQColor.lockCTAShadow
         }
     }
 
@@ -68,7 +66,7 @@ public struct ChunkyButtonStyle: ButtonStyle {
         guard isEnabled else { return IQColor.buttonDisabledText }
         switch kind {
         case .primary, .dark: return IQColor.textInverse
-        case .secondary: return IQColor.textPrimary
+        case .secondary: return IQColor.textInk
         case .gold: return IQColor.textOnGold
         }
     }

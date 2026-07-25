@@ -1,38 +1,55 @@
 import SwiftUI
 import IqraLockKit
 
-/// In-app pixel-faithful screen 3d (OS shield is an approximation — see ShieldConfigurationExtension).
+/// In-app screen 3d — pixel-faithful lock UI.
+/// OS ManagedSettings shield uses ShieldConfigurationExtension approximation.
 struct ShieldPreviewView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.dismiss) private var dismiss
+    var lockedAppName: String = "Instagram"
 
     var body: some View {
         ZStack {
             IQColor.lockRadial.ignoresSafeArea()
 
-            VStack(spacing: 24) {
+            VStack(spacing: 22) {
                 Spacer()
+
                 ZStack {
                     Circle()
-                        .fill(IQColor.appIconGradient)
-                        .frame(width: 96, height: 96)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 88, height: 88)
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 40, weight: .bold))
-                        .foregroundStyle(IQColor.goldBright)
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundStyle(IQColor.lockCTA)
                 }
 
-                Text("Apps are locked")
-                    .iqraStyle(.h1, color: IQColor.textOnDark)
-                    .multilineTextAlignment(.center)
-
                 VStack(spacing: 10) {
-                    Text(appModel.store.shieldSubtitle())
-                        .iqraStyle(.bodyStrong, color: IQColor.gold)
+                    Text("\(lockedAppName) is locked")
+                        .font(.custom("Nunito-Black", size: 28))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                    Text("Finish today's Qur'an reading to unlock your distracting apps for the day.")
+                        .iqraStyle(.body, color: Color.white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 12)
+                }
+
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("\(appModel.store.pagesReadToday) of \(appModel.store.dailyGoalPages) pages read")
+                            .font(.custom("Nunito-Bold", size: 15))
+                            .foregroundStyle(.white)
+                        Spacer()
+                        Text("\(appModel.store.pagesRemaining) to go")
+                            .font(.custom("Nunito-Bold", size: 15))
+                            .foregroundStyle(IQColor.lockCTA)
+                    }
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             Capsule().fill(Color.white.opacity(0.12))
                             Capsule()
-                                .fill(IQColor.goldBright)
+                                .fill(IQColor.lockCTA)
                                 .frame(width: geo.size.width * progress)
                         }
                     }
@@ -41,21 +58,20 @@ struct ShieldPreviewView: View {
                 .padding(18)
                 .background(
                     RoundedRectangle(cornerRadius: IQRadius.lg, style: .continuous)
-                        .fill(Color.white.opacity(0.08))
+                        .fill(Color.white.opacity(0.10))
                 )
                 .padding(.horizontal, 28)
 
-                HStack(spacing: 16) {
-                    LockedAppTile(label: "App", systemImage: "app.fill")
-                    LockedAppTile(label: "App", systemImage: "app.fill")
-                    LockedAppTile(label: "App", systemImage: "app.fill")
-                    LockedAppTile(label: "App", systemImage: "app.fill")
+                HStack(spacing: 14) {
+                    ForEach(LockedAppTile.Brand.allCases, id: \.self) { brand in
+                        LockedAppTile(brand: brand, showLabel: false)
+                    }
                 }
 
                 Spacer()
 
-                VStack(spacing: 12) {
-                    ChunkyButton("Read now to unlock", kind: .gold) {
+                VStack(spacing: 14) {
+                    ChunkyButton("Read now to unlock →", kind: .gold) {
                         dismiss()
                         appModel.showReader = true
                     }
@@ -63,7 +79,7 @@ struct ShieldPreviewView: View {
                         _ = appModel.screenTime.consumeEmergencyPass(durationMinutes: 15)
                         dismiss()
                     }
-                    .iqraStyle(.captionStrong, color: IQColor.textOnDark.opacity(0.85))
+                    .iqraStyle(.caption, color: Color.white.opacity(0.55))
                 }
                 .padding(.horizontal, IQSpace.gutterWide)
                 .padding(.bottom, IQSpace.ctaBottom)

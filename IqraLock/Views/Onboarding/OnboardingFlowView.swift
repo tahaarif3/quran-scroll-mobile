@@ -19,55 +19,55 @@ struct OnboardingFlowView: View {
             case .welcome: welcome
             case .howItWorks: howItWorks
             case .socialProof: socialProof
-            case .screenTime: questionScreen(
-                title: "How much time do you spend on your phone each day?",
-                subtitle: "Be honest — this shapes your personal plan.",
-                options: ScreenTimeAnswer.allCases.map { ($0.rawValue, nil as String?, nil as String?, $0) },
+            case .screenTime: question(
+                title: "What is your average screen time?",
+                subtitle: "This helps us tailor IqraLock to your daily habits.",
+                options: ScreenTimeAnswer.allCases.map { .init(label: $0.rawValue, value: $0) },
                 selected: vm.answers.screenTime,
                 onSelect: vm.selectScreenTime
             )
             case .reveal: reveal
             case .reframe: reframe
             case .promise: promise
-            case .age: questionScreen(
+            case .age: question(
                 title: "How old are you?",
                 subtitle: "Used only to personalize your projections.",
-                options: AgeBucket.allCases.map { ($0.rawValue, nil as String?, nil as String?, $0) },
+                options: AgeBucket.allCases.map { .init(label: $0.rawValue, value: $0) },
                 selected: vm.answers.age,
                 onSelect: vm.selectAge
             )
-            case .gender: questionScreen(
-                title: "How should we address you?",
-                subtitle: nil,
-                options: GenderAnswer.allCases.map { ($0.rawValue, nil as String?, nil as String?, $0) },
+            case .gender: question(
+                title: "How do you identify?",
+                subtitle: "So we can address you respectfully.",
+                options: GenderAnswer.allCases.map { .init(label: $0.rawValue, emoji: $0.emoji, value: $0) },
                 selected: vm.answers.gender,
                 onSelect: vm.selectGender
             )
-            case .faith: questionScreen(
+            case .faith: question(
                 title: "Where are you in your faith journey?",
-                subtitle: nil,
-                options: FaithStage.allCases.map { ($0.rawValue, nil as String?, nil as String?, $0) },
+                subtitle: "There’s no wrong answer.",
+                options: FaithStage.allCases.map { .init(label: $0.rawValue, emoji: $0.emoji, value: $0) },
                 selected: vm.answers.faithStage,
                 onSelect: vm.selectFaith
             )
-            case .arabic: questionScreen(
+            case .arabic: question(
                 title: "How is your Arabic reading?",
-                subtitle: nil,
-                options: ArabicAbility.allCases.map { ($0.rawValue, nil as String?, nil as String?, $0) },
+                subtitle: "This sets your default reader layout.",
+                options: ArabicAbility.allCases.map { .init(label: $0.rawValue, emoji: $0.emoji, value: $0) },
                 selected: vm.answers.arabicAbility,
                 onSelect: vm.selectArabic
             )
-            case .frequency: questionScreen(
+            case .frequency: question(
                 title: "How often do you read Qur'an today?",
-                subtitle: nil,
-                options: ReadFrequency.allCases.map { ($0.rawValue, nil as String?, nil as String?, $0) },
+                subtitle: "Be honest — we’ll meet you where you are.",
+                options: ReadFrequency.allCases.map { .init(label: $0.rawValue, emoji: $0.emoji, value: $0) },
                 selected: vm.answers.readFrequency,
                 onSelect: vm.selectFrequency
             )
-            case .readingStyle: questionScreen(
-                title: "How do you prefer to read?",
-                subtitle: "You can change this anytime in You.",
-                options: ReadingStyleAnswer.allCases.map { ($0.rawValue, nil as String?, nil as String?, $0) },
+            case .readingStyle: question(
+                title: "How would you like to read?",
+                subtitle: "You can change this anytime in settings.",
+                options: ReadingStyleAnswer.allCases.map { .init(label: $0.rawValue, value: $0) },
                 selected: vm.answers.readingStyle,
                 onSelect: vm.selectReadingStyle
             )
@@ -84,67 +84,79 @@ struct OnboardingFlowView: View {
         .onAppear { vm.onAppear() }
     }
 
-    // MARK: Screens
+    // MARK: - Intro
 
     private var welcome: some View {
         OnboardingScaffold(
             progress: nil,
             showsBack: false,
             ctaTitle: vm.ctaTitle,
+            centersContent: true,
             onCTA: vm.next
         ) {
-            VStack(alignment: .leading, spacing: 20) {
-                Spacer(minLength: 40)
+            VStack(spacing: 18) {
+                IqraAppIcon(size: 108)
+                    .padding(.bottom, 8)
+                Text("Welcome to")
+                    .iqraStyle(.subtitle, color: IQColor.textMuted)
                 Text("IqraLock")
-                    .iqraStyle(.wordmark, color: IQColor.olive)
-                HighlightedText(
-                    "The focus app that locks **distracting apps** until you read Qur'an.",
-                    style: .h1,
-                    highlight: IQColor.brandHighlight
-                )
-                Text("Shield Instagram, TikTok, and the rest — unlock them by finishing today's pages.")
-                    .iqraStyle(.body, color: IQColor.textSecondary)
-                Spacer(minLength: 20)
-                HStack(spacing: 10) {
-                    LockedAppTile(label: "Instagram", systemImage: "camera")
-                    LockedAppTile(label: "TikTok", systemImage: "play.rectangle")
-                    LockedAppTile(label: "X", systemImage: "at")
-                    LockedAppTile(label: "YouTube", systemImage: "play.tv")
-                }
-                .frame(maxWidth: .infinity)
-                LaurelBadge(title: "#1 Muslim Focus App", subtitle: "Built for the ummah")
-                    .frame(maxWidth: .infinity)
+                    .iqraStyle(.wordmark, color: IQColor.brandPrimary)
+                Text("Read the Qur'an, before you scroll.")
+                    .iqraStyle(.subtitle, color: IQColor.textMuted2)
+                    .multilineTextAlignment(.center)
+                LaurelBadge()
+                    .padding(.top, 8)
             }
+            .frame(maxWidth: .infinity)
         }
     }
 
     private var howItWorks: some View {
-        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, onCTA: vm.next) {
-            VStack(alignment: .leading, spacing: 22) {
-                HighlightedText("Three steps. **One habit.**", style: .h1)
-                stepRow(n: "1", title: "Pick the apps that steal your time", body: "Instagram, TikTok, games — you choose.")
-                stepRow(n: "2", title: "Read your daily Qur'an pages", body: "A small, realistic goal. Offline Arabic included.")
-                stepRow(n: "3", title: "Apps unlock for the rest of the day", body: "Miss the goal? They stay locked until you finish.")
+        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
+            VStack(spacing: 22) {
+                HighlightedText(
+                    "IqraLock **locks distracting apps** until…",
+                    style: .h1,
+                    highlight: IQColor.brandPrimary,
+                    alignment: .center
+                )
+                HStack(spacing: 8) {
+                    ForEach(LockedAppTile.Brand.allCases, id: \.self) { brand in
+                        LockedAppTile(brand: brand)
+                    }
+                }
+                HighlightedText(
+                    "You **read the Qur'an** every day 🙌",
+                    style: .h1,
+                    highlight: IQColor.brandPrimary,
+                    alignment: .center
+                )
             }
-            .padding(.top, 12)
         }
     }
 
     private var socialProof: some View {
         OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, onCTA: vm.next) {
-            VStack(alignment: .leading, spacing: 18) {
-                HighlightedText("Muslims are **taking their time back.**", style: .h1)
-                StarRating(rating: 5)
-                Text("\"I finished more Qur'an in two weeks than the last two years.\"")
-                    .iqraStyle(.h3, color: IQColor.textPrimary)
-                Text("— Brother from London")
-                    .iqraStyle(.caption, color: IQColor.textSecondary)
-                SectionCard {
+            VStack(spacing: 20) {
+                HighlightedText(
+                    "Thousands of Muslims read the Qur'an daily with **IqraLock**",
+                    style: .h1,
+                    highlight: IQColor.brandPrimary,
+                    alignment: .center
+                )
+                LaurelBadge()
+                SectionCard(elevated: true) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Join thousands building a daily khatm habit.")
-                            .iqraStyle(.bodyStrong)
-                        Text("Streaks, gentle reminders, and real Screen Time shields.")
-                            .iqraStyle(.body, color: IQColor.textSecondary)
+                        HStack {
+                            StarRating()
+                            Spacer()
+                            Text("Yusuf, 28")
+                                .iqraStyle(.caption, color: IQColor.textMuted)
+                        }
+                        Text("Life-changing, mashaAllah")
+                            .iqraStyle(.bodyStrong, color: IQColor.textInk)
+                        Text("I open the Qur'an before I even touch Instagram now. 40-day streak and I feel completely different.")
+                            .iqraStyle(.body, color: IQColor.textMuted2)
                     }
                 }
             }
@@ -152,62 +164,65 @@ struct OnboardingFlowView: View {
         }
     }
 
+    // MARK: - Reveal / reframe / promise
+
     private var reveal: some View {
-        let p = vm.projection
-        return OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, onCTA: vm.next) {
-            VStack(alignment: .leading, spacing: 18) {
+        let years = vm.projection.yearsLost
+        return OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
+            VStack(spacing: 24) {
+                Text("🤯")
+                    .font(.system(size: 72))
                 HighlightedText(
-                    "At this rate, that's **\(p.yearsLost) years** on your phone.",
-                    style: .h1
+                    "At this rate, you're going to spend **\(years) years** of your life on your phone.",
+                    style: .h1,
+                    highlight: IQColor.brandGold,
+                    alignment: .center
                 )
-                Text("Time you will never get back — unless you redirect it.")
-                    .iqraStyle(.body, color: IQColor.textSecondary)
-                SectionCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("\(String(format: "%.1f", p.hoursPerDay))h / day × a lifetime")
-                            .iqraStyle(.captionStrong, color: IQColor.olive)
-                        Text("The average Muslim's scroll adds up faster than a khatm.")
-                            .iqraStyle(.body, color: IQColor.textSecondary)
-                    }
-                }
             }
-            .padding(.top, 12)
         }
     }
 
     private var reframe: some View {
-        let p = vm.projection
-        return OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, onCTA: vm.next) {
-            VStack(alignment: .leading, spacing: 18) {
-                HighlightedText(
-                    "Imagine **\(p.yearsBackToDeen) years back to your deen.**",
-                    style: .h1
-                )
-                Text("Same minutes. Different destination.")
-                    .iqraStyle(.body, color: IQColor.textSecondary)
-                SectionCard {
-                    Text("IqraLock turns phone-time into Qur'an-time — one page at a time.")
-                        .iqraStyle(.body)
+        let years = vm.projection.yearsBackToDeen
+        return OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
+            VStack(spacing: 24) {
+                Text("🤲")
+                    .font(.system(size: 72))
+                VStack(spacing: 10) {
+                    Text("…but the good news is, we'll help you give")
+                        .iqraStyle(.h1, color: IQColor.textInk)
+                        .multilineTextAlignment(.center)
+                    HighlightedText(
+                        "**\(years) years** back to your deen.",
+                        style: .h1,
+                        highlight: IQColor.brandGold,
+                        alignment: .center
+                    )
                 }
             }
-            .padding(.top, 12)
         }
     }
 
     private var promise: some View {
-        let p = vm.projection
-        return OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, onCTA: vm.next) {
-            VStack(alignment: .leading, spacing: 18) {
+        let days = vm.projection.quranDays
+        return OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
+            VStack(spacing: 24) {
+                Text("📖")
+                    .font(.system(size: 72))
                 HighlightedText(
-                    "Finish the Qur'an in **\(p.quranDays) days.**",
-                    style: .h1
+                    "You could read the entire Qur'an in **\(days) days**",
+                    style: .h1,
+                    highlight: IQColor.brandGold,
+                    alignment: .center
                 )
-                Text("A personal plan based on your answers — realistic pages, real shields.")
-                    .iqraStyle(.body, color: IQColor.textSecondary)
+                Text("if you traded scroll time for scripture time.")
+                    .iqraStyle(.subtitle, color: IQColor.textMuted2)
+                    .multilineTextAlignment(.center)
             }
-            .padding(.top, 12)
         }
     }
+
+    // MARK: - Goals / permission / rating / plan
 
     private var goals: some View {
         OnboardingScaffold(
@@ -218,19 +233,17 @@ struct OnboardingFlowView: View {
             ctaEnabled: vm.ctaEnabled,
             onCTA: vm.next
         ) {
-            VStack(alignment: .leading, spacing: 16) {
-                HighlightedText("What do you want from IqraLock?", style: .h1)
-                Text("Pick all that apply.")
-                    .iqraStyle(.body, color: IQColor.textSecondary)
+            VStack(alignment: .leading, spacing: 14) {
+                HighlightedText("What do you want to achieve with IqraLock?", style: .h1)
+                Text("Select all that apply.")
+                    .iqraStyle(.subtitle, color: IQColor.textMuted)
                 ForEach(GoalAnswer.allCases) { goal in
                     OptionRow(
                         title: goal.rawValue,
                         emoji: goal.emoji,
                         isSelected: vm.answers.goals.contains(goal),
                         mode: .multi
-                    ) {
-                        vm.toggleGoal(goal)
-                    }
+                    ) { vm.toggleGoal(goal) }
                 }
             }
             .padding(.top, 8)
@@ -238,13 +251,28 @@ struct OnboardingFlowView: View {
     }
 
     private var permissionPrimer: some View {
-        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, onCTA: vm.next) {
-            VStack(alignment: .leading, spacing: 18) {
-                HighlightedText("Choose what to **lock.**", style: .h1)
-                Text("Next you'll pick the apps that stay shielded until today's pages are done. Screen Time data never leaves your phone.")
-                    .iqraStyle(.body, color: IQColor.textSecondary)
+        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
+            VStack(spacing: 22) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(Color(hex: 0x4B44E0))
+                        .frame(width: 88, height: 88)
+                        .overlay(Text("⏳").font(.system(size: 36)))
+                        .rotationEffect(.degrees(-12))
+                        .offset(x: -36)
+                        .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
+                    IqraAppIcon(size: 88)
+                        .rotationEffect(.degrees(10))
+                        .offset(x: 36)
+                }
+                .frame(height: 120)
+                Text("Connect IqraLock to Screen Time, securely")
+                    .iqraStyle(.h1, color: IQColor.textInk)
+                    .multilineTextAlignment(.center)
+                Text("We sync with Apple Screen Time to help you swap scrolling for scripture.")
+                    .iqraStyle(.subtitle, color: IQColor.textMuted)
+                    .multilineTextAlignment(.center)
             }
-            .padding(.top, 12)
         }
     }
 
@@ -256,81 +284,144 @@ struct OnboardingFlowView: View {
             ctaEnabled: vm.ctaEnabled,
             onCTA: vm.next
         ) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 14) {
                 HighlightedText("Which apps should wait for Qur'an?", style: .h1)
-                Text("This screen wraps Apple's FamilyActivityPicker. On a real device, tap below to select apps.")
-                    .iqraStyle(.body, color: IQColor.textSecondary)
-                // Mock selection for Simulator / pre-entitlement builds
-                ForEach([("Instagram", 1), ("TikTok", 2), ("YouTube", 3), ("Safari", 4)], id: \.1) { name, _ in
+                Text("Select the apps IqraLock should shield until you finish today's pages.")
+                    .iqraStyle(.subtitle, color: IQColor.textMuted)
+                ForEach(LockedAppTile.Brand.allCases, id: \.self) { brand in
                     OptionRow(
-                        title: name,
+                        title: brand.label,
                         emoji: "🔒",
-                        isSelected: vm.selectedAppsCount >= 1 && mockSelected.contains(name),
+                        isSelected: mockSelected.contains(brand.label),
                         mode: .multi
                     ) {
-                        toggleMockApp(name)
+                        if mockSelected.contains(brand.label) {
+                            mockSelected.remove(brand.label)
+                        } else {
+                            mockSelected.insert(brand.label)
+                        }
+                        vm.selectedAppsCount = mockSelected.count
+                        appModel.screenTime.persistSelectionCount(mockSelected.count)
                     }
                 }
-                Text("\(vm.selectedAppsCount) apps selected")
-                    .iqraStyle(.caption, color: IQColor.textSecondary)
             }
             .padding(.top, 8)
         }
     }
 
-    private func toggleMockApp(_ name: String) {
-        if mockSelected.contains(name) { mockSelected.remove(name) } else { mockSelected.insert(name) }
-        vm.selectedAppsCount = mockSelected.count
-        appModel.screenTime.persistSelectionCount(mockSelected.count)
-    }
-
     private var systemPrompt: some View {
-        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, onCTA: {
+        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: {
             Task {
                 try? await appModel.screenTime.requestAuthorization()
                 vm.next()
             }
         }) {
-            VStack(alignment: .leading, spacing: 18) {
-                HighlightedText("Allow Screen Time access", style: .h1)
-                Text("Apple will show a system prompt on top of this screen. Tap Allow so IqraLock can shield your selected apps.")
-                    .iqraStyle(.body, color: IQColor.textSecondary)
-                SectionCard {
-                    HStack {
-                        Image(systemName: "arrow.up")
-                            .foregroundStyle(IQColor.goldBright)
-                        Text("Tap Allow on the system alert")
-                            .iqraStyle(.bodyStrong)
+            VStack(spacing: 18) {
+                Text("Connect IqraLock to Screen Time, securely")
+                    .iqraStyle(.h1, color: IQColor.textInk)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("We sync with Apple Screen Time to help you swap scrolling for scripture.")
+                    .iqraStyle(.subtitle, color: IQColor.textMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Faux iOS alert
+                VStack(spacing: 0) {
+                    Text("\"IqraLock\" Would Like to Access Screen Time")
+                        .font(.system(size: 17, weight: .semibold))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 18)
+                    Text("Providing \"IqraLock\" access to Screen Time may allow it to see your activity data, restrict content, and limit the usage of apps and websites.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color(hex: 0x3C3C43).opacity(0.6))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 14)
+                    Divider()
+                    HStack(spacing: 0) {
+                        Text("Don't Allow")
+                            .font(.system(size: 17))
+                            .foregroundStyle(Color(hex: 0x007AFF))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                        Divider().frame(height: 44)
+                        Text("Continue")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Color(hex: 0x007AFF))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color(hex: 0xF4E8D0).opacity(0.55))
                     }
                 }
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(hex: 0xEDEBE9))
+                )
+
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.up.left")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(IQColor.textInk)
+                    Text("Tap Continue")
+                        .iqraStyle(.bodyStrong, color: IQColor.textInk)
+                }
+                .padding(.top, 4)
             }
-            .padding(.top, 12)
         }
     }
 
     private var rating: some View {
         OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, onCTA: vm.next) {
             VStack(spacing: 18) {
-                HighlightedText("Loving IqraLock so far?", style: .h1, alignment: .center)
-                StarRating(rating: 5)
-                Text("A quick rating helps more Muslims find focus.")
-                    .iqraStyle(.body, color: IQColor.textSecondary)
+                Text("Support our mission with a rating 🤎")
+                    .iqraStyle(.h1, color: IQColor.textInk)
                     .multilineTextAlignment(.center)
-                // Placeholder for founders photo from design 2p
-                RoundedRectangle(cornerRadius: IQRadius.lg)
-                    .fill(IQColor.oliveTint)
-                    .frame(height: 160)
-                    .overlay(
-                        Text("Founders photo")
-                            .iqraStyle(.caption, color: IQColor.textSecondary)
+                RoundedRectangle(cornerRadius: IQRadius.xl, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: 0x8B6A3A), Color(hex: 0xC4A574)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
+                    .frame(height: 180)
+                    .overlay(
+                        VStack(spacing: 8) {
+                            Text("👬").font(.system(size: 40))
+                            Text("Founders photo")
+                                .font(.custom("Nunito-SemiBold", size: 15))
+                                .foregroundStyle(.white.opacity(0.9))
+                        }
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: IQRadius.xl, style: .continuous)
+                            .strokeBorder(Color.white, lineWidth: 4)
+                    )
+                    .shadow(color: IQShadow.elevated.color, radius: IQShadow.elevated.radius, y: IQShadow.elevated.y)
+                Text("We're two friends who wanted to grow closer to Allah, and further from our phones. So we built IqraLock — for us, and for you.")
+                    .iqraStyle(.body, color: IQColor.textMuted2)
+                    .multilineTextAlignment(.center)
+                VStack(spacing: 8) {
+                    StarRating()
+                    HStack(spacing: 10) {
+                        Image(systemName: "laurel.leading")
+                            .foregroundStyle(IQColor.brandPrimary)
+                        Text("Freed me from my phone. I've never felt closer to Allah.")
+                            .iqraStyle(.bodyStrong, color: IQColor.textInk)
+                            .multilineTextAlignment(.center)
+                        Image(systemName: "laurel.trailing")
+                            .foregroundStyle(IQColor.brandPrimary)
+                    }
+                }
             }
-            .padding(.top, 20)
+            .padding(.top, 8)
         }
     }
 
     private var planReady: some View {
-        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, onCTA: {
+        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: {
             Task {
                 _ = await appModel.notifications.requestPermission()
                 appModel.notifications.scheduleDailyReminder(hour: 21, minute: 0)
@@ -338,19 +429,26 @@ struct OnboardingFlowView: View {
             }
         }) {
             VStack(alignment: .leading, spacing: 18) {
-                HighlightedText("Your plan is ready!", style: .h1)
-                SectionCard {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Daily goal")
-                            .iqraStyle(.caption, color: IQColor.textSecondary)
-                        Text("\(vm.derivedDailyGoal) pages / day")
-                            .iqraStyle(.h2, color: IQColor.olive)
-                        Text("We'll remind you in the evening — and shield apps until you're done.")
-                            .iqraStyle(.body, color: IQColor.textSecondary)
-                    }
-                }
+                Text("Your plan is ready!")
+                    .iqraStyle(.h1PlanReady, color: IQColor.textInk)
+                Text("This week IqraLock will help you:")
+                    .iqraStyle(.subtitle, color: IQColor.textMuted)
+                planBullet("Build the **daily Qur'an habit** you'll actually stick with")
+                planBullet("Reclaim your time from **endless scrolling** and mindless consumption")
+                planBullet("**Draw closer to Allah**, and focus on what truly matters")
             }
-            .padding(.top, 12)
+        }
+    }
+
+    private func planBullet(_ markdown: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                Circle().fill(IQColor.accentOlive).frame(width: 26, height: 26)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+            HighlightedText(markdown, style: .bodyStrong, highlight: IQColor.textInk)
         }
     }
 
@@ -358,9 +456,7 @@ struct OnboardingFlowView: View {
         PaywallView(
             purchases: appModel.purchases,
             selectedPlan: $selectedPlan,
-            onClose: {
-                finishOnboarding()
-            },
+            onClose: { finishOnboarding() },
             onPurchase: {
                 Task {
                     do {
@@ -374,9 +470,7 @@ struct OnboardingFlowView: View {
                             "plan": selectedPlan.rawValue
                         ])
                         finishOnboarding()
-                    } catch {
-                        // stay on paywall
-                    }
+                    } catch {}
                 }
             },
             onRestore: {
@@ -395,8 +489,7 @@ struct OnboardingFlowView: View {
 
     private func finishOnboarding() {
         let draft = vm.completeProfile()
-        let profile = UserProfile(from: draft)
-        modelContext.insert(profile)
+        modelContext.insert(UserProfile(from: draft))
         appModel.store.dailyGoalPages = draft.dailyGoalPages
         appModel.store.userDisplayName = draft.displayName
         appModel.store.ensureCurrentDay()
@@ -408,25 +501,18 @@ struct OnboardingFlowView: View {
         appModel.completeOnboarding()
     }
 
-    // MARK: Helpers
+    // MARK: - Question helper
 
-    private func stepRow(n: String, title: String, body: String) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            Text(n)
-                .iqraStyle(.h3, color: IQColor.textInverse)
-                .frame(width: 36, height: 36)
-                .background(Circle().fill(IQColor.olive))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).iqraStyle(.bodyStrong)
-                Text(body).iqraStyle(.body, color: IQColor.textSecondary)
-            }
-        }
+    private struct QOption<T: Equatable> {
+        var label: String
+        var emoji: String? = nil
+        var value: T
     }
 
-    private func questionScreen<T: Equatable>(
+    private func question<T: Equatable>(
         title: String,
         subtitle: String?,
-        options: [(String, String?, String?, T)],
+        options: [QOption<T>],
         selected: T?,
         onSelect: @escaping (T) -> Void
     ) -> some View {
@@ -438,20 +524,19 @@ struct OnboardingFlowView: View {
             ctaEnabled: vm.ctaEnabled,
             onCTA: vm.next
         ) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: IQSpace.optionGap) {
                 HighlightedText(title, style: .h1)
                 if let subtitle {
-                    Text(subtitle).iqraStyle(.body, color: IQColor.textSecondary)
+                    Text(subtitle)
+                        .iqraStyle(.subtitle, color: IQColor.textMuted)
+                        .padding(.bottom, 4)
                 }
                 ForEach(Array(options.enumerated()), id: \.offset) { _, opt in
                     OptionRow(
-                        title: opt.0,
-                        subtitle: opt.1,
-                        emoji: opt.2,
-                        isSelected: selected == opt.3
-                    ) {
-                        onSelect(opt.3)
-                    }
+                        title: opt.label,
+                        emoji: opt.emoji,
+                        isSelected: selected == opt.value
+                    ) { onSelect(opt.value) }
                 }
             }
             .padding(.top, 8)

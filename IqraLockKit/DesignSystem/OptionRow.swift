@@ -44,11 +44,11 @@ public struct OptionRow: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .iqraStyle(.bodyStrong, color: IQColor.textPrimary)
+                        .iqraStyle(.option, color: IQColor.textInk)
                         .multilineTextAlignment(.leading)
                     if let subtitle {
                         Text(subtitle)
-                            .iqraStyle(.caption, color: IQColor.textSecondary)
+                            .iqraStyle(.caption, color: IQColor.textMuted)
                             .multilineTextAlignment(.leading)
                     }
                 }
@@ -57,14 +57,15 @@ public struct OptionRow: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 16)
+            .frame(minHeight: 56)
             .background(
-                RoundedRectangle(cornerRadius: IQRadius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
                     .fill(isSelected ? IQColor.oliveTint : IQColor.bgCard)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: IQRadius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
                     .strokeBorder(
-                        isSelected ? IQColor.borderOlive : IQColor.borderSubtle,
+                        isSelected ? IQColor.accentOlive : IQColor.borderSubtle,
                         lineWidth: isSelected ? 2 : 1.6
                     )
             )
@@ -76,35 +77,18 @@ public struct OptionRow: View {
 
     @ViewBuilder
     private var trailingIndicator: some View {
-        switch mode {
-        case .single:
-            ZStack {
+        ZStack {
+            if isSelected {
                 Circle()
-                    .strokeBorder(isSelected ? IQColor.olive : IQColor.ringEmpty, lineWidth: 2)
+                    .fill(IQColor.accentOlive)
                     .frame(width: 24, height: 24)
-                if isSelected {
-                    Circle()
-                        .fill(IQColor.olive)
-                        .frame(width: 24, height: 24)
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-            }
-        case .multi:
-            ZStack {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(IQColor.olive)
-                        .frame(width: 24, height: 24)
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
-                } else {
-                    Circle()
-                        .strokeBorder(IQColor.ringEmpty, lineWidth: 2)
-                        .frame(width: 24, height: 24)
-                }
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+            } else {
+                Circle()
+                    .strokeBorder(IQColor.radioEmpty, lineWidth: 2)
+                    .frame(width: 24, height: 24)
             }
         }
     }

@@ -1,32 +1,30 @@
 import SwiftUI
 import IqraLockKit
 
-/// Phase 0 scratch screen — every design-system component in one place.
 struct ComponentGalleryView: View {
     @State private var selected = true
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text("IqraLock")
-                    .iqraStyle(.wordmark, color: IQColor.olive)
+                IqraAppIcon(size: 96)
+                Text("Welcome to").iqraStyle(.subtitle, color: IQColor.textMuted)
+                Text("IqraLock").iqraStyle(.wordmark, color: IQColor.brandPrimary)
                 HighlightedText("locks **distracting apps**", style: .h1)
-                StarRating()
-                LaurelBadge(title: "#1 Muslim Focus App", subtitle: "Ummah funded")
-                OptionRow(title: "More than 8h", emoji: "📱", isSelected: selected) {
+                LaurelBadge()
+                OptionRow(title: "More than 8h", isSelected: false) {}
+                OptionRow(title: "More than 8h", isSelected: true) {}
+                OptionRow(title: "Build a daily reading habit", emoji: "📖", isSelected: selected, mode: .multi) {
                     selected.toggle()
                 }
-                OptionRow(title: "Build a daily habit", emoji: "🌅", isSelected: false, mode: .multi) {}
-                ProgressRing(progress: 0.6)
-                    .frame(maxWidth: .infinity)
-                StreakPill(days: 12)
                 HStack {
-                    LockedAppTile(label: "Instagram")
-                    LockedAppTile(label: "TikTok")
+                    ForEach(LockedAppTile.Brand.allCases, id: \.self) { b in
+                        LockedAppTile(brand: b)
+                    }
                 }
-                ChunkyButton("Continue", kind: .primary) {}
-                ChunkyButton("Secondary", kind: .secondary) {}
+                ChunkyButton("Continue →", kind: .primary) {}
                 ChunkyButton("Disabled", kind: .primary, enabled: false) {}
+                ChunkyButton("Read now to unlock →", kind: .gold) {}
             }
             .padding(IQSpace.gutter)
         }
@@ -34,6 +32,4 @@ struct ComponentGalleryView: View {
     }
 }
 
-#Preview {
-    ComponentGalleryView()
-}
+#Preview { ComponentGalleryView() }

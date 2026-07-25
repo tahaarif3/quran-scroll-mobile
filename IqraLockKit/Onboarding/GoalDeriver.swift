@@ -11,11 +11,7 @@ public enum GoalDeriver {
         var pages = 3
         if readFrequency?.boostsGoal == true { pages += 1 }
         if arabicAbility?.boostsGoal == true { pages += 1 }
-        // Completing a khatm nudges toward the higher end when not already boosted.
-        if goals.contains(.completeKhatm) && pages < 4 { pages += 1 }
-        if goals.contains(.finishJuz) == false && readFrequency == .rarely {
-            pages -= 1
-        }
+        if readFrequency == .lessThanWeekly { pages -= 1 }
         return min(5, max(2, pages))
     }
 }

@@ -14,73 +14,85 @@ struct PaywallView: View {
 
             VStack(spacing: 0) {
                 HStack {
-                    Spacer()
                     Button(action: onClose) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(IQColor.textSecondary)
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(IQColor.textFaint)
                             .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel("Close")
+                    Spacer()
                 }
                 .padding(.horizontal, 8)
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 18) {
-                        LaurelBadge(title: "#1 Muslim Focus App", subtitle: "Rated by early testers")
-                            .frame(maxWidth: .infinity)
+                    VStack(spacing: 16) {
+                        Text("🤲 Funded by the ummah")
+                            .iqraStyle(.captionStrong, color: IQColor.accentOlive)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(IQColor.oliveTint))
 
-                        HighlightedText(
-                            "Unlock focus.\n**Funded by the ummah.**",
-                            style: .h1,
-                            alignment: .center
-                        )
-
-                        Text("10% of every subscription becomes sadaqah jariyah.")
-                            .iqraStyle(.body, color: IQColor.textSecondary)
+                        Text("Keep IqraLock ad-free — and give back")
+                            .iqraStyle(.h1, color: IQColor.textInk)
                             .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
+
+                        Text("No ads, no data selling — just members funding a mission that gives back.")
+                            .iqraStyle(.subtitle, color: IQColor.textMuted)
+                            .multilineTextAlignment(.center)
 
                         planRow(
                             plan: .annual,
-                            title: "Annual",
-                            price: purchases.annualPriceLabel,
-                            detail: "\(purchases.annualMonthlyDerived) /mo",
+                            title: "Yearly",
+                            detail: "3-day free trial, then \(purchases.annualPriceLabel)/yr",
+                            price: purchases.annualMonthlyDerived,
+                            unit: "/mo",
                             badge: "SAVE \(purchases.savingsPercent)%"
                         )
                         planRow(
                             plan: .weekly,
                             title: "Weekly",
+                            detail: "Billed weekly · cancel anytime",
                             price: purchases.weeklyPriceLabel,
-                            detail: "Billed weekly",
+                            unit: "/wk",
                             badge: nil
                         )
 
-                        VStack(alignment: .leading, spacing: 10) {
-                            benefit("Shield distracting apps until you read")
-                            benefit("Streaks, stats, and reminders")
-                            benefit("Extra translations & transliteration")
-                            benefit("Emergency passes & reader themes")
+                        HStack(alignment: .top, spacing: 12) {
+                            Text("🌍").font(.system(size: 28))
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("10% of every subscription")
+                                    .iqraStyle(.bodyStrong, color: IQColor.textInk)
+                                Text("becomes sadaqah jariyah — wells, mushafs & meals.")
+                                    .iqraStyle(.caption, color: IQColor.textMuted2)
+                            }
                         }
-                        .padding(.top, 4)
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: IQRadius.card, style: .continuous)
+                                .fill(Color.white)
+                                .shadow(color: IQShadow.card.color, radius: IQShadow.card.radius, y: IQShadow.card.y)
+                        )
                     }
                     .padding(.horizontal, IQSpace.gutter)
-                    .padding(.bottom, 120)
+                    .padding(.bottom, 140)
                 }
             }
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 10) {
                 ChunkyButton(
-                    selectedPlan == .annual ? "Start 3-day free trial" : "Continue with weekly",
+                    selectedPlan == .annual ? "Start 3-day free trial →" : "Continue with weekly →",
                     kind: .primary,
                     action: onPurchase
                 )
-                Button("Restore purchases", action: onRestore)
-                    .iqraStyle(.captionStrong, color: IQColor.olive)
-                Text("Cancel anytime in Settings. Reader stays free.")
-                    .iqraStyle(.caption, color: IQColor.textSecondary)
-                    .multilineTextAlignment(.center)
+                HStack(spacing: 4) {
+                    Text("Then \(purchases.annualPriceLabel)/year · cancel anytime ·")
+                        .iqraStyle(.finePrint, color: IQColor.textFaint)
+                    Button("Restore", action: onRestore)
+                        .iqraStyle(.finePrint, color: IQColor.brandPrimary)
+                }
             }
             .padding(.horizontal, IQSpace.gutterWide)
             .padding(.bottom, IQSpace.ctaBottom)
@@ -89,53 +101,60 @@ struct PaywallView: View {
         }
     }
 
-    private func planRow(plan: PaywallPlan, title: String, price: String, detail: String, badge: String?) -> some View {
-        Button {
-            selectedPlan = plan
-        } label: {
-            HStack {
+    private func planRow(
+        plan: PaywallPlan,
+        title: String,
+        detail: String,
+        price: String,
+        unit: String,
+        badge: String?
+    ) -> some View {
+        Button { selectedPlan = plan } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    if selectedPlan == plan {
+                        Circle().fill(IQColor.accentOlive).frame(width: 24, height: 24)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                    } else {
+                        Circle()
+                            .strokeBorder(IQColor.radioEmpty, lineWidth: 2)
+                            .frame(width: 24, height: 24)
+                    }
+                }
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
-                        Text(title).iqraStyle(.bodyStrong)
+                        Text(title).iqraStyle(.option, color: IQColor.textInk)
                         if let badge {
                             Text(badge)
-                                .iqraStyle(.captionStrong, color: IQColor.textOnGold)
+                                .iqraStyle(.finePrint, color: IQColor.brandPrimary)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
-                                .background(Capsule().fill(IQColor.goldBright))
+                                .background(Capsule().fill(IQColor.savePill))
                         }
                     }
-                    Text(detail).iqraStyle(.caption, color: IQColor.textSecondary)
+                    Text(detail).iqraStyle(.caption, color: IQColor.textMuted)
                 }
                 Spacer()
-                Text(price).iqraStyle(.bodyStrong, color: IQColor.olive)
-                ZStack {
-                    Circle()
-                        .strokeBorder(selectedPlan == plan ? IQColor.olive : IQColor.ringEmpty, lineWidth: 2)
-                        .frame(width: 22, height: 22)
-                    if selectedPlan == plan {
-                        Circle().fill(IQColor.olive).frame(width: 12, height: 12)
-                    }
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text(price).iqraStyle(.h3, color: IQColor.textInk)
+                    Text(unit).iqraStyle(.finePrint, color: IQColor.textMuted)
                 }
             }
             .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: IQRadius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
                     .fill(selectedPlan == plan ? IQColor.oliveTint : Color.white)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: IQRadius.md, style: .continuous)
-                    .strokeBorder(selectedPlan == plan ? IQColor.olive : IQColor.borderSubtle, lineWidth: selectedPlan == plan ? 2 : 1.6)
+                RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
+                    .strokeBorder(
+                        selectedPlan == plan ? IQColor.accentOlive : IQColor.borderSubtle,
+                        lineWidth: selectedPlan == plan ? 2 : 1.6
+                    )
             )
         }
         .buttonStyle(.plain)
-    }
-
-    private func benefit(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(IQColor.olive)
-            Text(text).iqraStyle(.body, color: IQColor.textPrimary)
-        }
     }
 }

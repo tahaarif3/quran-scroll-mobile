@@ -1,37 +1,87 @@
 import SwiftUI
 
+// MARK: - App Icon (اقرأ + crescent)
+
+public struct IqraAppIcon: View {
+    let size: CGFloat
+
+    public init(size: CGFloat = 108) {
+        self.size = size
+    }
+
+    public var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                .fill(IQColor.appIconGradient)
+                .shadow(
+                    color: IQShadow.appIcon.color,
+                    radius: IQShadow.appIcon.radius,
+                    y: IQShadow.appIcon.y
+                )
+            VStack(spacing: size * 0.02) {
+                CrescentShape()
+                    .fill(IQColor.iconCrescent)
+                    .frame(width: size * 0.28, height: size * 0.28)
+                    .offset(y: size * 0.04)
+                Text("اقرأ")
+                    .font(.custom("Amiri-Bold", size: size * 0.34))
+                    .foregroundStyle(IQColor.iconGlyph)
+                    .offset(y: -size * 0.04)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel("IqraLock")
+    }
+}
+
+public struct CrescentShape: Shape {
+    public init() {}
+    public func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let r = min(rect.width, rect.height) / 2
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        path.addArc(center: c, radius: r, startAngle: .degrees(-40), endAngle: .degrees(220), clockwise: false)
+        path.addArc(
+            center: CGPoint(x: c.x + r * 0.28, y: c.y - r * 0.08),
+            radius: r * 0.78,
+            startAngle: .degrees(200),
+            endAngle: .degrees(-20),
+            clockwise: true
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
 // MARK: - Laurel Badge
 
 public struct LaurelBadge: View {
     let title: String
-    let subtitle: String
+    let showStars: Bool
 
-    public init(title: String, subtitle: String) {
+    public init(title: String = "#1 Muslim Focus App", showStars: Bool = true) {
         self.title = title
-        self.subtitle = subtitle
+        self.showStars = showStars
     }
 
     public var body: some View {
-        HStack(spacing: 10) {
-            laurel(flipped: true)
-            VStack(spacing: 2) {
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                Image(systemName: "laurel.leading")
+                    .font(.system(size: 28, weight: .regular))
+                    .foregroundStyle(IQColor.brandPrimary)
+                    .accessibilityHidden(true)
                 Text(title)
-                    .iqraStyle(.captionStrong, color: IQColor.olive)
-                Text(subtitle)
-                    .iqraStyle(.caption, color: IQColor.textSecondary)
+                    .iqraStyle(.captionStrong, color: IQColor.brandPrimary)
+                Image(systemName: "laurel.trailing")
+                    .font(.system(size: 28, weight: .regular))
+                    .foregroundStyle(IQColor.brandPrimary)
+                    .accessibilityHidden(true)
             }
-            laurel(flipped: false)
+            if showStars {
+                StarRating(rating: 5)
+            }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-    }
-
-    private func laurel(flipped: Bool) -> some View {
-        Image(systemName: "laurel.leading")
-            .font(.system(size: 28, weight: .regular))
-            .foregroundStyle(IQColor.gold)
-            .scaleEffect(x: flipped ? -1 : 1, y: 1)
-            .accessibilityHidden(true)
     }
 }
 
@@ -50,8 +100,8 @@ public struct StarRating: View {
         HStack(spacing: 3) {
             ForEach(0..<maxStars, id: \.self) { index in
                 Image(systemName: index < Int(rating.rounded()) ? "star.fill" : "star")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(IQColor.goldBright)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(IQColor.star)
             }
         }
         .accessibilityLabel("\(rating, specifier: "%.1f") out of \(maxStars) stars")
@@ -71,8 +121,8 @@ public struct ProgressRing: View {
         progress: Double,
         lineWidth: CGFloat = 10,
         size: CGFloat = 120,
-        track: Color = Color.white.opacity(0.15),
-        fill: Color = IQColor.gold
+        track: Color = Color.white.opacity(0.12),
+        fill: Color = IQColor.accentGoldOnDark
     ) {
         self.progress = min(1, max(0, progress))
         self.lineWidth = lineWidth
@@ -83,8 +133,7 @@ public struct ProgressRing: View {
 
     public var body: some View {
         ZStack {
-            Circle()
-                .stroke(track, lineWidth: lineWidth)
+            Circle().stroke(track, lineWidth: lineWidth)
             Circle()
                 .trim(from: 0, to: progress)
                 .stroke(fill, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
@@ -100,9 +149,11 @@ public struct ProgressRing: View {
 // MARK: - Section Card
 
 public struct SectionCard<Content: View>: View {
+    let elevated: Bool
     let content: Content
 
-    public init(@ViewBuilder content: () -> Content) {
+    public init(elevated: Bool = false, @ViewBuilder content: () -> Content) {
+        self.elevated = elevated
         self.content = content()
     }
 
@@ -111,9 +162,13 @@ public struct SectionCard<Content: View>: View {
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: IQRadius.lg, style: .continuous)
+                RoundedRectangle(cornerRadius: IQRadius.card, style: .continuous)
                     .fill(IQColor.bgCard)
-                    .shadow(color: IQShadow.card.color, radius: IQShadow.card.radius, y: IQShadow.card.y)
+                    .shadow(
+                        color: (elevated ? IQShadow.elevated : IQShadow.card).color,
+                        radius: (elevated ? IQShadow.elevated : IQShadow.card).radius,
+                        y: (elevated ? IQShadow.elevated : IQShadow.card).y
+                    )
             )
     }
 }
@@ -121,40 +176,72 @@ public struct SectionCard<Content: View>: View {
 // MARK: - Locked App Tile
 
 public struct LockedAppTile: View {
-    let label: String
-    let systemImage: String
-    let dimmed: Bool
+    public enum Brand: String, CaseIterable {
+        case instagram, facebook, tiktok, linkedin
 
-    public init(label: String, systemImage: String = "app.fill", dimmed: Bool = true) {
-        self.label = label
-        self.systemImage = systemImage
+        public var label: String {
+            switch self {
+            case .instagram: return "Instagram"
+            case .facebook: return "Facebook"
+            case .tiktok: return "TikTok"
+            case .linkedin: return "LinkedIn"
+            }
+        }
+
+        public var color: Color {
+            switch self {
+            case .instagram: return Color(hex: 0xE1306C)
+            case .facebook: return Color(hex: 0x1877F2)
+            case .tiktok: return Color(hex: 0x111111)
+            case .linkedin: return Color(hex: 0x0A66C2)
+            }
+        }
+
+        public var glyph: String {
+            switch self {
+            case .instagram: return "camera.fill"
+            case .facebook: return "f.square.fill"
+            case .tiktok: return "music.note"
+            case .linkedin: return "briefcase.fill"
+            }
+        }
+    }
+
+    let brand: Brand
+    let dimmed: Bool
+    let showLabel: Bool
+
+    public init(brand: Brand, dimmed: Bool = true, showLabel: Bool = true) {
+        self.brand = brand
         self.dimmed = dimmed
+        self.showLabel = showLabel
     }
 
     public var body: some View {
         VStack(spacing: 6) {
             ZStack {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color(hex: 0xD9CDB8))
+                    .fill(brand.color)
                     .frame(width: 56, height: 56)
-                Image(systemName: systemImage)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(IQColor.textSecondary)
+                Image(systemName: brand.glyph)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.white)
                 if dimmed {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.black.opacity(0.35))
+                        .fill(Color.black.opacity(0.28))
                         .frame(width: 56, height: 56)
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
+                    Text("🔒")
+                        .font(.system(size: 18))
                 }
             }
-            Text(label)
-                .iqraStyle(.caption, color: IQColor.textSecondary)
-                .lineLimit(1)
+            if showLabel {
+                Text(brand.label)
+                    .iqraStyle(.finePrint, color: IQColor.textMuted)
+                    .lineLimit(1)
+            }
         }
         .frame(width: 72)
-        .accessibilityLabel("\(label), locked")
+        .accessibilityLabel("\(brand.label), locked")
     }
 }
 
@@ -170,13 +257,18 @@ public struct StreakPill: View {
     public var body: some View {
         HStack(spacing: 6) {
             Text("🔥")
-            Text("\(days) day streak")
-                .iqraStyle(.captionStrong, color: IQColor.olive)
+            Text("\(days)")
+                .font(.custom("Nunito-ExtraBold", size: 16))
+                .foregroundStyle(IQColor.brandGold)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(Capsule().fill(IQColor.oliveTint))
-        .overlay(Capsule().strokeBorder(IQColor.olive.opacity(0.25), lineWidth: 1))
+        .padding(.vertical, 8)
+        .background(
+            Capsule().fill(Color.white)
+                .shadow(color: IQShadow.card.color, radius: IQShadow.card.radius, y: IQShadow.card.y)
+        )
         .accessibilityLabel("\(days) day streak")
     }
 }
+
+// MARK: - Highlighted Text (re-export convenience already in HighlightedText.swift)

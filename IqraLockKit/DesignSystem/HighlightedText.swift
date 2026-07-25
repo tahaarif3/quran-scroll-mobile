@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Parses `**…**` spans into brand-colored bold text.
-/// SwiftUI markdown cannot color spans; this keeps onboarding copy declarative.
+/// Use `highlight: IQColor.brandGold` for numeric reveals ("25 years").
 public struct HighlightedText: View {
     let source: String
     let baseStyle: IQFontStyle
@@ -12,8 +12,8 @@ public struct HighlightedText: View {
     public init(
         _ source: String,
         style: IQFontStyle = .h1,
-        color: Color = IQColor.textPrimary,
-        highlight: Color = IQColor.brandHighlight,
+        color: Color = IQColor.textInk,
+        highlight: Color = IQColor.brandPrimary,
         alignment: TextAlignment = .leading
     ) {
         self.source = source
@@ -47,14 +47,12 @@ public struct HighlightedText: View {
         highlightColor: Color
     ) -> AttributedString {
         var result = AttributedString()
-        let pattern = #"\*\*(.+?)\*\*"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+        guard let regex = try? NSRegularExpression(pattern: #"\*\*(.+?)\*\*"#, options: []) else {
             return AttributedString(source)
         }
         let ns = source as NSString
         let full = NSRange(location: 0, length: ns.length)
         var cursor = 0
-        let matches = regex.matches(in: source, options: [], range: full)
 
         func appendPlain(_ string: String, highlight: Bool) {
             var chunk = AttributedString(string)
@@ -65,15 +63,14 @@ public struct HighlightedText: View {
             result.append(chunk)
         }
 
-        for match in matches {
+        for match in regex.matches(in: source, options: [], range: full) {
             let matchRange = match.range
             if matchRange.location > cursor {
                 let plain = ns.substring(with: NSRange(location: cursor, length: matchRange.location - cursor))
                 appendPlain(plain, highlight: false)
             }
             if match.numberOfRanges > 1 {
-                let inner = ns.substring(with: match.range(at: 1))
-                appendPlain(inner, highlight: true)
+                appendPlain(ns.substring(with: match.range(at: 1)), highlight: true)
             }
             cursor = matchRange.location + matchRange.length
         }

@@ -36,7 +36,7 @@ public final class MockPurchaseService: PurchaseService, @unchecked Sendable {
     public private(set) var hasPro: Bool
     public var annualPriceLabel: String = "$29.99"
     public var weeklyPriceLabel: String = "$2.99"
-    public var annualMonthlyDerived: String = "$2.50"
+    public var annualMonthlyDerived: String = "$2.50" // derived from annual/12 for SAVE pill math
     public var savingsPercent: Int = 60
     public var offeringId: String = "default"
 
