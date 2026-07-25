@@ -1,0 +1,86 @@
+{
+  "identifier" : "IqraLock",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "IQRALOCK_PRO",
+      "localizations" : [
+
+      ],
+      "name" : "IqraLock Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "29.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "ANNUAL001",
+          "introductoryOffer" : {
+            "displayPrice" : "0",
+            "internalID" : "TRIAL001",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P3D"
+          },
+          "localizations" : [
+            {
+              "description" : "Annual access with 3-day trial",
+              "displayName" : "IqraLock Pro Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.iqralock.pro.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Annual",
+          "subscriptionGroupID" : "IQRALOCK_PRO",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "2.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "WEEKLY001",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Weekly access",
+              "displayName" : "IqraLock Pro Weekly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.iqralock.pro.weekly",
+          "recurringSubscriptionPeriod" : "P1W",
+          "referenceName" : "Weekly",
+          "subscriptionGroupID" : "IQRALOCK_PRO",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}
