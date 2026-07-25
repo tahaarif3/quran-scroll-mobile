@@ -45,7 +45,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.iqralock.pro.annual",
+          "productID" : "com.tahaarif.iqralock.pro.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Annual",
           "subscriptionGroupID" : "IQRALOCK_PRO",
@@ -70,7 +70,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.iqralock.pro.weekly",
+          "productID" : "com.tahaarif.iqralock.pro.weekly",
           "recurringSubscriptionPeriod" : "P1W",
           "referenceName" : "Weekly",
           "subscriptionGroupID" : "IQRALOCK_PRO",

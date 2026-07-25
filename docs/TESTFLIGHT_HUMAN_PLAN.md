@@ -19,12 +19,12 @@ Do them in this order. Items marked **BLOCKER** stop TestFlight / App Store if s
 - [ ] Expect multi-week latency — submit before polishing UI.
 
 ### 0.3 Create App IDs & App Group
-- [ ] App ID: `com.iqralock.app` (or your chosen reverse-DNS — if you change it, update `project.yml` + all entitlements + App Group string).
+- [ ] App ID: `com.tahaarif.iqralock` (or your chosen reverse-DNS — if you change it, update `project.yml` + all entitlements + App Group string).
 - [ ] Extension App IDs:
-  - `com.iqralock.app.ShieldConfiguration`
-  - `com.iqralock.app.ShieldAction`
-  - `com.iqralock.app.DeviceActivityMonitor`
-- [ ] App Group: `group.com.iqralock.shared` (must match `AppGroupID.identifier`) enabled on **all four** App IDs.
+  - `com.tahaarif.iqralock.ShieldConfiguration`
+  - `com.tahaarif.iqralock.ShieldAction`
+  - `com.tahaarif.iqralock.DeviceActivityMonitor`
+- [ ] App Group: `group.com.tahaarif.iqralock.shared` (must match `AppGroupID.identifier`) enabled on **all four** App IDs.
 - [ ] Enable **Family Controls** on all four App IDs.
 
 ### 0.4 App Store Connect app record
@@ -34,8 +34,8 @@ Do them in this order. Items marked **BLOCKER** stop TestFlight / App Store if s
 ### 0.5 RevenueCat + products
 - [ ] Create a RevenueCat project; note the iOS API key.
 - [ ] In App Store Connect → Subscriptions: group “IqraLock Pro” with:
-  - Annual `com.iqralock.pro.annual` — $29.99, 3-day free trial
-  - Weekly `com.iqralock.pro.weekly` — $2.99
+  - Annual `com.tahaarif.iqralock.pro.annual` — $29.99, 3-day free trial
+  - Weekly `com.tahaarif.iqralock.pro.weekly` — $2.99
 - [ ] Entitlement id: `pro` (matches plan).
 - [ ] Link products in RevenueCat; create Offering `default` (and a second offering later for Experiments).
 - [ ] Uncomment the RevenueCat SPM package in `project.yml` and replace `MockPurchaseService` with a real implementation when ready.
@@ -190,7 +190,7 @@ You **cannot** ship external TestFlight / App Store until the distribution entit
 ## Contact / accounts used in this cloud run
 
 - GitHub repo: `tahaarif3/quran-scroll-mobile`
-- Bundle prefix in code: `com.iqralock.*`
-- App Group: `group.com.iqralock.shared`
+- Bundle prefix in code: `com.tahaarif.iqralock.*`
+- App Group: `group.com.tahaarif.iqralock.shared`
 
 If you change bundle IDs, change them in `project.yml`, all `.entitlements`, and `AppGroupID.swift` together, then regenerate with XcodeGen.

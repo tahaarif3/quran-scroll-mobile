@@ -1,6 +1,6 @@
 name: IqraLock
 options:
-  bundleIdPrefix: com.iqralock
+  bundleIdPrefix: com.tahaarif.iqralock
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -46,7 +46,7 @@ targets:
       - sdk: SQLite3.tbd
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.iqralock.IqraLockKit
+        PRODUCT_BUNDLE_IDENTIFIER: com.tahaarif.iqralock.kit
         GENERATE_INFOPLIST_FILE: YES
         DEFINES_MODULE: YES
         SKIP_INSTALL: YES
@@ -87,7 +87,7 @@ targets:
         embed: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.iqralock.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.tahaarif.iqralock
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: IqraLock
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
@@ -120,7 +120,7 @@ targets:
       properties:
         com.apple.developer.family-controls: true
         com.apple.security.application-groups:
-          - group.com.iqralock.shared
+          - group.com.tahaarif.iqralock.shared
 
   ShieldConfiguration:
     type: app-extension
@@ -131,7 +131,7 @@ targets:
       - target: IqraLockKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.iqralock.app.ShieldConfiguration
+        PRODUCT_BUNDLE_IDENTIFIER: com.tahaarif.iqralock.ShieldConfiguration
         GENERATE_INFOPLIST_FILE: YES
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: ShieldConfiguration/ShieldConfiguration.entitlements
@@ -150,7 +150,7 @@ targets:
       properties:
         com.apple.developer.family-controls: true
         com.apple.security.application-groups:
-          - group.com.iqralock.shared
+          - group.com.tahaarif.iqralock.shared
 
   ShieldAction:
     type: app-extension
@@ -161,7 +161,7 @@ targets:
       - target: IqraLockKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.iqralock.app.ShieldAction
+        PRODUCT_BUNDLE_IDENTIFIER: com.tahaarif.iqralock.ShieldAction
         GENERATE_INFOPLIST_FILE: YES
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: ShieldAction/ShieldAction.entitlements
@@ -180,7 +180,7 @@ targets:
       properties:
         com.apple.developer.family-controls: true
         com.apple.security.application-groups:
-          - group.com.iqralock.shared
+          - group.com.tahaarif.iqralock.shared
 
   DeviceActivityMonitor:
     type: app-extension
@@ -191,7 +191,7 @@ targets:
       - target: IqraLockKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.iqralock.app.DeviceActivityMonitor
+        PRODUCT_BUNDLE_IDENTIFIER: com.tahaarif.iqralock.DeviceActivityMonitor
         GENERATE_INFOPLIST_FILE: YES
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: DeviceActivityMonitor/DeviceActivityMonitor.entitlements
@@ -210,7 +210,7 @@ targets:
       properties:
         com.apple.developer.family-controls: true
         com.apple.security.application-groups:
-          - group.com.iqralock.shared
+          - group.com.tahaarif.iqralock.shared
 
   IqraLockKitTests:
     type: bundle.unit-test
@@ -221,7 +221,7 @@ targets:
       - target: IqraLockKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.iqralock.IqraLockKitTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.tahaarif.iqralock.IqraLockKitTests
         GENERATE_INFOPLIST_FILE: YES
 
   IqraLockSnapshotTests:
@@ -235,7 +235,7 @@ targets:
       - package: SnapshotTesting
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.iqralock.IqraLockSnapshotTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.tahaarif.iqralock.IqraLockSnapshotTests
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/IqraLock.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/IqraLock"
         BUNDLE_LOADER: "$(TEST_HOST)"
