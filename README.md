@@ -29,7 +29,7 @@ xcodegen generate
 open IqraLock.xcodeproj
 ```
 
-Then set your **Development Team**, enable the **Family Controls** capability on all four targets (already declared in entitlements), and ensure the App Group `group.com.iqralock.shared` exists for your Team ID.
+Then set your **Development Team**, enable the **Family Controls** capability on all four targets (already declared in entitlements), and ensure the App Group `group.com.tahaarif.iqralock.shared` exists for your Team ID.
 
 ```bash
 xcodegen generate && xcodebuild -scheme IqraLock -destination 'generic/platform=iOS' build
