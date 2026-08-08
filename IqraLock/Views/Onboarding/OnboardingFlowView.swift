@@ -456,7 +456,12 @@ struct OnboardingFlowView: View {
         PaywallView(
             purchases: appModel.purchases,
             selectedPlan: $selectedPlan,
-            onClose: { finishOnboarding() },
+            onSkip: {
+                appModel.analytics.track("paywall_skipped", properties: [
+                    "offering": appModel.purchases.offeringId
+                ])
+                finishOnboarding()
+            },
             onPurchase: {
                 Task {
                     do {
@@ -478,6 +483,9 @@ struct OnboardingFlowView: View {
                     try? await appModel.purchases.restore()
                     if appModel.purchases.hasPro { finishOnboarding() }
                 }
+            },
+            onSkipRevealed: {
+                appModel.analytics.track("paywall_skip_revealed", properties: [:])
             }
         )
         .onAppear {
@@ -489,7 +497,17 @@ struct OnboardingFlowView: View {
 
     private func finishOnboarding() {
         let draft = vm.completeProfile()
-        modelContext.insert(UserProfile(from: draft))
+        // Upsert: re-running onboarding must not leave two profiles, which would make
+        // `profiles.first` — read by Home, Reader and You — non-deterministic.
+        let existing = try? modelContext.fetch(FetchDescriptor<UserProfile>())
+        if let profile = existing?.first {
+            profile.apply(draft)
+            for duplicate in (existing ?? []).dropFirst() {
+                modelContext.delete(duplicate)
+            }
+        } else {
+            modelContext.insert(UserProfile(from: draft))
+        }
         appModel.store.dailyGoalPages = draft.dailyGoalPages
         appModel.store.userDisplayName = draft.displayName
         appModel.store.ensureCurrentDay()

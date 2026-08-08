@@ -56,8 +56,19 @@ public enum HabitStatsCalculator {
         surahsCompleted: Int = 0
     ) -> HabitStats {
         let startOfToday = calendar.startOfDay(for: now)
+        // Merge rather than `uniqueKeysWithValues:`, which traps on duplicate keys. Two records
+        // can land on the same start-of-day after a timezone change or a double-write, and that
+        // trap would crash Home and Progress on every render.
         let byDay: [Date: DayInput] = Dictionary(
-            uniqueKeysWithValues: records.map { (calendar.startOfDay(for: $0.day), $0) }
+            records.map { (calendar.startOfDay(for: $0.day), $0) },
+            uniquingKeysWith: { lhs, rhs in
+                DayInput(
+                    day: lhs.day,
+                    pagesRead: lhs.pagesRead + rhs.pagesRead,
+                    minutesRead: lhs.minutesRead + rhs.minutesRead,
+                    goalMet: lhs.goalMet || rhs.goalMet
+                )
+            }
         )
 
         // Streak: consecutive goal-met days ending today or yesterday.
