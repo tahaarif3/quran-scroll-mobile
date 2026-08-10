@@ -43,7 +43,9 @@ targets:
       - path: Resources/Fonts
         buildPhase: resources
     dependencies:
-      - sdk: SQLite3.tbd
+      # The SDK ships this as libsqlite3.tbd; "SQLite3.tbd" does not exist and fails
+      # at link time. The `-lsqlite3` in OTHER_LDFLAGS below is what actually links it.
+      - sdk: libsqlite3.tbd
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tahaarif.iqralock.kit
