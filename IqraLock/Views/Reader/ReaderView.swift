@@ -18,7 +18,12 @@ struct ReaderView: View {
     @State private var encouragement = "Almost there!"
     @State private var repository: BundledQuranRepository?
 
-    private let unlock = UnlockCoordinator()
+    /// Resolved from `AppModel`, never constructed here. A stored `UnlockCoordinator()` ran at
+    /// view-struct init — which `TabView` performs for every tab up front — and cascaded through
+    /// defaulted initializers into `ManagedSettingsStore()`, crashing the moment the root view
+    /// swapped after onboarding. It also bypassed the app's injected services, silently dropping
+    /// unlock analytics and notifications.
+    private var unlock: UnlockCoordinator { appModel.unlock }
     private let bottomBarHeight: CGFloat = 110
     private var goal: Int { profiles.first?.dailyGoalPages ?? appModel.store.dailyGoalPages }
     private var style: ReadingStyleAnswer { profiles.first?.readingStyle ?? .arabicTranslation }

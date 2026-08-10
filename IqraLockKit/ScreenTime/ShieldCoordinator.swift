@@ -7,14 +7,12 @@ import FamilyControls
 
 /// Single source of truth for lock/unlock, mirrored into the App Group.
 public final class ShieldCoordinator: @unchecked Sendable {
-    public static let shared = ShieldCoordinator()
-
     private let store: AppGroupStore
     private let screenTime: ScreenTimeService
 
     public init(store: AppGroupStore = .shared, screenTime: ScreenTimeService? = nil) {
         self.store = store
-        self.screenTime = screenTime ?? FamilyControlsScreenTimeService(store: store)
+        self.screenTime = screenTime ?? ScreenTimeServiceFactory.make(store: store)
     }
 
     public var isLockedNow: Bool { store.isLockedNow }

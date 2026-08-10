@@ -59,6 +59,21 @@ public final class UserProfile {
     public var readingStyle: ReadingStyleAnswer {
         ReadingStyleAnswer(rawValue: readingStyleRaw) ?? .arabicTranslation
     }
+
+    /// Overwrite the onboarding-derived fields in place, so re-running onboarding updates the
+    /// existing profile instead of inserting a second one. Deliberately leaves user-adjusted
+    /// settings — reminder time, text size, translation — untouched.
+    public func apply(_ draft: UserProfileDraft) {
+        displayName = draft.displayName
+        dailyGoalPages = draft.dailyGoalPages
+        readingStyleRaw = draft.readingStyle.rawValue
+        genderRaw = draft.gender?.rawValue
+        faithStageRaw = draft.faithStage?.rawValue
+        arabicAbilityRaw = draft.arabicAbility?.rawValue
+        readFrequencyRaw = draft.readFrequency?.rawValue
+        goalsRaw = draft.goals.map(\.rawValue).joined(separator: "|")
+        onboardingCompletedAt = draft.onboardingCompletedAt
+    }
 }
 
 @Model

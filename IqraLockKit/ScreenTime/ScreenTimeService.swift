@@ -23,24 +23,57 @@ public protocol ScreenTimeService: AnyObject, Sendable {
     func consumeEmergencyPass(durationMinutes: Int) -> Bool
 }
 
-/// Production service. FamilyControls APIs compile only when the entitlement is present;
-/// methods are no-ops / mocked behavior when unavailable (Simulator / Linux syntax check).
+/// Whether the FamilyControls/ManagedSettings runtime is actually usable in this process.
+///
+/// `#if canImport(FamilyControls)` only gates *compilation*. The Simulator compiles the
+/// framework in and then traps when `ManagedSettingsStore` is constructed, and so does any
+/// build missing the `com.apple.developer.family-controls` entitlement. Every touch of a
+/// ManagedSettings type must be gated on this at runtime.
+public enum ScreenTimeAvailability {
+    public static var isSupported: Bool {
+        #if targetEnvironment(simulator)
+        return false
+        #elseif canImport(FamilyControls)
+        return true
+        #else
+        return false
+        #endif
+    }
+}
+
+/// Production service. Every FamilyControls type is created on demand and gated on
+/// `ScreenTimeAvailability` — never stored, never built at init. See `clearShield()`.
 public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecked Sendable {
     private let store: AppGroupStore
     private let analytics: AnalyticsService
-
-    #if canImport(FamilyControls)
-    private let managedSettings = ManagedSettingsStore()
-    private let center = AuthorizationCenter.shared
-    #endif
 
     public init(store: AppGroupStore = .shared, analytics: AnalyticsService = NoopAnalytics()) {
         self.store = store
         self.analytics = analytics
     }
 
+    #if canImport(FamilyControls)
+    /// Built on demand, never stored. Constructing `ManagedSettingsStore` eagerly is what
+    /// crashed the app on the post-paywall transition: `TabView` builds every tab's view
+    /// value up front, so a service held as a view's stored property ran this at view-tree
+    /// construction time, before any runtime check could intervene.
+    /// Also gated on authorization: a device build without a provisioned
+    /// `com.apple.developer.family-controls` entitlement can never reach `.approved`, and there
+    /// is nothing to shield when the user has not authorized us anyway.
+    private var managedSettings: ManagedSettingsStore? {
+        guard ScreenTimeAvailability.isSupported, authStatus == .approved else { return nil }
+        return ManagedSettingsStore()
+    }
+
+    private var center: AuthorizationCenter? {
+        guard ScreenTimeAvailability.isSupported else { return nil }
+        return AuthorizationCenter.shared
+    }
+    #endif
+
     public var authStatus: ScreenTimeAuthStatus {
         #if canImport(FamilyControls)
+        guard let center else { return .notDetermined }
         switch center.authorizationStatus {
         case .approved: return .approved
         case .denied: return .denied
@@ -63,6 +96,10 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
 
     public func requestAuthorization() async throws {
         #if canImport(FamilyControls)
+        guard let center else {
+            analytics.track("screentime_auth_result", properties: ["status": "unsupported"])
+            return
+        }
         try await center.requestAuthorization(for: .individual)
         analytics.track("screentime_auth_result", properties: [
             "status": authStatus.rawValue
@@ -94,12 +131,13 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
     public func clearShield() {
         store.isLockedNow = false
         #if canImport(FamilyControls)
-        managedSettings.shield.applications = nil
+        managedSettings?.shield.applications = nil
         #endif
     }
 
     public func scheduleMidnightReset() {
         #if canImport(FamilyControls)
+        guard ScreenTimeAvailability.isSupported, authStatus == .approved else { return }
         let schedule = DeviceActivitySchedule(
             intervalStart: DateComponents(hour: 0, minute: 0),
             intervalEnd: DateComponents(hour: 23, minute: 59),
@@ -126,6 +164,22 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
 public struct SelectedAppsPayload: Codable, Equatable, Sendable {
     public var count: Int
     public init(count: Int) { self.count = count }
+}
+
+/// The only supported way to obtain a `ScreenTimeService`.
+///
+/// Never name `FamilyControlsScreenTimeService` directly from a view or coordinator — on
+/// Simulator and in un-entitled builds it must degrade to the mock rather than trap.
+public enum ScreenTimeServiceFactory {
+    public static func make(
+        store: AppGroupStore = .shared,
+        analytics: AnalyticsService = NoopAnalytics()
+    ) -> ScreenTimeService {
+        guard ScreenTimeAvailability.isSupported else {
+            return MockScreenTimeService(store: store)
+        }
+        return FamilyControlsScreenTimeService(store: store, analytics: analytics)
+    }
 }
 
 #if canImport(FamilyControls)

@@ -71,4 +71,28 @@ final class HabitStatsTests: XCTestCase {
         XCTAssertEqual(stats.minutesLast7Days[6], 15)
         XCTAssertEqual(stats.minutesLast7Days[4], 30)
     }
+
+    /// Regression: two records on the same start-of-day used to trap in
+    /// `Dictionary(uniqueKeysWithValues:)`, crashing Home and Progress on every render.
+    /// Reachable via a timezone change or a double-write.
+    func testDuplicateDaysAreMergedRatherThanTrapping() {
+        let today = calendar.startOfDay(for: Date())
+        let records = [
+            HabitStatsCalculator.DayInput(day: today, pagesRead: 2, minutesRead: 10, goalMet: false),
+            HabitStatsCalculator.DayInput(
+                day: today.addingTimeInterval(60 * 60 * 5),
+                pagesRead: 3,
+                minutesRead: 20,
+                goalMet: true
+            )
+        ]
+
+        let stats = HabitStatsCalculator.compute(records: records, now: today, calendar: calendar)
+
+        XCTAssertEqual(stats.minutesLast7Days[6], 30, "duplicate days should sum minutes")
+        XCTAssertEqual(stats.pagesReadTotal, 5)
+        XCTAssertEqual(stats.minutesReclaimed, 30)
+        XCTAssertTrue(stats.weekCompletion[6], "goalMet should survive the merge")
+        XCTAssertEqual(stats.streakDays, 1)
+    }
 }

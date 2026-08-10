@@ -37,27 +37,45 @@ final class AppModel {
     let store: AppGroupStore
     let notifications: NotificationScheduling
 
+    /// The one shield/unlock pair for the whole app. Views must resolve these from here rather
+    /// than constructing their own — a locally-built coordinator reaches the real FamilyControls
+    /// service regardless of what was injected, and mutates shield state out of band.
+    let shield: ShieldCoordinator
+    let unlock: UnlockCoordinator
+
     private let onboardingFlagKey = "iqralock.onboarding.completed"
 
     init(
         analytics: AnalyticsService = NoopAnalytics(),
         purchases: PurchaseService = MockPurchaseService(),
-        screenTime: ScreenTimeService = MockScreenTimeService(),
+        screenTime: ScreenTimeService? = nil,
         store: AppGroupStore = .shared,
         notifications: NotificationScheduling = LocalNotificationScheduler()
     ) {
+        let resolvedScreenTime = screenTime ?? ScreenTimeServiceFactory.make(
+            store: store,
+            analytics: analytics
+        )
         self.analytics = analytics
         self.purchases = purchases
-        self.screenTime = screenTime
+        self.screenTime = resolvedScreenTime
         self.store = store
         self.notifications = notifications
+        let resolvedShield = ShieldCoordinator(store: store, screenTime: resolvedScreenTime)
+        self.shield = resolvedShield
+        self.unlock = UnlockCoordinator(
+            store: store,
+            shield: resolvedShield,
+            analytics: analytics,
+            notifications: notifications
+        )
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: onboardingFlagKey)
     }
 
     func bootstrap() {
         store.ensureCurrentDay()
         store.resetEmergencyPassesIfNeeded()
-        ShieldCoordinator(store: store, screenTime: screenTime).reevaluate()
+        shield.reevaluate()
         if let pending = store.pendingDeepLink, let url = URL(string: pending) {
             store.pendingDeepLink = nil
             handle(url: url)

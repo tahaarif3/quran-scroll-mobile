@@ -2,11 +2,19 @@ import SwiftUI
 import IqraLockKit
 
 struct PaywallView: View {
+    /// Seconds the paywall must be shown before the skip control becomes available.
+    static let skipDelay: Duration = .seconds(3)
+
     let purchases: PurchaseService
     @Binding var selectedPlan: PaywallPlan
-    var onClose: () -> Void
+    var onSkip: () -> Void
     var onPurchase: () -> Void
     var onRestore: () -> Void
+    /// Fired when the skip control becomes available, so the funnel can separate
+    /// "never saw a way out" from "saw it and chose to subscribe".
+    var onSkipRevealed: (() -> Void)?
+
+    @State private var canSkip = false
 
     var body: some View {
         ZStack {
@@ -14,16 +22,21 @@ struct PaywallView: View {
 
             VStack(spacing: 0) {
                 HStack {
-                    Button(action: onClose) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(IQColor.textFaint)
-                            .frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("Close")
                     Spacer()
+                    if canSkip {
+                        Button(action: onSkip) {
+                            Text("Skip")
+                                .iqraStyle(.captionStrong, color: IQColor.textMuted2)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("Skip and continue with the free version")
+                        .transition(.opacity)
+                    }
                 }
-                .padding(.horizontal, 8)
+                .frame(height: 44)
+                .padding(.horizontal, 12)
+                .animation(.easeOut(duration: 0.2), value: canSkip)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
@@ -98,6 +111,15 @@ struct PaywallView: View {
             .padding(.bottom, IQSpace.ctaBottom)
             .padding(.top, 8)
             .background(IQColor.bgSand)
+        }
+        // `.task` rather than `onAppear` + DispatchQueue: it is main-actor-bound, so the state
+        // flip always lands on the live view, and it is cancelled automatically if the paywall
+        // goes away before the delay elapses.
+        .task {
+            try? await Task.sleep(for: Self.skipDelay)
+            guard !Task.isCancelled else { return }
+            canSkip = true
+            onSkipRevealed?()
         }
     }
 
