@@ -50,7 +50,10 @@ public enum IQFontStyle: Equatable, Sendable {
     public var weight: Font.Weight {
         switch self {
         case .wordmark, .h1, .h1PlanReady, .greetingName: return .black
-        case .option, .button, .stat, .finePrint: return .extraBold
+        // `.heavy` is SwiftUI's 800 weight — i.e. Nunito-ExtraBold. There is no
+        // `Font.Weight.extraBold`; the scale runs ultraLight/thin/light/regular/medium/
+        // semibold/bold/heavy/black.
+        case .option, .button, .stat, .finePrint: return .heavy
         case .h2, .h3, .streak, .ayah, .ayahHome: return .bold
         case .subtitle, .body, .bodyStrong, .caption, .captionStrong, .translation: return .semibold
         case .bismillah: return .regular
@@ -91,7 +94,7 @@ public enum IQFontStyle: Equatable, Sendable {
         }
         switch weight {
         case .black: return "Nunito-Black"
-        case .extraBold: return "Nunito-ExtraBold"
+        case .heavy: return "Nunito-ExtraBold"
         case .bold: return "Nunito-Bold"
         case .semibold: return "Nunito-SemiBold"
         case .medium: return "Nunito-Medium"
