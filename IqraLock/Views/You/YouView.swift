@@ -8,6 +8,9 @@ struct YouView: View {
     @Query private var profiles: [UserProfile]
     @State private var showShieldPreview = false
     @State private var showAbout = false
+    #if DEBUG
+    @State private var showResetConfirm = false
+    #endif
 
     private var profile: UserProfile? { profiles.first }
 
@@ -68,6 +71,16 @@ struct YouView: View {
                     Link("Privacy Policy", destination: URL(string: "https://iqralock.app/privacy")!)
                     Link("Terms of Use", destination: URL(string: "https://iqralock.app/terms")!)
                 }
+
+                #if DEBUG
+                Section {
+                    Button("Reset to first run", role: .destructive) { showResetConfirm = true }
+                } header: {
+                    Text("Debug")
+                } footer: {
+                    Text("Clears onboarding, profile, reading history and shield state, then returns to the welcome screen. Debug builds only — avoids reinstalling to re-test onboarding.")
+                }
+                #endif
             }
             .navigationTitle("You")
             .sheet(isPresented: $showShieldPreview) {
@@ -76,6 +89,20 @@ struct YouView: View {
             .sheet(isPresented: $showAbout) {
                 AboutView()
             }
+            #if DEBUG
+            .confirmationDialog(
+                "Reset to first run?",
+                isPresented: $showResetConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Reset everything", role: .destructive) {
+                    appModel.resetToFirstRun(modelContext: modelContext)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Deletes your profile, streak, reading history and app selection. This cannot be undone.")
+            }
+            #endif
         }
     }
 

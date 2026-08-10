@@ -188,23 +188,26 @@ struct ReaderView: View {
     }
 
     private func markPage() {
-        appModel.store.ensureCurrentDay()
-        appModel.store.pagesReadToday += 1
-        let day = Calendar.current.startOfDay(for: Date())
+        // Day-roll, increment and unlock evaluation are owned by the coordinator so they cannot
+        // interleave. `now` is captured once and reused for the DailyRecord below, so the record
+        // and the counter can never disagree about which day this page belongs to.
+        let now = Date()
+        let outcome = appModel.unlock.recordPageRead(now: now)
+        let day = Calendar.current.startOfDay(for: now)
         let descriptor = FetchDescriptor<DailyRecord>()
         if let existing = try? modelContext.fetch(descriptor).first(where: {
             Calendar.current.isDate($0.day, inSameDayAs: day)
         }) {
-            existing.pagesRead = appModel.store.pagesReadToday
+            existing.pagesRead = outcome.pagesToday
             existing.minutesRead += 3
-            existing.goalMet = appModel.store.goalMetToday
+            existing.goalMet = outcome.goalMet
             existing.goalPages = goal
         } else {
             modelContext.insert(DailyRecord(
                 day: day,
-                pagesRead: appModel.store.pagesReadToday,
+                pagesRead: outcome.pagesToday,
                 minutesRead: 3,
-                goalMet: appModel.store.goalMetToday,
+                goalMet: outcome.goalMet,
                 goalPages: goal
             ))
         }
@@ -227,8 +230,7 @@ struct ReaderView: View {
         pos.pageNumber = pageNumber
         pos.updatedAt = Date()
         try? modelContext.save()
-        _ = unlock.evaluateAfterPageMarked()
-        encouragement = appModel.store.goalMetToday ? "Goal met!" : "Almost there!"
+        encouragement = outcome.goalMet ? "Goal met!" : "Almost there!"
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 

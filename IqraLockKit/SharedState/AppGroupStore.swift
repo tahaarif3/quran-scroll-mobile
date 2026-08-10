@@ -117,4 +117,19 @@ public final class AppGroupStore: @unchecked Sendable {
     public func shieldSubtitle() -> String {
         "\(pagesReadToday) of \(dailyGoalPages) pages read · \(pagesRemaining) to go"
     }
+
+    #if DEBUG
+    /// Wipe every key this store owns, returning the app-group side to a first-run state.
+    /// Debug builds only — this is the reset path for TestFlight/device testing, where
+    /// reinstalling to re-run onboarding is slow.
+    public func resetAllForDebug() {
+        for key in [
+            Key.pagesReadToday, Key.dailyGoalPages, Key.isLockedNow, Key.unlockedUntil,
+            Key.emergencyPassesRemaining, Key.emergencyPassesMonthKey, Key.selectedAppsData,
+            Key.selectedAppsCount, Key.userDisplayName, Key.dayKey, Key.pendingDeepLink
+        ] {
+            defaults.removeObject(forKey: key)
+        }
+    }
+    #endif
 }

@@ -91,6 +91,33 @@ final class AppModel {
         UserDefaults.standard.set(true, forKey: onboardingFlagKey)
     }
 
+    #if DEBUG
+    /// Return the app to a genuine first-run state without reinstalling.
+    ///
+    /// State lives in three places and all three must go, or onboarding either doesn't reappear
+    /// or reappears on top of stale data: the completion flag in `UserDefaults.standard`, the
+    /// SwiftData store, and the App Group shared with the extensions.
+    func resetToFirstRun(modelContext: ModelContext) {
+        screenTime.clearShield()
+
+        UserDefaults.standard.removeObject(forKey: onboardingFlagKey)
+        store.resetAllForDebug()
+
+        // Written out rather than looped: `delete(model:)` is generic over `PersistentModel`,
+        // so a heterogeneous array of metatypes will not satisfy it.
+        try? modelContext.delete(model: UserProfile.self)
+        try? modelContext.delete(model: DailyRecord.self)
+        try? modelContext.delete(model: ReadingSession.self)
+        try? modelContext.delete(model: Bookmark.self)
+        try? modelContext.delete(model: ReadingPosition.self)
+        try? modelContext.save()
+
+        showReader = false
+        pendingDeepLink = nil
+        hasCompletedOnboarding = false
+    }
+    #endif
+
     func handle(url: URL) {
         pendingDeepLink = url
         if url.host == "read" || url.path.contains("read") {
