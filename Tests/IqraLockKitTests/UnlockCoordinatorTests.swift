@@ -4,6 +4,10 @@ import XCTest
 final class UnlockCoordinatorTests: XCTestCase {
     func testUnlocksWhenGoalMet() {
         let store = AppGroupStore(suiteName: "test.unlock.\(UUID().uuidString)")
+        // Seed the day key first. On a fresh suite `dayKey` is "", so the `ensureCurrentDay()`
+        // inside `evaluateAfterPageMarked()` would treat this as a day rollover and reset
+        // `pagesReadToday` to 0 — discarding the state under test.
+        store.ensureCurrentDay()
         store.dailyGoalPages = 3
         store.pagesReadToday = 2
         store.isLockedNow = true
@@ -21,6 +25,9 @@ final class UnlockCoordinatorTests: XCTestCase {
 
     func testDoesNotUnlockBeforeGoal() {
         let store = AppGroupStore(suiteName: "test.unlock2.\(UUID().uuidString)")
+        // Also seeded: without this the assertions below pass for the wrong reason — the
+        // day-rollover reset zeroes the page count and re-locks, which happens to match.
+        store.ensureCurrentDay()
         store.dailyGoalPages = 5
         store.pagesReadToday = 2
         store.isLockedNow = true
