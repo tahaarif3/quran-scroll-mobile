@@ -1,0 +1,106 @@
+name: iOS Build & Test
+
+# Runs the Mac-only toolchain on GitHub's macOS runners so the project can be
+# validated from a Windows machine. Free for public repositories.
+#
+# What this CAN verify: the project generates, everything compiles, unit tests pass,
+# and the app launches in a Simulator.
+# What it CANNOT verify: anything behind FamilyControls / ManagedSettings / DeviceActivity.
+# Those need a physical device — see docs/TESTFLIGHT_HUMAN_PLAN.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      # Signing is disabled throughout: Simulator builds don't need it, and it keeps
+      # this workflow secret-free. Device/TestFlight builds are a separate job that
+      # needs an App Store Connect API key.
+      - name: Resolve a Simulator destination
+        id: sim
+        run: |
+          set -euo pipefail
+          NAME=$(xcrun simctl list devices available \
+            | grep -oE 'iPhone 1[6-9][^(]*' \
+            | head -1 \
+            | sed 's/[[:space:]]*$//')
+          if [ -z "$NAME" ]; then
+            echo "No iPhone simulator found. Available devices:" >&2
+            xcrun simctl list devices available >&2
+            exit 1
+          fi
+          echo "Using simulator: $NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build all targets
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project IqraLock.xcodeproj \
+            -scheme IqraLock \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            -quiet
+
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project IqraLock.xcodeproj \
+            -scheme IqraLock \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -only-testing:IqraLockKitTests \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            -quiet
+
+      # Snapshot tests fail the first time by design — SnapshotTesting records a
+      # reference image and reports failure. Kept non-blocking until references are
+      # committed from a Mac, so it never masks a real unit-test regression.
+      - name: Run snapshot tests (non-blocking)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project IqraLock.xcodeproj \
+            -scheme IqraLock \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -only-testing:IqraLockSnapshotTests \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            -quiet
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
