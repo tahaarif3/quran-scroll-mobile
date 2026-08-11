@@ -44,7 +44,7 @@ struct ProgressViewScreen: View {
 
     private var streakCard: some View {
         VStack(spacing: 14) {
-            Text("🔥").font(.system(size: 36))
+            IQIconView(.flame, size: 40)
             Text("\(stats.streakDays)")
                 .font(.custom("Nunito-Bold", size: 52))
                 .foregroundStyle(.white)

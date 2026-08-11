@@ -18,7 +18,8 @@ struct PaywallView: View {
 
     var body: some View {
         ZStack {
-            IQColor.welcomeRadial.ignoresSafeArea()
+            // Flat sand, matching 2r in the design. The radial belongs to Welcome only.
+            IQColor.bgSand.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 HStack {
@@ -40,11 +41,14 @@ struct PaywallView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
-                        Text("🤲 Funded by the ummah")
-                            .iqraStyle(.captionStrong, color: IQColor.accentOlive)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(Capsule().fill(IQColor.oliveTint))
+                        HStack(spacing: 6) {
+                            IQIconView(.dua, size: 18)
+                            Text("Funded by the ummah")
+                                .iqraStyle(.captionStrong, color: IQColor.accentOlive)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(IQColor.oliveTint))
 
                         Text("Keep IqraLock ad-free — and give back")
                             .iqraStyle(.h1, color: IQColor.textInk)
@@ -72,7 +76,7 @@ struct PaywallView: View {
                         )
 
                         HStack(alignment: .top, spacing: 12) {
-                            Text("🌍").font(.system(size: 28))
+                            IQIconView(.globe, size: 30)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("10% of every subscription")
                                     .iqraStyle(.bodyStrong, color: IQColor.textInk)

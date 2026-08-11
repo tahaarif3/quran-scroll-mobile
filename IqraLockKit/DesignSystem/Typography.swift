@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 public enum IQFontStyle: Equatable, Sendable {
     case wordmark
@@ -36,7 +37,7 @@ public enum IQFontStyle: Equatable, Sendable {
         case .caption: return 14
         case .captionStrong: return 14
         case .finePrint: return 11.5
-        case .button: return 17
+        case .button: return 20
         case .ayah: return 26
         case .ayahHome: return 27
         case .translation: return 15
@@ -102,11 +103,45 @@ public enum IQFontStyle: Equatable, Sendable {
         }
     }
 
-    public var font: Font { .custom(postScriptName, size: size) }
+    public var font: Font {
+        // `Font.custom` falls back to San Francisco when the PostScript name isn't registered
+        // and reports nothing, so an unregistered family reads as "the design drifted" rather
+        // than as a bug. Fail loudly in debug instead.
+        assert(
+            UIFont(name: postScriptName, size: size) != nil,
+            "Font not registered: \(postScriptName). Check UIAppFonts reached the built bundle."
+        )
+        return .custom(postScriptName, size: size)
+    }
 }
 
 public extension Font {
     static func iqra(_ style: IQFontStyle) -> Font { style.font }
+}
+
+public enum IQFontAudit {
+    /// Every PostScript name the design system asks for.
+    public static let requiredNames = [
+        "Nunito-Regular", "Nunito-Medium", "Nunito-SemiBold",
+        "Nunito-Bold", "Nunito-ExtraBold", "Nunito-Black",
+        "Amiri-Regular", "Amiri-Bold"
+    ]
+
+    /// Names the running bundle cannot resolve. Empty means the fonts registered correctly.
+    public static var missingNames: [String] {
+        requiredNames.filter { UIFont(name: $0, size: 12) == nil }
+    }
+
+    /// Call once at launch. Prints nothing when the bundle is healthy.
+    public static func verify(file: StaticString = #file, line: UInt = #line) {
+        let missing = missingNames
+        guard !missing.isEmpty else { return }
+        print("""
+        ⚠️ IqraLock: \(missing.count) font(s) not registered: \(missing.joined(separator: ", "))
+           Registered families: \(UIFont.familyNames.filter { $0.contains("Nunito") || $0.contains("Amiri") })
+           UIAppFonts is probably not reaching the bundle — check GENERATE_INFOPLIST_FILE in project.yml.
+        """)
+    }
 }
 
 public struct IQStyleModifier: ViewModifier {

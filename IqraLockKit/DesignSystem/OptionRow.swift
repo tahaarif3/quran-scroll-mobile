@@ -7,9 +7,11 @@ public struct OptionRow: View {
         case multi
     }
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let title: String
     let subtitle: String?
-    let emoji: String?
+    let icon: IQIcon?
     let isSelected: Bool
     let mode: SelectionMode
     let action: () -> Void
@@ -17,14 +19,14 @@ public struct OptionRow: View {
     public init(
         title: String,
         subtitle: String? = nil,
-        emoji: String? = nil,
+        icon: IQIcon? = nil,
         isSelected: Bool,
         mode: SelectionMode = .single,
         action: @escaping () -> Void
     ) {
         self.title = title
         self.subtitle = subtitle
-        self.emoji = emoji
+        self.icon = icon
         self.isSelected = isSelected
         self.mode = mode
         self.action = action
@@ -36,11 +38,9 @@ public struct OptionRow: View {
             action()
         }) {
             HStack(spacing: 14) {
-                if let emoji {
-                    Text(emoji)
-                        .font(.system(size: 22))
-                        .frame(width: 28)
-                        .accessibilityHidden(true)
+                if let icon {
+                    IQIconView(icon)
+                        .frame(width: IQIcon.rowColumnWidth)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
@@ -69,6 +69,9 @@ public struct OptionRow: View {
                         lineWidth: isSelected ? 2 : 1.6
                     )
             )
+            // Fill and border cross-fade rather than snapping. The checkmark gets its own
+            // spring below, so this stays a plain cross-fade.
+            .animation(.easeOut(duration: 0.14), value: isSelected)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -78,19 +81,30 @@ public struct OptionRow: View {
     @ViewBuilder
     private var trailingIndicator: some View {
         ZStack {
-            if isSelected {
+            Circle()
+                .strokeBorder(IQColor.radioEmpty, lineWidth: 2)
+                .frame(width: 24, height: 24)
+                .opacity(isSelected ? 0 : 1)
+
+            ZStack {
                 Circle()
                     .fill(IQColor.accentOlive)
                     .frame(width: 24, height: 24)
                 Image(systemName: "checkmark")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.white)
-            } else {
-                Circle()
-                    .strokeBorder(IQColor.radioEmpty, lineWidth: 2)
-                    .frame(width: 24, height: 24)
             }
+            .opacity(isSelected ? 1 : 0)
+            // Scales 0.8 → 1 on a light spring. Both states stay mounted so the transition
+            // animates; swapping them with `if` would just pop.
+            .scaleEffect(isSelected ? 1 : 0.8)
         }
+        .animation(
+            reduceMotion
+                ? .easeOut(duration: 0.2)
+                : .spring(response: 0.3, dampingFraction: 0.6),
+            value: isSelected
+        )
     }
 
     private var accessibilityLabelText: String {

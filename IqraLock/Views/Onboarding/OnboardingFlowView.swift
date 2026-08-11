@@ -5,6 +5,7 @@ import IqraLockKit
 struct OnboardingFlowView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var vm: OnboardingViewModel
     @State private var selectedPlan: PaywallPlan = .annual
     @State private var mockSelected: Set<String> = []
@@ -13,7 +14,42 @@ struct OnboardingFlowView: View {
         _vm = State(initialValue: OnboardingViewModel())
     }
 
+    /// Incoming content enters from +24pt X; outgoing leaves to only −16pt. The asymmetry is
+    /// deliberate — a matched pair reads as two pages swapping, where the short exit reads as
+    /// one page pushing the last aside. Back gestures mirror it because SwiftUI reverses the
+    /// insertion and removal edges automatically.
+    private var stepTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+        return .asymmetric(
+            insertion: .offset(x: 24).combined(with: .opacity),
+            removal: .offset(x: -16).combined(with: .opacity)
+        )
+    }
+
+    private var stepAnimation: Animation {
+        reduceMotion
+            ? .easeOut(duration: 0.2)
+            : .spring(response: 0.38, dampingFraction: 0.9)
+    }
+
     var body: some View {
+        // The outer ZStack keeps a stable identity: `.id(vm.step)` below deliberately gives each
+        // step a fresh identity so insertion and removal both fire, but attaching `.onAppear`
+        // there would re-fire it on every step — and `vm.next()` already tracks the step view,
+        // so each forward navigation would log `onboarding_step_viewed` twice.
+        ZStack {
+            stepContent
+                .id(vm.step)
+                .transition(stepTransition)
+        }
+        .animation(stepAnimation, value: vm.step)
+        .onAppear { vm.onAppear() }
+    }
+
+    @ViewBuilder
+    private var stepContent: some View {
         Group {
             switch vm.step {
             case .welcome: welcome
@@ -39,28 +75,28 @@ struct OnboardingFlowView: View {
             case .gender: question(
                 title: "How do you identify?",
                 subtitle: "So we can address you respectfully.",
-                options: GenderAnswer.allCases.map { .init(label: $0.rawValue, emoji: $0.emoji, value: $0) },
+                options: GenderAnswer.allCases.map { .init(label: $0.rawValue, icon: $0.icon, value: $0) },
                 selected: vm.answers.gender,
                 onSelect: vm.selectGender
             )
             case .faith: question(
                 title: "Where are you in your faith journey?",
                 subtitle: "There’s no wrong answer.",
-                options: FaithStage.allCases.map { .init(label: $0.rawValue, emoji: $0.emoji, value: $0) },
+                options: FaithStage.allCases.map { .init(label: $0.rawValue, icon: $0.icon, value: $0) },
                 selected: vm.answers.faithStage,
                 onSelect: vm.selectFaith
             )
             case .arabic: question(
                 title: "How is your Arabic reading?",
                 subtitle: "This sets your default reader layout.",
-                options: ArabicAbility.allCases.map { .init(label: $0.rawValue, emoji: $0.emoji, value: $0) },
+                options: ArabicAbility.allCases.map { .init(label: $0.rawValue, icon: $0.icon, value: $0) },
                 selected: vm.answers.arabicAbility,
                 onSelect: vm.selectArabic
             )
             case .frequency: question(
                 title: "How often do you read Qur'an today?",
                 subtitle: "Be honest — we’ll meet you where you are.",
-                options: ReadFrequency.allCases.map { .init(label: $0.rawValue, emoji: $0.emoji, value: $0) },
+                options: ReadFrequency.allCases.map { .init(label: $0.rawValue, icon: $0.icon, value: $0) },
                 selected: vm.answers.readFrequency,
                 onSelect: vm.selectFrequency
             )
@@ -80,8 +116,13 @@ struct OnboardingFlowView: View {
             case .paywall: paywall
             }
         }
-        .animation(.easeOut(duration: 0.28), value: vm.step)
-        .onAppear { vm.onAppear() }
+    }
+
+    /// Reveal, reframe and promise stagger their icon, headline and subline 8pt into place.
+    /// Question screens deliberately appear as one block — staggering a list of options reads
+    /// as jitter rather than choreography.
+    private func heroStack(_ elements: [AnyView]) -> some View {
+        HeroStack(reduceMotion: reduceMotion, elements: elements)
     }
 
     // MARK: - Intro
@@ -89,6 +130,7 @@ struct OnboardingFlowView: View {
     private var welcome: some View {
         OnboardingScaffold(
             progress: nil,
+            backdrop: .welcomeRadial,
             showsBack: false,
             ctaTitle: vm.ctaTitle,
             centersContent: true,
@@ -126,10 +168,11 @@ struct OnboardingFlowView: View {
                     }
                 }
                 HighlightedText(
-                    "You **read the Qur'an** every day 🙌",
+                    "You **read the Qur'an** every day",
                     style: .h1,
                     highlight: IQColor.brandPrimary,
-                    alignment: .center
+                    alignment: .center,
+                    trailingIcon: .dua
                 )
             }
         }
@@ -169,26 +212,26 @@ struct OnboardingFlowView: View {
     private var reveal: some View {
         let years = vm.projection.yearsLost
         return OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
-            VStack(spacing: 24) {
-                Text("🤯")
-                    .font(.system(size: 72))
-                HighlightedText(
+            heroStack([
+                AnyView(IQIconView(.mindBlown, size: IQIcon.heroSize)),
+                AnyView(HighlightedText(
                     "At this rate, you're going to spend **\(years) years** of your life on your phone.",
                     style: .h1,
                     highlight: IQColor.brandGold,
                     alignment: .center
-                )
-            }
+                ))
+            ])
         }
     }
 
     private var reframe: some View {
         let years = vm.projection.yearsBackToDeen
         return OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
-            VStack(spacing: 24) {
-                Text("🤲")
-                    .font(.system(size: 72))
-                VStack(spacing: 10) {
+            heroStack([
+                AnyView(IQIconView(.dua, size: IQIcon.heroSize)),
+                // The two lines are one headline, so they rise together rather than as
+                // separate beats — the inner 10pt spacing is part of the phrase.
+                AnyView(VStack(spacing: 10) {
                     Text("…but the good news is, we'll help you give")
                         .iqraStyle(.h1, color: IQColor.textInk)
                         .multilineTextAlignment(.center)
@@ -198,27 +241,28 @@ struct OnboardingFlowView: View {
                         highlight: IQColor.brandGold,
                         alignment: .center
                     )
-                }
-            }
+                })
+            ])
         }
     }
 
     private var promise: some View {
         let days = vm.projection.quranDays
         return OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
-            VStack(spacing: 24) {
-                Text("📖")
-                    .font(.system(size: 72))
-                HighlightedText(
+            heroStack([
+                AnyView(IQIconView(.book, size: IQIcon.heroSize)),
+                AnyView(HighlightedText(
                     "You could read the entire Qur'an in **\(days) days**",
                     style: .h1,
                     highlight: IQColor.brandGold,
                     alignment: .center
+                )),
+                AnyView(
+                    Text("if you traded scroll time for scripture time.")
+                        .iqraStyle(.subtitle, color: IQColor.textMuted2)
+                        .multilineTextAlignment(.center)
                 )
-                Text("if you traded scroll time for scripture time.")
-                    .iqraStyle(.subtitle, color: IQColor.textMuted2)
-                    .multilineTextAlignment(.center)
-            }
+            ])
         }
     }
 
@@ -240,7 +284,7 @@ struct OnboardingFlowView: View {
                 ForEach(GoalAnswer.allCases) { goal in
                     OptionRow(
                         title: goal.rawValue,
-                        emoji: goal.emoji,
+                        icon: goal.icon,
                         isSelected: vm.answers.goals.contains(goal),
                         mode: .multi
                     ) { vm.toggleGoal(goal) }
@@ -257,7 +301,7 @@ struct OnboardingFlowView: View {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .fill(Color(hex: 0x4B44E0))
                         .frame(width: 88, height: 88)
-                        .overlay(Text("⏳").font(.system(size: 36)))
+                        .overlay(IQIconView(.hourglass, size: 44))
                         .rotationEffect(.degrees(-12))
                         .offset(x: -36)
                         .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
@@ -291,7 +335,7 @@ struct OnboardingFlowView: View {
                 ForEach(LockedAppTile.Brand.allCases, id: \.self) { brand in
                     OptionRow(
                         title: brand.label,
-                        emoji: "🔒",
+                        icon: .lock,
                         isSelected: mockSelected.contains(brand.label),
                         mode: .multi
                     ) {
@@ -375,9 +419,12 @@ struct OnboardingFlowView: View {
     private var rating: some View {
         OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, onCTA: vm.next) {
             VStack(spacing: 18) {
-                Text("Support our mission with a rating 🤎")
-                    .iqraStyle(.h1, color: IQColor.textInk)
-                    .multilineTextAlignment(.center)
+                HighlightedText(
+                    "Support our mission with a rating",
+                    style: .h1,
+                    alignment: .center,
+                    trailingIcon: .heart
+                )
                 RoundedRectangle(cornerRadius: IQRadius.xl, style: .continuous)
                     .fill(
                         LinearGradient(
@@ -389,7 +436,7 @@ struct OnboardingFlowView: View {
                     .frame(height: 180)
                     .overlay(
                         VStack(spacing: 8) {
-                            Text("👬").font(.system(size: 40))
+                            IQIconView(.people, size: 40)
                             Text("Founders photo")
                                 .font(.custom("Nunito-SemiBold", size: 15))
                                 .foregroundStyle(.white.opacity(0.9))
@@ -406,13 +453,11 @@ struct OnboardingFlowView: View {
                 VStack(spacing: 8) {
                     StarRating()
                     HStack(spacing: 10) {
-                        Image(systemName: "laurel.leading")
-                            .foregroundStyle(IQColor.brandPrimary)
+                        LaurelMark(.leading)
                         Text("Freed me from my phone. I've never felt closer to Allah.")
                             .iqraStyle(.bodyStrong, color: IQColor.textInk)
                             .multilineTextAlignment(.center)
-                        Image(systemName: "laurel.trailing")
-                            .foregroundStyle(IQColor.brandPrimary)
+                        LaurelMark(.trailing)
                     }
                 }
             }
@@ -523,7 +568,7 @@ struct OnboardingFlowView: View {
 
     private struct QOption<T: Equatable> {
         var label: String
-        var emoji: String? = nil
+        var icon: IQIcon? = nil
         var value: T
     }
 
@@ -552,7 +597,7 @@ struct OnboardingFlowView: View {
                 ForEach(Array(options.enumerated()), id: \.offset) { _, opt in
                     OptionRow(
                         title: opt.label,
-                        emoji: opt.emoji,
+                        icon: opt.icon,
                         isSelected: selected == opt.value
                     ) { onSelect(opt.value) }
                 }
@@ -564,4 +609,30 @@ struct OnboardingFlowView: View {
 
 enum PaywallPlan: String {
     case annual, weekly
+}
+
+/// Owns its own `appeared` flag so that re-entering a hero screen replays the stagger. State on
+/// the parent flow view would latch after the first reveal and every later hero would pop in.
+private struct HeroStack: View {
+    let reduceMotion: Bool
+    let elements: [AnyView]
+
+    @State private var appeared = false
+
+    var body: some View {
+        VStack(spacing: 24) {
+            ForEach(Array(elements.enumerated()), id: \.offset) { index, element in
+                element
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared || reduceMotion ? 0 : 8)
+                    .animation(
+                        reduceMotion
+                            ? .easeOut(duration: 0.2)
+                            : .easeOut(duration: 0.32).delay(Double(index) * 0.05),
+                        value: appeared
+                    )
+            }
+        }
+        .onAppear { appeared = true }
+    }
 }
