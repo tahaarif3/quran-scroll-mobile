@@ -52,7 +52,8 @@ struct HomeView: View {
                     if lockedCount > 0 && !appModel.store.goalMetToday {
                         HStack(spacing: 6) {
                             Spacer()
-                            Text("🔒 \(lockedCount) apps locked until you finish")
+                            IQIconView(.lock, size: 16)
+                            Text("\(lockedCount) apps locked until you finish")
                                 .iqraStyle(.captionStrong, color: IQColor.textMuted2)
                             Spacer()
                         }
@@ -95,7 +96,7 @@ struct HomeView: View {
                         .tracking(0.8)
                         .foregroundStyle(IQColor.accentOlive)
                     Spacer()
-                    Text("🔖")
+                    IQIconView(.bookmark, size: 20)
                 }
                 Text("فَإِنَّ مَعَ ٱلْعُسْرِ يُسْرًا")
                     .font(.custom("Amiri-Bold", size: 27))

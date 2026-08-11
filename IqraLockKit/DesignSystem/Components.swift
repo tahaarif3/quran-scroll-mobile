@@ -53,6 +53,33 @@ public struct CrescentShape: Shape {
     }
 }
 
+// MARK: - Laurel Mark
+
+/// A filled 34×52 mark. Drawn at 28pt regular it rendered as a hairline glyph roughly half the
+/// size the design calls for, which is why the social-proof badge read as thin in the build.
+public struct LaurelMark: View {
+    public enum Side: Sendable {
+        case leading
+        case trailing
+    }
+
+    let side: Side
+    let color: Color
+
+    public init(_ side: Side, color: Color = IQColor.brandPrimary) {
+        self.side = side
+        self.color = color
+    }
+
+    public var body: some View {
+        Image(systemName: side == .leading ? "laurel.leading" : "laurel.trailing")
+            .font(.system(size: 44, weight: .semibold))
+            .foregroundStyle(color)
+            .frame(width: 34, height: 52)
+            .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Laurel Badge
 
 public struct LaurelBadge: View {
@@ -67,16 +94,10 @@ public struct LaurelBadge: View {
     public var body: some View {
         VStack(spacing: 6) {
             HStack(spacing: 10) {
-                Image(systemName: "laurel.leading")
-                    .font(.system(size: 28, weight: .regular))
-                    .foregroundStyle(IQColor.brandPrimary)
-                    .accessibilityHidden(true)
+                LaurelMark(.leading)
                 Text(title)
                     .iqraStyle(.captionStrong, color: IQColor.brandPrimary)
-                Image(systemName: "laurel.trailing")
-                    .font(.system(size: 28, weight: .regular))
-                    .foregroundStyle(IQColor.brandPrimary)
-                    .accessibilityHidden(true)
+                LaurelMark(.trailing)
             }
             if showStars {
                 StarRating(rating: 5)
@@ -230,8 +251,7 @@ public struct LockedAppTile: View {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(Color.black.opacity(0.28))
                         .frame(width: 56, height: 56)
-                    Text("🔒")
-                        .font(.system(size: 18))
+                    IQIconView(.lock, size: 20)
                 }
             }
             if showLabel {
@@ -256,7 +276,7 @@ public struct StreakPill: View {
 
     public var body: some View {
         HStack(spacing: 6) {
-            Text("🔥")
+            IQIconView(.flame, size: 18)
             Text("\(days)")
                 .font(.custom("Nunito-ExtraBold", size: 16))
                 .foregroundStyle(IQColor.brandGold)

@@ -14,7 +14,7 @@ struct ComponentGalleryView: View {
                 LaurelBadge()
                 OptionRow(title: "More than 8h", isSelected: false) {}
                 OptionRow(title: "More than 8h", isSelected: true) {}
-                OptionRow(title: "Build a daily reading habit", emoji: "📖", isSelected: selected, mode: .multi) {
+                OptionRow(title: "Build a daily reading habit", icon: .book, isSelected: selected, mode: .multi) {
                     selected.toggle()
                 }
                 HStack {
@@ -28,7 +28,7 @@ struct ComponentGalleryView: View {
             }
             .padding(IQSpace.gutter)
         }
-        .background(IQColor.welcomeRadial.ignoresSafeArea())
+        .background(IQColor.bgSand.ignoresSafeArea())
     }
 }
 

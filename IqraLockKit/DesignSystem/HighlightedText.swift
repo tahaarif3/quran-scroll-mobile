@@ -8,27 +8,37 @@ public struct HighlightedText: View {
     let baseColor: Color
     let highlightColor: Color
     let alignment: TextAlignment
+    /// Rendered inline after the last word, replacing what used to be a trailing system emoji.
+    let trailingIcon: IQIcon?
 
     public init(
         _ source: String,
         style: IQFontStyle = .h1,
         color: Color = IQColor.textInk,
         highlight: Color = IQColor.brandPrimary,
-        alignment: TextAlignment = .leading
+        alignment: TextAlignment = .leading,
+        trailingIcon: IQIcon? = nil
     ) {
         self.source = source
         self.baseStyle = style
         self.baseColor = color
         self.highlightColor = highlight
         self.alignment = alignment
+        self.trailingIcon = trailingIcon
     }
 
     public var body: some View {
-        Text(attributed)
+        composedText
             .font(baseStyle.font)
             .tracking(baseStyle.tracking)
             .multilineTextAlignment(alignment)
             .frame(maxWidth: .infinity, alignment: alignment == .center ? .center : .leading)
+    }
+
+    private var composedText: Text {
+        let base = Text(attributed)
+        guard let trailingIcon else { return base }
+        return base + Text(" ") + trailingIcon.inlineText(pointSize: baseStyle.size)
     }
 
     public var attributed: AttributedString {

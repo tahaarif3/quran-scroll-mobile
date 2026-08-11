@@ -95,10 +95,10 @@ public enum GenderAnswer: String, CaseIterable, Codable, Sendable {
     case woman = "Woman"
     case preferNot = "Prefer not to say"
 
-    public var emoji: String? {
+    public var icon: IQIcon? {
         switch self {
-        case .man: return "🧔"
-        case .woman: return "🧕"
+        case .man: return .man
+        case .woman: return .woman
         case .preferNot: return nil
         }
     }
@@ -110,12 +110,12 @@ public enum FaithStage: String, CaseIterable, Codable, Sendable {
     case returning = "Returning to faith"
     case exploring = "Exploring"
 
-    public var emoji: String {
+    public var icon: IQIcon {
         switch self {
-        case .newMuslim: return "🌱"
-        case .practicing: return "🕌"
-        case .returning: return "🤍"
-        case .exploring: return "✨"
+        case .newMuslim: return .seed
+        case .practicing: return .mosque
+        case .returning: return .heart
+        case .exploring: return .sparkle
         }
     }
 }
@@ -127,13 +127,13 @@ public enum ArabicAbility: String, CaseIterable, Codable, Sendable {
     case fluent = "Fluent, mashaAllah"
     case translationOnly = "I read translation only"
 
-    public var emoji: String {
+    public var icon: IQIcon {
         switch self {
-        case .learningLetters: return "🔤"
-        case .soundOut: return "🐢"
-        case .comfortably: return "📖"
-        case .fluent: return "⭐"
-        case .translationOnly: return "🌍"
+        case .learningLetters: return .arabicLetter
+        case .soundOut: return .speak
+        case .comfortably: return .book
+        case .fluent: return .star
+        case .translationOnly: return .globe
         }
     }
 
@@ -148,12 +148,12 @@ public enum ReadFrequency: String, CaseIterable, Codable, Sendable {
     case days3to5 = "3–5 days"
     case everyDay = "Every day"
 
-    public var emoji: String {
+    public var icon: IQIcon {
         switch self {
-        case .lessThanWeekly: return "🌙"
-        case .days1to2: return "🗓️"
-        case .days3to5: return "📖"
-        case .everyDay: return "🔥"
+        case .lessThanWeekly: return .moon
+        case .days1to2: return .calendar
+        case .days3to5: return .book
+        case .everyDay: return .flame
         }
     }
 
@@ -177,12 +177,12 @@ public enum GoalAnswer: String, CaseIterable, Codable, Sendable, Identifiable {
 
     public var id: String { rawValue }
 
-    public var emoji: String {
+    public var icon: IQIcon {
         switch self {
-        case .dailyHabit: return "📖"
-        case .lessPhone: return "📵"
-        case .closerToAllah: return "🤲"
-        case .understandBetter: return "💡"
+        case .dailyHabit: return .book
+        case .lessPhone: return .phoneOff
+        case .closerToAllah: return .dua
+        case .understandBetter: return .bulb
         }
     }
 }

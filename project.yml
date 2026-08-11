@@ -42,6 +42,11 @@ targets:
         buildPhase: resources
       - path: Resources/Fonts
         buildPhase: resources
+      # Owned by the framework, not the app: OptionRow and the onboarding heroes live in
+      # IqraLockKit, and the shield extensions link it too. Resolved via Bundle.iqraLockKit.
+      - path: Resources/Icons.xcassets
+      - path: Resources/LICENSE-fluent-emoji.txt
+        buildPhase: resources
     dependencies:
       # The SDK ships this as libsqlite3.tbd; "SQLite3.tbd" does not exist and fails
       # at link time. The `-lsqlite3` in OTHER_LDFLAGS below is what actually links it.
@@ -49,7 +54,10 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tahaarif.iqralock.kit
-        GENERATE_INFOPLIST_FILE: YES
+        # Must stay NO wherever `info.path` is set below. With both, Xcode synthesises its own
+        # Info.plist and the hand-written UIAppFonts array never reaches the bundle — silently,
+        # because Font.custom falls back to the system face rather than erroring.
+        GENERATE_INFOPLIST_FILE: "NO"
         DEFINES_MODULE: YES
         SKIP_INSTALL: YES
         OTHER_LDFLAGS: "$(inherited) -lsqlite3"
@@ -90,11 +98,10 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tahaarif.iqralock
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: IqraLock
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        # See the note on IqraLockKit — this target owns UIAppFonts, so the checked-in plist
+        # must win. The INFOPLIST_KEY_* settings that used to live here only take effect when
+        # the plist is generated; their values now live in `info.properties` below.
+        GENERATE_INFOPLIST_FILE: "NO"
         CODE_SIGN_ENTITLEMENTS: IqraLock/IqraLock.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     info:
@@ -106,6 +113,10 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        # Was INFOPLIST_KEY_UIApplicationSceneManifest_Generation. SwiftUI's App lifecycle needs
+        # the key present but declares no scene configurations of its own.
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
         UIAppFonts:
           - Nunito-Regular.ttf
           - Nunito-Medium.ttf

@@ -83,13 +83,18 @@ public enum IQColor {
         )
     }
 
-    /// Welcome: warm radial #EACB84 → #F4E8D0
-    public static var welcomeRadial: RadialGradient {
+    /// Welcome only: warm radial #EACB84 → #F4E8D0.
+    ///
+    /// Mirrors the design's `radial-gradient(120% 78% at 50% 12%, #EACB84, #F4E8D0 55%)`.
+    /// The gold has to be fully resolved to sand by ~55% down the screen, so the radius is
+    /// driven off the container height rather than fixed — a constant that reads correctly on
+    /// a 6.7" device leaves gold across the whole of an SE.
+    public static func welcomeRadial(height: CGFloat) -> RadialGradient {
         RadialGradient(
             colors: [Color(hex: 0xEACB84), bgSand],
-            center: .top,
-            startRadius: 20,
-            endRadius: 480
+            center: UnitPoint(x: 0.5, y: 0.12),
+            startRadius: 0,
+            endRadius: max(140, height * 0.55)
         )
     }
 
@@ -106,7 +111,7 @@ public enum IQColor {
 public enum IQRadius {
     public static let option: CGFloat = 16.5
     public static let card: CGFloat = 18
-    public static let button: CGFloat = 18
+    public static let button: CGFloat = 20
     public static let appIcon: CGFloat = 26
     public static let sm: CGFloat = 12
     public static let md: CGFloat = 16
@@ -123,7 +128,7 @@ public enum IQSpace {
     public static let section: CGFloat = 28
     public static let stack: CGFloat = 12
     public static let stackTight: CGFloat = 8
-    public static let buttonHeight: CGFloat = 58
+    public static let buttonHeight: CGFloat = 60
 }
 
 public enum IQShadow {

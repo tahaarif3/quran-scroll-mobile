@@ -73,6 +73,9 @@ final class AppModel {
     }
 
     func bootstrap() {
+        #if DEBUG
+        IQFontAudit.verify()
+        #endif
         store.ensureCurrentDay()
         store.resetEmergencyPassesIfNeeded()
         shield.reevaluate()
