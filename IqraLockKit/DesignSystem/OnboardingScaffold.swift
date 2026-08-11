@@ -9,10 +9,6 @@ public struct OnboardingScaffold<Content: View>: View {
         case welcomeRadial
     }
 
-    /// Header height is pinned so the chevron doesn't jump between steps that draw a progress
-    /// track and steps that don't.
-    private static let topBarHeight: CGFloat = 44
-
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let progress: Double?
@@ -140,7 +136,7 @@ public struct OnboardingScaffold<Content: View>: View {
 
             Color.clear.frame(width: 44, height: 44)
         }
-        .frame(height: Self.topBarHeight)
+        .frame(height: IQSpace.topBarHeight)
         .padding(.horizontal, 8)
         .padding(.top, 2)
     }

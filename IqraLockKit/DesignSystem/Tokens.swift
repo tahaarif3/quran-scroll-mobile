@@ -129,6 +129,9 @@ public enum IQSpace {
     public static let stack: CGFloat = 12
     public static let stackTight: CGFloat = 8
     public static let buttonHeight: CGFloat = 60
+    /// Onboarding header. Fixed so the chevron doesn't shift between steps that draw a progress
+    /// track and steps that don't.
+    public static let topBarHeight: CGFloat = 44
 }
 
 public enum IQShadow {
