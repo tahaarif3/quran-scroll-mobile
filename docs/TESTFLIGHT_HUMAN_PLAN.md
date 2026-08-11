@@ -97,13 +97,20 @@ Family Controls **cannot** be tested in Simulator.
 - [ ] Physical iPhone on iOS 17+.
 - [ ] Install a Development-signed build from Xcode.
 - [ ] Onboarding → allow Screen Time when the system prompt appears.
-- [ ] Select real apps (Instagram, etc.) in the FamilyActivityPicker (wire `FamilyActivityPickerScreen` into the `appPicker` step if you still see the mock list — mock is intentional for Simulator).
+- [ ] Select real apps (Instagram, etc.) in the FamilyActivityPicker. The `appPicker` step now
+      presents the real picker whenever `ScreenTimeAvailability.isSupported`; the mock brand list
+      only appears in Simulator and un-entitled builds, and is labelled as such on screen.
+- [ ] **Blocking is gated on Pro** (`EntitlementGate.canBlockApps`). Skipping the paywall means
+      `finishOnboarding` never calls `applyShield`. Complete the mock purchase to exercise it.
 - [ ] Manual script:
   1. Open a shielded app → OS shield shows title/colors/buttons.
   2. Tap **Read now** → notification appears → open app → reader.
   3. Mark pages until goal → shield clears.
-  4. Use debug short `DeviceActivitySchedule` (add under `#if DEBUG`) to prove re-shield without waiting for midnight.
+  4. Call `screenTime.scheduleDebugReshield(minutes: 2)` (DEBUG-only, on `ScreenTimeService`) to
+     prove re-shield without waiting for midnight.
   5. Consume an emergency pass → temporary unlock → re-shield.
+  6. **You → Locked apps** → change the selection → confirm added apps shield and removed apps
+     unblock immediately, without a relaunch.
 
 ---
 

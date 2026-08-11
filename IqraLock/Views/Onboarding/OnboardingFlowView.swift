@@ -2,13 +2,25 @@ import SwiftUI
 import SwiftData
 import IqraLockKit
 
+#if canImport(FamilyControls)
+import FamilyControls
+#endif
+
 struct OnboardingFlowView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var vm: OnboardingViewModel
     @State private var selectedPlan: PaywallPlan = .annual
+    /// Simulator-only stand-in; see `simulatorAppPicker`.
     @State private var mockSelected: Set<String> = []
+
+    #if canImport(FamilyControls)
+    /// Safe to construct anywhere — it is a value type. The type that traps off-device is
+    /// `ManagedSettingsStore`, which is why only the *presentation* is gated on availability.
+    @State private var activitySelection = FamilyActivitySelection()
+    @State private var showingActivityPicker = false
+    #endif
 
     init() {
         _vm = State(initialValue: OnboardingViewModel())
@@ -336,26 +348,106 @@ struct OnboardingFlowView: View {
                 HighlightedText("Which apps should wait for Qur'an?", style: .h1)
                 Text("Select the apps IqraLock should shield until you finish today's pages.")
                     .iqraStyle(.subtitle, color: IQColor.textMuted)
-                ForEach(LockedAppTile.Brand.allCases, id: \.self) { brand in
-                    OptionRow(
-                        title: brand.label,
-                        icon: .lock,
-                        isSelected: mockSelected.contains(brand.label),
-                        mode: .multi
-                    ) {
-                        if mockSelected.contains(brand.label) {
-                            mockSelected.remove(brand.label)
-                        } else {
-                            mockSelected.insert(brand.label)
-                        }
-                        vm.selectedAppsCount = mockSelected.count
-                        appModel.screenTime.persistSelectionCount(mockSelected.count)
-                    }
+
+                if ScreenTimeAvailability.isSupported {
+                    realAppPicker
+                } else {
+                    simulatorAppPicker
                 }
             }
             .padding(.top, 8)
         }
     }
+
+    /// Device path. Apple's own picker is the only way to obtain `ApplicationToken`s — they are
+    /// opaque and cannot be constructed from a bundle id, which is why the mock list below can
+    /// never shield anything.
+    @ViewBuilder
+    private var realAppPicker: some View {
+        #if canImport(FamilyControls)
+        Button {
+            showingActivityPicker = true
+        } label: {
+            HStack(spacing: 14) {
+                IQIconView(.lock, size: IQIcon.rowSize)
+                    .frame(width: IQIcon.rowColumnWidth)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(selectedAppsSummary)
+                        .iqraStyle(.option, color: IQColor.textInk)
+                    Text("Tap to choose apps and categories")
+                        .iqraStyle(.caption, color: IQColor.textMuted)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(IQColor.textFaint)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .frame(minHeight: 56)
+            .background(
+                RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
+                    .fill(vm.selectedAppsCount > 0 ? IQColor.oliveTint : IQColor.bgCard)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
+                    .strokeBorder(
+                        vm.selectedAppsCount > 0 ? IQColor.accentOlive : IQColor.borderSubtle,
+                        lineWidth: vm.selectedAppsCount > 0 ? 2 : 1.6
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .familyActivityPicker(isPresented: $showingActivityPicker, selection: $activitySelection)
+        .onChange(of: activitySelection) { _, newValue in
+            persistActivitySelection(newValue)
+        }
+        #endif
+    }
+
+    /// Simulator / un-entitled builds, where FamilyControls traps at runtime. Keeps the flow
+    /// walkable; it records a count so the CTA enables, but shields nothing.
+    private var simulatorAppPicker: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(LockedAppTile.Brand.allCases, id: \.self) { brand in
+                OptionRow(
+                    title: brand.label,
+                    icon: .lock,
+                    isSelected: mockSelected.contains(brand.label),
+                    mode: .multi
+                ) {
+                    if mockSelected.contains(brand.label) {
+                        mockSelected.remove(brand.label)
+                    } else {
+                        mockSelected.insert(brand.label)
+                    }
+                    vm.selectedAppsCount = mockSelected.count
+                    appModel.screenTime.persistSelectionCount(mockSelected.count)
+                }
+            }
+            Text("Simulator preview — real app blocking needs a device.")
+                .iqraStyle(.caption, color: IQColor.textFaint)
+        }
+    }
+
+    private var selectedAppsSummary: String {
+        switch vm.selectedAppsCount {
+        case 0: return "Choose apps to shield"
+        case 1: return "1 app or category selected"
+        default: return "\(vm.selectedAppsCount) apps and categories selected"
+        }
+    }
+
+    #if canImport(FamilyControls)
+    private func persistActivitySelection(_ selection: FamilyActivitySelection) {
+        // Order matters: the encoded selection must land in the App Group before the count, so
+        // that anything reacting to the count can already load real tokens.
+        try? FamilyActivitySelectionStore.save(selection, to: appModel.store)
+        let count = selection.applicationTokens.count + selection.categoryTokens.count
+        vm.selectedAppsCount = count
+        appModel.screenTime.persistSelectionCount(count)
+    }
+    #endif
 
     private var systemPrompt: some View {
         OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: {
