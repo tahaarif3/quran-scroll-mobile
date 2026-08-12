@@ -59,6 +59,22 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      # CFBundleIconName is declared in project.yml under info.properties, yet three builds
+      # reached App Store validation without it. Rather than guess again, print what actually
+      # lands in the generated plist and then write the key directly, so its presence does not
+      # depend on how XcodeGen or Xcode treat the properties block.
+      - name: Force CFBundleIconName into the generated plist
+        run: |
+          set -euo pipefail
+          PLIST=IqraLock/Info.plist
+          echo "--- as generated ---"
+          plutil -p "$PLIST" | grep -E "CFBundleIconName|UIDeviceFamily" || echo "(neither key present)"
+          plutil -replace CFBundleIconName -string AppIcon "$PLIST"
+          plutil -insert UIDeviceFamily -json '[1]' "$PLIST" 2>/dev/null \
+            || plutil -replace UIDeviceFamily -json '[1]' "$PLIST"
+          echo "--- after forcing ---"
+          plutil -p "$PLIST" | grep -E "CFBundleIconName|UIDeviceFamily"
+
       # altool and xcodebuild both look for the key here by its KEY_ID.
       - name: Install App Store Connect API key
         env:
@@ -96,6 +112,22 @@ jobs:
             DEVELOPMENT_TEAM="${TEAM_ID}" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             -quiet
+
+      # The export step re-signs, so amending the archived bundle here is safe. This covers the
+      # case where the key survives generation but is dropped during Xcode's plist processing.
+      - name: Verify and repair the archived bundle
+        run: |
+          set -euo pipefail
+          APP="${ARCHIVE_PATH}/Products/Applications/IqraLock.app"
+          echo "--- archived Info.plist ---"
+          plutil -p "$APP/Info.plist" | grep -E "CFBundleIconName|UIDeviceFamily" || echo "(missing)"
+          echo "--- compiled icons present? ---"
+          ls "$APP" | grep -iE "assets.car|AppIcon" || echo "(no Assets.car / AppIcon in bundle)"
+          if ! plutil -p "$APP/Info.plist" | grep -q CFBundleIconName; then
+            echo "::warning::CFBundleIconName absent from the archived bundle; injecting before export."
+            plutil -replace CFBundleIconName -string AppIcon "$APP/Info.plist"
+          fi
+          plutil -p "$APP/Info.plist" | grep CFBundleIconName
 
       - name: Write ExportOptions.plist
         env:
