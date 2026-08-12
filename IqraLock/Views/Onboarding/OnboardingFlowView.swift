@@ -2,13 +2,25 @@ import SwiftUI
 import SwiftData
 import IqraLockKit
 
+#if canImport(FamilyControls)
+import FamilyControls
+#endif
+
 struct OnboardingFlowView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var vm: OnboardingViewModel
     @State private var selectedPlan: PaywallPlan = .annual
+    /// Simulator-only stand-in; see `simulatorAppPicker`.
     @State private var mockSelected: Set<String> = []
+
+    #if canImport(FamilyControls)
+    /// Safe to construct anywhere — it is a value type. The type that traps off-device is
+    /// `ManagedSettingsStore`, which is why only the *presentation* is gated on availability.
+    @State private var activitySelection = FamilyActivitySelection()
+    @State private var showingActivityPicker = false
+    #endif
 
     init() {
         _vm = State(initialValue: OnboardingViewModel())
@@ -39,10 +51,21 @@ struct OnboardingFlowView: View {
         // step a fresh identity so insertion and removal both fire, but attaching `.onAppear`
         // there would re-fire it on every step — and `vm.next()` already tracks the step view,
         // so each forward navigation would log `onboarding_step_viewed` twice.
-        ZStack {
+        ZStack(alignment: .top) {
             stepContent
                 .id(vm.step)
                 .transition(stepTransition)
+
+            // Drawn here, above the transitioning content, rather than inside each scaffold —
+            // that is what gives it a single identity across the whole flow so the progress fill
+            // animates instead of snapping. The paywall brings its own header.
+            if vm.step != .paywall {
+                OnboardingTopBar(
+                    progress: vm.step.progress,
+                    showsBack: vm.step.showsBack,
+                    onBack: vm.back
+                )
+            }
         }
         .animation(stepAnimation, value: vm.step)
         .onAppear { vm.onAppear() }
@@ -129,9 +152,7 @@ struct OnboardingFlowView: View {
 
     private var welcome: some View {
         OnboardingScaffold(
-            progress: nil,
             backdrop: .welcomeRadial,
-            showsBack: false,
             ctaTitle: vm.ctaTitle,
             centersContent: true,
             onCTA: vm.next
@@ -154,7 +175,7 @@ struct OnboardingFlowView: View {
     }
 
     private var howItWorks: some View {
-        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
+        OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
             VStack(spacing: 22) {
                 HighlightedText(
                     "IqraLock **locks distracting apps** until…",
@@ -179,7 +200,7 @@ struct OnboardingFlowView: View {
     }
 
     private var socialProof: some View {
-        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, onCTA: vm.next) {
+        OnboardingScaffold(ctaTitle: vm.ctaTitle, onCTA: vm.next) {
             VStack(spacing: 20) {
                 HighlightedText(
                     "Thousands of Muslims read the Qur'an daily with **IqraLock**",
@@ -211,7 +232,7 @@ struct OnboardingFlowView: View {
 
     private var reveal: some View {
         let years = vm.projection.yearsLost
-        return OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
+        return OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
             heroStack([
                 AnyView(IQIconView(.mindBlown, size: IQIcon.heroSize)),
                 AnyView(HighlightedText(
@@ -226,7 +247,7 @@ struct OnboardingFlowView: View {
 
     private var reframe: some View {
         let years = vm.projection.yearsBackToDeen
-        return OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
+        return OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
             heroStack([
                 AnyView(IQIconView(.dua, size: IQIcon.heroSize)),
                 // The two lines are one headline, so they rise together rather than as
@@ -248,7 +269,7 @@ struct OnboardingFlowView: View {
 
     private var promise: some View {
         let days = vm.projection.quranDays
-        return OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
+        return OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
             heroStack([
                 AnyView(IQIconView(.book, size: IQIcon.heroSize)),
                 AnyView(HighlightedText(
@@ -270,9 +291,6 @@ struct OnboardingFlowView: View {
 
     private var goals: some View {
         OnboardingScaffold(
-            progress: vm.step.progress,
-            showsBack: true,
-            onBack: vm.back,
             ctaTitle: vm.ctaTitle,
             ctaEnabled: vm.ctaEnabled,
             onCTA: vm.next
@@ -295,7 +313,7 @@ struct OnboardingFlowView: View {
     }
 
     private var permissionPrimer: some View {
-        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
+        OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
             VStack(spacing: 22) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -322,8 +340,6 @@ struct OnboardingFlowView: View {
 
     private var appPicker: some View {
         OnboardingScaffold(
-            showsBack: true,
-            onBack: vm.back,
             ctaTitle: vm.ctaTitle,
             ctaEnabled: vm.ctaEnabled,
             onCTA: vm.next
@@ -332,29 +348,109 @@ struct OnboardingFlowView: View {
                 HighlightedText("Which apps should wait for Qur'an?", style: .h1)
                 Text("Select the apps IqraLock should shield until you finish today's pages.")
                     .iqraStyle(.subtitle, color: IQColor.textMuted)
-                ForEach(LockedAppTile.Brand.allCases, id: \.self) { brand in
-                    OptionRow(
-                        title: brand.label,
-                        icon: .lock,
-                        isSelected: mockSelected.contains(brand.label),
-                        mode: .multi
-                    ) {
-                        if mockSelected.contains(brand.label) {
-                            mockSelected.remove(brand.label)
-                        } else {
-                            mockSelected.insert(brand.label)
-                        }
-                        vm.selectedAppsCount = mockSelected.count
-                        appModel.screenTime.persistSelectionCount(mockSelected.count)
-                    }
+
+                if ScreenTimeAvailability.isSupported {
+                    realAppPicker
+                } else {
+                    simulatorAppPicker
                 }
             }
             .padding(.top, 8)
         }
     }
 
+    /// Device path. Apple's own picker is the only way to obtain `ApplicationToken`s — they are
+    /// opaque and cannot be constructed from a bundle id, which is why the mock list below can
+    /// never shield anything.
+    @ViewBuilder
+    private var realAppPicker: some View {
+        #if canImport(FamilyControls)
+        Button {
+            showingActivityPicker = true
+        } label: {
+            HStack(spacing: 14) {
+                IQIconView(.lock, size: IQIcon.rowSize)
+                    .frame(width: IQIcon.rowColumnWidth)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(selectedAppsSummary)
+                        .iqraStyle(.option, color: IQColor.textInk)
+                    Text("Tap to choose apps and categories")
+                        .iqraStyle(.caption, color: IQColor.textMuted)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(IQColor.textFaint)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .frame(minHeight: 56)
+            .background(
+                RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
+                    .fill(vm.selectedAppsCount > 0 ? IQColor.oliveTint : IQColor.bgCard)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
+                    .strokeBorder(
+                        vm.selectedAppsCount > 0 ? IQColor.accentOlive : IQColor.borderSubtle,
+                        lineWidth: vm.selectedAppsCount > 0 ? 2 : 1.6
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .familyActivityPicker(isPresented: $showingActivityPicker, selection: $activitySelection)
+        .onChange(of: activitySelection) { _, newValue in
+            persistActivitySelection(newValue)
+        }
+        #endif
+    }
+
+    /// Simulator / un-entitled builds, where FamilyControls traps at runtime. Keeps the flow
+    /// walkable; it records a count so the CTA enables, but shields nothing.
+    private var simulatorAppPicker: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(LockedAppTile.Brand.allCases, id: \.self) { brand in
+                OptionRow(
+                    title: brand.label,
+                    icon: .lock,
+                    isSelected: mockSelected.contains(brand.label),
+                    mode: .multi
+                ) {
+                    if mockSelected.contains(brand.label) {
+                        mockSelected.remove(brand.label)
+                    } else {
+                        mockSelected.insert(brand.label)
+                    }
+                    vm.selectedAppsCount = mockSelected.count
+                    appModel.screenTime.persistSelectionCount(mockSelected.count)
+                }
+            }
+            Text("Simulator preview — real app blocking needs a device.")
+                .iqraStyle(.caption, color: IQColor.textFaint)
+        }
+    }
+
+    private var selectedAppsSummary: String {
+        switch vm.selectedAppsCount {
+        case 0: return "Choose apps to shield"
+        case 1: return "1 app or category selected"
+        default: return "\(vm.selectedAppsCount) apps and categories selected"
+        }
+    }
+
+    #if canImport(FamilyControls)
+    private func persistActivitySelection(_ selection: FamilyActivitySelection) {
+        // Order matters: the encoded selection must land in the App Group before the count, so
+        // that anything reacting to the count can already load real tokens.
+        try? FamilyActivitySelectionStore.save(selection, to: appModel.store)
+        let count = selection.applicationTokens.count + selection.categoryTokens.count
+        vm.selectedAppsCount = count
+        appModel.screenTime.persistSelectionCount(count)
+    }
+    #endif
+
     private var systemPrompt: some View {
-        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: {
+        OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: {
             Task {
                 try? await appModel.screenTime.requestAuthorization()
                 vm.next()
@@ -417,7 +513,7 @@ struct OnboardingFlowView: View {
     }
 
     private var rating: some View {
-        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, onCTA: vm.next) {
+        OnboardingScaffold(ctaTitle: vm.ctaTitle, onCTA: vm.next) {
             VStack(spacing: 18) {
                 HighlightedText(
                     "Support our mission with a rating",
@@ -466,7 +562,7 @@ struct OnboardingFlowView: View {
     }
 
     private var planReady: some View {
-        OnboardingScaffold(showsBack: true, onBack: vm.back, ctaTitle: vm.ctaTitle, centersContent: true, onCTA: {
+        OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: {
             Task {
                 _ = await appModel.notifications.requestPermission()
                 appModel.notifications.scheduleDailyReminder(hour: 21, minute: 0)
@@ -580,9 +676,6 @@ struct OnboardingFlowView: View {
         onSelect: @escaping (T) -> Void
     ) -> some View {
         OnboardingScaffold(
-            progress: vm.step.progress,
-            showsBack: true,
-            onBack: vm.back,
             ctaTitle: vm.ctaTitle,
             ctaEnabled: vm.ctaEnabled,
             onCTA: vm.next

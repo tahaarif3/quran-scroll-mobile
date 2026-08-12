@@ -29,7 +29,10 @@ public final class ShieldCoordinator: @unchecked Sendable {
             screenTime.clearShield()
             return
         }
-        if store.selectedAppsData != nil {
+        // Gated on the count, not on `selectedAppsData`. The mock picker used in Simulator
+        // records a count without any real tokens, and the count is also what survives when a
+        // selection is cleared, so it is the reliable signal for "the user chose to shield".
+        if store.selectedAppsCount > 0 {
             store.isLockedNow = true
             screenTime.applyShield()
         }

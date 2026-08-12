@@ -84,15 +84,8 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         #endif
     }
 
-    public var selectedAppCount: Int {
-        // Tokens are opaque; count is persisted when the picker saves.
-        if store.selectedAppsCount > 0 { return store.selectedAppsCount }
-        guard let data = store.selectedAppsData,
-              let decoded = try? JSONDecoder().decode(SelectedAppsPayload.self, from: data) else {
-            return 0
-        }
-        return decoded.count
-    }
+    /// Tokens are opaque, so the count is persisted alongside them when the picker saves.
+    public var selectedAppCount: Int { store.selectedAppsCount }
 
     public func requestAuthorization() async throws {
         #if canImport(FamilyControls)
@@ -109,12 +102,12 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         #endif
     }
 
+    /// Records how many apps the user picked. Deliberately does *not* touch
+    /// `store.selectedAppsData` — that key holds the encoded `FamilyActivitySelection` and nothing
+    /// else. Writing a count-only blob there previously made the key unreadable as a selection,
+    /// so the shield had nothing to apply even once a real picker existed.
     public func persistSelectionCount(_ count: Int) {
         store.selectedAppsCount = count
-        let payload = SelectedAppsPayload(count: count)
-        if store.selectedAppsData == nil {
-            store.selectedAppsData = try? JSONEncoder().encode(payload)
-        }
         analytics.track("apps_selected", properties: ["count": count])
     }
 
@@ -123,8 +116,17 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         store.isLockedNow = true
         store.unlockedUntil = nil
         #if canImport(FamilyControls)
-        // Actual ApplicationTokens are stored by the app target via FamilyActivitySelection.
-        // Extensions / kit apply using ManagedSettingsStore when selection is available in-app.
+        // This is what actually blocks apps. Setting `isLockedNow` above only records intent —
+        // until `shield.applications` is populated, iOS has been told nothing and every selected
+        // app opens normally.
+        guard let managedSettings,
+              let selection = FamilyActivitySelectionStore.load(from: store) else { return }
+        managedSettings.shield.applications = selection.applicationTokens.isEmpty
+            ? nil
+            : selection.applicationTokens
+        managedSettings.shield.applicationCategories = selection.categoryTokens.isEmpty
+            ? nil
+            : .specific(selection.categoryTokens)
         #endif
     }
 
@@ -132,6 +134,7 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         store.isLockedNow = false
         #if canImport(FamilyControls)
         managedSettings?.shield.applications = nil
+        managedSettings?.shield.applicationCategories = nil
         #endif
     }
 
@@ -148,6 +151,21 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         #endif
     }
 
+    #if DEBUG
+    /// Short schedule so the midnight re-shield can be verified in minutes rather than by
+    /// waiting for a real day roll.
+    public func scheduleDebugReshield(minutes: Int = 2) {
+        #if canImport(FamilyControls)
+        guard ScreenTimeAvailability.isSupported, authStatus == .approved else { return }
+        let now = Calendar.current.dateComponents([.hour, .minute, .second], from: Date())
+        var end = now
+        end.minute = (end.minute ?? 0) + minutes
+        let schedule = DeviceActivitySchedule(intervalStart: now, intervalEnd: end, repeats: false)
+        try? DeviceActivityCenter().startMonitoring(.debugShort, during: schedule)
+        #endif
+    }
+    #endif
+
     public func consumeEmergencyPass(durationMinutes: Int = 15) -> Bool {
         store.resetEmergencyPassesIfNeeded()
         guard store.emergencyPassesRemaining > 0 else { return false }
@@ -159,11 +177,6 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         ])
         return true
     }
-}
-
-public struct SelectedAppsPayload: Codable, Equatable, Sendable {
-    public var count: Int
-    public init(count: Int) { self.count = count }
 }
 
 /// The only supported way to obtain a `ScreenTimeService`.
@@ -209,7 +222,6 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
     public func persistSelectionCount(_ count: Int) {
         selectedAppCount = count
         store.selectedAppsCount = count
-        store.selectedAppsData = try? JSONEncoder().encode(SelectedAppsPayload(count: count))
     }
 
     public func applyShield() {

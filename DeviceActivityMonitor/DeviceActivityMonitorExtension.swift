@@ -1,4 +1,5 @@
 import DeviceActivity
+import FamilyControls
 import ManagedSettings
 import IqraLockKit
 
@@ -13,13 +14,18 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         store.pagesReadToday = 0
         store.isLockedNow = true
         store.unlockedUntil = nil
-        // Re-shield: actual tokens are applied from the app when selection is available.
-        // Extensions can only clear/set via the same ManagedSettingsStore name if tokens
-        // were previously set by the app in this store.
-        if store.selectedAppsData != nil {
-            // Leaving applications as previously configured by the app target.
-            // If cleared during unlock, the app re-applies on next foreground.
-        }
+        // Re-shield from the saved selection. Relying on the app to re-apply on next foreground
+        // left a hole: finishing yesterday's goal cleared `shield.applications`, and if the user
+        // never reopened IqraLock the apps stayed unblocked all of the next day despite the
+        // counter having reset above. This extension shares the App Group and the default
+        // ManagedSettingsStore, so it can restore the shield itself.
+        guard let selection = FamilyActivitySelectionStore.load(from: store) else { return }
+        managed.shield.applications = selection.applicationTokens.isEmpty
+            ? nil
+            : selection.applicationTokens
+        managed.shield.applicationCategories = selection.categoryTokens.isEmpty
+            ? nil
+            : .specific(selection.categoryTokens)
     }
 
     override func intervalDidEnd(for activity: DeviceActivityName) {

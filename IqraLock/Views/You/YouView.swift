@@ -2,12 +2,20 @@ import SwiftUI
 import SwiftData
 import IqraLockKit
 
+#if canImport(FamilyControls)
+import FamilyControls
+#endif
+
 struct YouView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [UserProfile]
     @State private var showShieldPreview = false
     @State private var showAbout = false
+    #if canImport(FamilyControls)
+    @State private var activitySelection = FamilyActivitySelection()
+    @State private var showActivityPicker = false
+    #endif
     #if DEBUG
     @State private var showResetConfirm = false
     #endif
@@ -37,7 +45,23 @@ struct YouView: View {
                 }
 
                 Section("Focus") {
-                    LabeledContent("Locked apps", value: "\(appModel.screenTime.selectedAppCount) selected")
+                    if ScreenTimeAvailability.isSupported {
+                        Button {
+                            showActivityPicker = true
+                        } label: {
+                            HStack {
+                                Text("Locked apps").foregroundStyle(IQColor.textPrimary)
+                                Spacer()
+                                Text("\(appModel.screenTime.selectedAppCount) selected")
+                                    .foregroundStyle(IQColor.textSecondary)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(IQColor.textFaint)
+                            }
+                        }
+                    } else {
+                        LabeledContent("Locked apps", value: "\(appModel.screenTime.selectedAppCount) selected")
+                    }
                     LabeledContent("Emergency passes", value: "\(appModel.store.emergencyPassesRemaining) left")
                     Button("Preview lock screen") { showShieldPreview = true }
                     if !appModel.purchases.gate.canBlockApps {
@@ -83,6 +107,24 @@ struct YouView: View {
                 #endif
             }
             .navigationTitle("You")
+            #if canImport(FamilyControls)
+            .familyActivityPicker(isPresented: $showActivityPicker, selection: $activitySelection)
+            .onChange(of: activitySelection) { _, newValue in
+                try? FamilyActivitySelectionStore.save(newValue, to: appModel.store)
+                let count = newValue.applicationTokens.count + newValue.categoryTokens.count
+                appModel.screenTime.persistSelectionCount(count)
+                // Re-apply immediately so removing an app unblocks it without waiting for the
+                // next day roll, and adding one takes effect straight away.
+                appModel.shield.reevaluate()
+            }
+            .onAppear {
+                // Seed from the saved selection so reopening the picker shows current choices
+                // as ticked rather than an empty list.
+                if let saved = FamilyActivitySelectionStore.load(from: appModel.store) {
+                    activitySelection = saved
+                }
+            }
+            #endif
             .sheet(isPresented: $showShieldPreview) {
                 ShieldPreviewView()
             }
