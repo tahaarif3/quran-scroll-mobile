@@ -120,6 +120,12 @@ targets:
         # that UIAppFonts survives — without the key here App Store validation rejects the build
         # for a missing 120x120 icon even though the catalogue is present and correct.
         CFBundleIconName: AppIcon
+        # Declares the export-compliance answer in the binary so App Store Connect stops asking
+        # on every upload. False is correct here: the app implements no cryptography of its own
+        # and adds nothing on top of what iOS provides — no network calls in shipping paths, no
+        # crypto libraries linked. A build without this key sits in "Missing Compliance" and
+        # cannot be installed until someone answers the prompt by hand.
+        ITSAppUsesNonExemptEncryption: false
         # iPhone only. TARGETED_DEVICE_FAMILY: "1" is set in the base settings, but validation
         # still demanded iPad icons and iPad orientations, so the built bundle was not carrying
         # the restriction. Declared here so the plist states it outright.
