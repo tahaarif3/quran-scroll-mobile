@@ -115,6 +115,11 @@ targets:
         # that UIAppFonts survives — without the key here App Store validation rejects the build
         # for a missing 120x120 icon even though the catalogue is present and correct.
         CFBundleIconName: AppIcon
+        # iPhone only. TARGETED_DEVICE_FAMILY: "1" is set in the base settings, but validation
+        # still demanded iPad icons and iPad orientations, so the built bundle was not carrying
+        # the restriction. Declared here so the plist states it outright.
+        UIDeviceFamily:
+          - 1
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

@@ -98,6 +98,10 @@ jobs:
 
       - name: Upload test results
         if: always()
+        # Diagnostics only. GitHub's artifact service has timed out here and failed an otherwise
+        # green run — build and tests had both passed — which makes the signal untrustworthy in
+        # the direction that matters. An upload flake must never mark the code broken.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: test-results
