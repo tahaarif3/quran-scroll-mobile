@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   upload:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 45
 
     env:
@@ -35,6 +35,23 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # App Store Connect rejects anything built with an SDK older than iOS 26, so the runner's
+      # default Xcode is not necessarily good enough — pick the newest installed and fail loudly
+      # rather than discovering it 12 minutes later at the upload step.
+      - name: Select newest Xcode
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode*.app
+          NEWEST=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "${NEWEST}/Contents/Developer"
+          xcodebuild -version
+          SDK=$(xcodebuild -showsdks | grep -oE 'iphoneos[0-9]+' | grep -oE '[0-9]+' | sort -n | tail -1)
+          echo "iOS SDK major: ${SDK}"
+          if [ "${SDK}" -lt 26 ]; then
+            echo "::error::Need the iOS 26 SDK or later to upload; newest available is ${SDK}."
+            exit 1
+          fi
 
       - name: Install XcodeGen
         run: brew install xcodegen

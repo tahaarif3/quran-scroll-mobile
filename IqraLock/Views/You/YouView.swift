@@ -84,7 +84,7 @@ struct YouView: View {
                         Task { try? await appModel.purchases.restore() }
                     }
                     if !appModel.purchases.hasPro {
-                        Text("Pro unlocks app blocking, stats, transliteration, and extra passes. The Qur'an reader stays free.")
+                        Text("Pro unlocks app blocking, stats, and extra passes. The Qur'an reader stays free.")
                             .font(.footnote)
                             .foregroundStyle(IQColor.textSecondary)
                     }

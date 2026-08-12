@@ -165,8 +165,13 @@ public enum ReadFrequency: String, CaseIterable, Codable, Sendable {
 public enum ReadingStyleAnswer: String, CaseIterable, Codable, Sendable {
     case arabicTranslation = "Arabic + translation"
     case translationFirst = "Translation first"
-    case arabicTransliteration = "Arabic + transliteration"
     case arabicOnly = "Arabic only"
+
+    // "Arabic + transliteration" was offered here and gated behind Pro, but the bundled
+    // database has no transliteration column — only surah *names* have one — so the reader
+    // silently showed the English translation instead. Removed rather than left selling
+    // something that does not exist. Reinstating it means adding a transliteration column in
+    // Scripts/build_quran_sqlite.py; QuranComTransliterationService is a starting point.
 }
 
 public enum GoalAnswer: String, CaseIterable, Codable, Sendable, Identifiable {

@@ -17,6 +17,8 @@ struct ReaderView: View {
     @State private var showSize = false
     @State private var encouragement = "Almost there!"
     @State private var repository: BundledQuranRepository?
+    @State private var surahs: [SurahMeta] = []
+    @State private var showSurahList = false
 
     /// Resolved from `AppModel`, never constructed here. A stored `UnlockCoordinator()` ran at
     /// view-struct init — which `TabView` performs for every tab up front — and cascaded through
@@ -63,6 +65,9 @@ struct ReaderView: View {
         }
         .background(IQColor.bgReader.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) { bottomBar }
+        .sheet(isPresented: $showSurahList) {
+            SurahListView(surahs: surahs, currentSurah: surahNumber) { jump(to: $0) }
+        }
         .sheet(isPresented: $showSize) {
             VStack(spacing: 16) {
                 Text("Arabic text size").iqraStyle(.h3)
@@ -85,13 +90,25 @@ struct ReaderView: View {
                     .foregroundStyle(IQColor.textFaint)
                     .frame(width: 44, height: 44)
             }
-            VStack(spacing: 2) {
-                Text(surah?.nameEnglish ?? "Al-Mulk")
-                    .iqraStyle(.bodyStrong, color: IQColor.textInk)
-                Text(surah.map { "\($0.number) · \($0.nameTransliteration)" } ?? "67 · The Sovereignty")
-                    .iqraStyle(.caption, color: IQColor.textMuted)
+            Button {
+                showSurahList = true
+            } label: {
+                VStack(spacing: 2) {
+                    HStack(spacing: 5) {
+                        Text(surah?.nameEnglish ?? "Al-Mulk")
+                            .iqraStyle(.bodyStrong, color: IQColor.textInk)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(IQColor.textFaint)
+                    }
+                    Text(surah.map { "\($0.number) · \($0.nameTransliteration)" } ?? "67 · The Sovereignty")
+                        .iqraStyle(.caption, color: IQColor.textMuted)
+                }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Choose surah")
             Button { showSize = true } label: {
                 Text("Aa")
                     .font(.custom("Nunito-Bold", size: 17))
@@ -106,29 +123,15 @@ struct ReaderView: View {
 
     private func ayahBlock(_ ayah: Ayah) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(ayah.textUthmani)
-                    .font(.custom("Amiri-Bold", size: textSize))
-                    .lineSpacing(textSize * 1.1)
-                    .foregroundStyle(IQColor.textInk)
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .environment(\.layoutDirection, .rightToLeft)
-
-                Text(arabicIndic(ayah.ayah))
-                    .font(.custom("Amiri-Bold", size: 12))
-                    .foregroundStyle(.white)
-                    .frame(width: 26, height: 26)
-                    .background(Circle().fill(IQColor.accentOlive))
-            }
-
-            if style != .arabicOnly {
-                if style == .translationFirst {
-                    Text(ayah.translationEn)
-                        .iqraStyle(.translation, color: IQColor.textMuted2)
-                } else if style == .arabicTranslation || style == .arabicTransliteration {
-                    Text(ayah.translationEn)
-                        .iqraStyle(.translation, color: IQColor.textMuted2)
+            // "Translation first" now actually puts it first. It previously rendered
+            // identically to "Arabic + translation", so the setting did nothing.
+            if style == .translationFirst {
+                translationLine(ayah)
+                arabicLine(ayah)
+            } else {
+                arabicLine(ayah)
+                if style != .arabicOnly {
+                    translationLine(ayah)
                 }
             }
 
@@ -137,14 +140,47 @@ struct ReaderView: View {
         .padding(.vertical, 12)
     }
 
+    private func arabicLine(_ ayah: Ayah) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(ayah.textUthmani)
+                .font(.custom("Amiri-Bold", size: textSize))
+                .lineSpacing(textSize * 1.1)
+                .foregroundStyle(IQColor.textInk)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .environment(\.layoutDirection, .rightToLeft)
+
+            Text(arabicIndic(ayah.ayah))
+                .font(.custom("Amiri-Bold", size: 12))
+                .foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(IQColor.accentOlive))
+        }
+    }
+
+    private func translationLine(_ ayah: Ayah) -> some View {
+        Text(ayah.translationEn)
+            .iqraStyle(.translation, color: IQColor.textMuted2)
+    }
+
     private var bottomBar: some View {
         VStack(spacing: 10) {
-            HStack {
-                Text("Page \(pageOfGoal) of \(goal)")
-                    .iqraStyle(.caption, color: IQColor.textMuted)
-                Spacer()
-                Text(encouragement)
-                    .iqraStyle(.captionStrong, color: IQColor.accentOlive)
+            HStack(spacing: 10) {
+                // Paging is separate from the daily goal: moving around the mushaf should not
+                // count pages as read, only the CTA does.
+                pageStepButton(systemName: "chevron.left", enabled: pageNumber > 1) {
+                    goToPage(pageNumber - 1)
+                }
+                VStack(spacing: 1) {
+                    Text("Page \(pageOfGoal) of \(goal)")
+                        .iqraStyle(.caption, color: IQColor.textMuted)
+                    Text("Mushaf p.\(pageNumber)")
+                        .iqraStyle(.finePrint, color: IQColor.textFaint)
+                }
+                .frame(maxWidth: .infinity)
+                pageStepButton(systemName: "chevron.right", enabled: pageNumber < 604) {
+                    goToPage(pageNumber + 1)
+                }
             }
             ChunkyButton("✓ Mark page as read", kind: .primary) { markPage() }
         }
@@ -160,6 +196,26 @@ struct ReaderView: View {
         )
     }
 
+    private func pageStepButton(
+        systemName: String,
+        enabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(enabled ? IQColor.brandPrimary : IQColor.textFaint.opacity(0.4))
+                .frame(width: 40, height: 32)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(IQColor.savePill.opacity(enabled ? 1 : 0.4))
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel(systemName == "chevron.left" ? "Previous page" : "Next page")
+    }
+
     private func load() async {
         do {
             let repo = try BundledQuranRepository()
@@ -170,6 +226,7 @@ struct ReaderView: View {
             }
             surah = try repo.surah(number: surahNumber)
             ayahs = try repo.page(pageNumber).ayahs
+            surahs = (try? repo.allSurahs()) ?? []
             textSize = profiles.first?.arabicTextSize ?? 26
         } catch {
             ayahs = [
@@ -211,17 +268,45 @@ struct ReaderView: View {
                 goalPages: goal
             ))
         }
-        if let repo = repository, pageNumber < 604,
-           let next = try? repo.page(pageNumber + 1) {
-            pageNumber += 1
-            ayahs = next.ayahs
-            if let first = next.ayahs.first {
-                surahNumber = first.surah
-                surah = try? repo.surah(number: first.surah)
-            }
+        goToPage(pageNumber + 1)
+        encouragement = outcome.goalMet ? "Goal met!" : "Almost there!"
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    /// Moves to any mushaf page and keeps the surah header and saved position in step. Marking a
+    /// page read, jumping to a surah and paging backwards all route through here so they cannot
+    /// disagree about where the reader is.
+    private func goToPage(_ target: Int) {
+        guard let repo = repository,
+              target >= 1, target <= 604,
+              let page = try? repo.page(target) else { return }
+        pageNumber = target
+        ayahs = page.ayahs
+        if let first = page.ayahs.first {
+            surahNumber = first.surah
+            surah = try? repo.surah(number: first.surah)
         }
+        savePosition()
+    }
+
+    private func jump(to target: SurahMeta) {
+        guard let repo = repository,
+              let page = try? repo.pageNumber(surah: target.number, ayah: 1) else { return }
+        goToPage(page)
+        // goToPage resolves the surah from the page's first ayah, which can be the *previous*
+        // surah when one ends partway down the page. The user asked for this one.
+        surahNumber = target.number
+        surah = target
+        savePosition()
+    }
+
+    private func savePosition() {
         let pos = positions.first ?? {
-            let p = ReadingPosition(surahNumber: surahNumber, ayahNumber: ayahs.first?.ayah ?? 1, pageNumber: pageNumber)
+            let p = ReadingPosition(
+                surahNumber: surahNumber,
+                ayahNumber: ayahs.first?.ayah ?? 1,
+                pageNumber: pageNumber
+            )
             modelContext.insert(p)
             return p
         }()
@@ -230,8 +315,6 @@ struct ReaderView: View {
         pos.pageNumber = pageNumber
         pos.updatedAt = Date()
         try? modelContext.save()
-        encouragement = outcome.goalMet ? "Goal met!" : "Almost there!"
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
     private func arabicIndic(_ n: Int) -> String {

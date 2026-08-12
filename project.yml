@@ -110,9 +110,22 @@ targets:
         CFBundleDisplayName: IqraLock
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Required whenever the icon comes from an asset catalogue. Xcode injects this itself
+        # only when it generates the plist, and this target sets GENERATE_INFOPLIST_FILE: NO so
+        # that UIAppFonts survives — without the key here App Store validation rejects the build
+        # for a missing 120x120 icon even though the catalogue is present and correct.
+        CFBundleIconName: AppIcon
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        # iPhone-only app, but validation still checks the iPad key and demands all four
+        # orientations for multitasking. Declaring them here satisfies it without affecting
+        # iPhone, which stays portrait-locked above.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         # Was INFOPLIST_KEY_UIApplicationSceneManifest_Generation. SwiftUI's App lifecycle needs
         # the key present but declares no scene configurations of its own.
         UIApplicationSceneManifest:

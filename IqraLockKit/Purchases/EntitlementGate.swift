@@ -11,7 +11,6 @@ public struct EntitlementGate: Equatable, Sendable {
     public var canReadQuran: Bool { true }
     public var canBlockApps: Bool { hasPro }
     public var canSeeStats: Bool { hasPro }
-    public var canUseTransliteration: Bool { hasPro }
     public var maxTranslations: Int { hasPro ? 20 : 1 }
     public var maxEmergencyPasses: Int { hasPro ? 5 : 2 }
     public var canUseReaderThemes: Bool { hasPro }

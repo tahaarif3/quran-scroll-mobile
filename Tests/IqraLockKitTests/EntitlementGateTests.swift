@@ -12,13 +12,11 @@ final class EntitlementGateTests: XCTestCase {
         XCTAssertTrue(EntitlementGate(hasPro: true).canBlockApps)
     }
 
-    func testStatsAndTransliterationRequirePro() {
+    func testStatsRequirePro() {
         let free = EntitlementGate(hasPro: false)
         let pro = EntitlementGate(hasPro: true)
         XCTAssertFalse(free.canSeeStats)
         XCTAssertTrue(pro.canSeeStats)
-        XCTAssertFalse(free.canUseTransliteration)
-        XCTAssertTrue(pro.canUseTransliteration)
         XCTAssertEqual(free.maxTranslations, 1)
         XCTAssertEqual(pro.maxTranslations, 20)
     }
