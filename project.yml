@@ -35,9 +35,12 @@ targets:
   IqraLockKit:
     type: framework
     platform: iOS
+    # XcodeGen has no `resources:` target key — resources belong under `sources:` with a
+    # buildPhase. A `resources:` block parses as unknown and is silently dropped, which is why
+    # nothing here reached the bundle: no fonts (the "fonts won't load" blocker was never about
+    # the Info.plist), no quran.sqlite, and no compiled asset catalogue.
     sources:
       - path: IqraLockKit
-    resources:
       - path: Resources/Quran
         buildPhase: resources
       - path: Resources/Fonts
@@ -45,6 +48,7 @@ targets:
       # Owned by the framework, not the app: OptionRow and the onboarding heroes live in
       # IqraLockKit, and the shield extensions link it too. Resolved via Bundle.iqraLockKit.
       - path: Resources/Icons.xcassets
+        buildPhase: resources
       - path: Resources/LICENSE-fluent-emoji.txt
         buildPhase: resources
     dependencies:
@@ -79,13 +83,14 @@ targets:
   IqraLock:
     type: application
     platform: iOS
+    # See the note on IqraLockKit — these were under a `resources:` key that XcodeGen ignores.
+    # PrivacyInfo.xcprivacy is not listed: it lives inside IqraLock/ and is already picked up by
+    # the directory entry, and declaring it twice makes two build rules produce the same file.
     sources:
       - path: IqraLock
-    resources:
       - path: Resources/Fonts
         buildPhase: resources
       - path: Resources/Assets.xcassets
-      - path: IqraLock/PrivacyInfo.xcprivacy
         buildPhase: resources
     dependencies:
       - target: IqraLockKit

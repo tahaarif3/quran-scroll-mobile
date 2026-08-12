@@ -113,21 +113,37 @@ jobs:
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             -quiet
 
-      # The export step re-signs, so amending the archived bundle here is safe. This covers the
-      # case where the key survives generation but is dropped during Xcode's plist processing.
-      - name: Verify and repair the archived bundle
+      # Resources went missing silently for a long time: a `resources:` block in project.yml is
+      # not a key XcodeGen understands, so the fonts, the Qur'an database and both asset
+      # catalogues were dropped without any warning, and the unit test that would have caught
+      # the database is written to skip when it is absent. Fail here instead of at upload, or
+      # worse, on a device.
+      - name: Verify the archived bundle actually contains its resources
         run: |
           set -euo pipefail
           APP="${ARCHIVE_PATH}/Products/Applications/IqraLock.app"
-          echo "--- archived Info.plist ---"
+          FW="$APP/Frameworks/IqraLockKit.framework"
+
+          echo "--- app Info.plist ---"
           plutil -p "$APP/Info.plist" | grep -E "CFBundleIconName|UIDeviceFamily" || echo "(missing)"
-          echo "--- compiled icons present? ---"
-          ls "$APP" | grep -iE "assets.car|AppIcon" || echo "(no Assets.car / AppIcon in bundle)"
-          if ! plutil -p "$APP/Info.plist" | grep -q CFBundleIconName; then
-            echo "::warning::CFBundleIconName absent from the archived bundle; injecting before export."
-            plutil -replace CFBundleIconName -string AppIcon "$APP/Info.plist"
+
+          fail=0
+          check() {  # description, path
+            if [ -e "$2" ]; then echo "  ok   $1"; else echo "  MISS $1  ($2)"; fail=1; fi
+          }
+          echo "--- required payload ---"
+          check "app icon catalogue"   "$APP/Assets.car"
+          check "Qur'an database"      "$FW/quran.sqlite"
+          check "Nunito-Black"         "$FW/Nunito-Black.ttf"
+          check "Amiri-Bold"           "$FW/Amiri-Bold.ttf"
+          check "Fluent icon assets"   "$FW/Assets.car"
+
+          if [ "$fail" -ne 0 ]; then
+            echo "--- app bundle ---";       ls "$APP"
+            echo "--- framework bundle ---"; ls "$FW" 2>/dev/null || echo "(no framework)"
+            echo "::error::Resources are missing from the archive — check the sources/buildPhase entries in project.yml."
+            exit 1
           fi
-          plutil -p "$APP/Info.plist" | grep CFBundleIconName
 
       - name: Write ExportOptions.plist
         env:
