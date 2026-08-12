@@ -138,6 +138,15 @@ jobs:
           check "Amiri-Bold"           "$FW/Amiri-Bold.ttf"
           check "Fluent icon assets"   "$FW/Assets.car"
 
+          # UIAppFonts only registers fonts in the *app* bundle, and only when the plist names
+          # match the layout — so print both, because a mismatch here is invisible until a font
+          # comes back nil on device and UIKit aborts on the NSNull it gets handed.
+          echo "--- fonts in app bundle ---"
+          ls "$APP"/*.ttf 2>/dev/null | xargs -n1 basename 2>/dev/null || echo "  (none at bundle root)"
+          ls "$APP/Fonts" 2>/dev/null || echo "  (no Fonts/ subdirectory)"
+          echo "--- UIAppFonts declared ---"
+          plutil -extract UIAppFonts json -o - "$APP/Info.plist" 2>/dev/null || echo "  (not declared)"
+
           if [ "$fail" -ne 0 ]; then
             echo "--- app bundle ---";       ls "$APP"
             echo "--- framework bundle ---"; ls "$FW" 2>/dev/null || echo "(no framework)"

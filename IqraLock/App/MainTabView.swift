@@ -47,9 +47,13 @@ struct MainTabView: View {
             red: 0xB3 / 255, green: 0xA5 / 255, blue: 0x85 / 255, alpha: 1
         )
         appearance.stackedLayoutAppearance.normal.iconColor = inactive
+        // `UIFont(name:size:) as Any` was fatal here. When the font is not registered the
+        // initialiser returns nil, `as Any` bridges that to NSNull rather than dropping the
+        // entry, and UITabBar.layoutSubviews then sends a font selector to NSNull and aborts —
+        // taking the app down on every launch the moment the tab bar appeared.
         appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
             .foregroundColor: inactive,
-            .font: UIFont(name: "Nunito-SemiBold", size: 10) as Any
+            .font: UIFont.iqra("Nunito-SemiBold", size: 10)
         ]
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance

@@ -25,6 +25,20 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let userDisplayName = "userDisplayName"
         public static let dayKey = "dayKey"
         public static let pendingDeepLink = "pendingDeepLink"
+        public static let launchInProgress = "launchInProgress"
+        public static let consecutiveLaunchFailures = "consecutiveLaunchFailures"
+    }
+
+    /// Set at launch, cleared once the app has run long enough to be considered healthy. If it
+    /// is still set at the next launch, the previous one died before getting there.
+    public var launchInProgress: Bool {
+        get { defaults.bool(forKey: Key.launchInProgress) }
+        set { defaults.set(newValue, forKey: Key.launchInProgress) }
+    }
+
+    public var consecutiveLaunchFailures: Int {
+        get { defaults.integer(forKey: Key.consecutiveLaunchFailures) }
+        set { defaults.set(newValue, forKey: Key.consecutiveLaunchFailures) }
     }
 
     public var pagesReadToday: Int {
@@ -126,7 +140,8 @@ public final class AppGroupStore: @unchecked Sendable {
         for key in [
             Key.pagesReadToday, Key.dailyGoalPages, Key.isLockedNow, Key.unlockedUntil,
             Key.emergencyPassesRemaining, Key.emergencyPassesMonthKey, Key.selectedAppsData,
-            Key.selectedAppsCount, Key.userDisplayName, Key.dayKey, Key.pendingDeepLink
+            Key.selectedAppsCount, Key.userDisplayName, Key.dayKey, Key.pendingDeepLink,
+            Key.launchInProgress, Key.consecutiveLaunchFailures
         ] {
             defaults.removeObject(forKey: key)
         }
