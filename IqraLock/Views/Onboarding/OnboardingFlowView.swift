@@ -12,6 +12,7 @@ struct OnboardingFlowView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var vm: OnboardingViewModel
     @State private var selectedPlan: PaywallPlan = .annual
+    @State private var purchaseError: String?
     /// Simulator-only stand-in; see `simulatorAppPicker`.
     @State private var mockSelected: Set<String> = []
 
@@ -679,13 +680,31 @@ struct OnboardingFlowView: View {
                             "plan": selectedPlan.rawValue
                         ])
                         finishOnboarding()
-                    } catch {}
+                    } catch {
+                        // A swallowed error here reads as a dead button: the user taps
+                        // subscribe, nothing happens, and they have no idea why. Cancellation
+                        // is the one case that stays silent — they chose it.
+                        appModel.analytics.track("purchase_failed", properties: [
+                            "plan": selectedPlan.rawValue,
+                            "error": String(describing: error)
+                        ])
+                        purchaseError = (error as? PurchaseError)?.errorDescription
+                            ?? error.localizedDescription
+                    }
                 }
             },
             onRestore: {
                 Task {
-                    try? await appModel.purchases.restore()
-                    if appModel.purchases.hasPro { finishOnboarding() }
+                    do {
+                        try await appModel.purchases.restore()
+                        if appModel.purchases.hasPro {
+                            finishOnboarding()
+                        } else {
+                            purchaseError = "No previous subscription was found for this Apple ID."
+                        }
+                    } catch {
+                        purchaseError = "Couldn't reach the App Store to restore. Please try again."
+                    }
                 }
             },
             onSkipRevealed: {
@@ -696,6 +715,14 @@ struct OnboardingFlowView: View {
             appModel.analytics.track("paywall_viewed", properties: [
                 "offering": appModel.purchases.offeringId
             ])
+        }
+        .alert(
+            "Purchase didn't complete",
+            isPresented: Binding(get: { purchaseError != nil }, set: { if !$0 { purchaseError = nil } })
+        ) {
+            Button("OK", role: .cancel) { purchaseError = nil }
+        } message: {
+            Text(purchaseError ?? "")
         }
     }
 

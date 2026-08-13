@@ -26,20 +26,33 @@ struct YouView: View {
         NavigationStack {
             List {
                 Section {
-                    LabeledContent("Name", value: profile?.displayName ?? appModel.store.userDisplayName)
+                    HStack {
+                        Text("Name")
+                        Spacer()
+                        TextField("Your name", text: nameBinding)
+                            .multilineTextAlignment(.trailing)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                            .foregroundStyle(IQColor.textSecondary)
+                    }
                     stepperRow
                     Picker("Reading style", selection: readingStyleBinding) {
                         ForEach(ReadingStyleAnswer.allCases, id: \.self) { style in
                             Text(style.rawValue).tag(style)
                         }
                     }
-                    LabeledContent("Translation", value: "Saheeh International")
-                    HStack {
-                        Text("Arabic text size")
-                        Spacer()
-                        Text("\(Int(profile?.arabicTextSize ?? 26))pt")
-                            .foregroundStyle(IQColor.textSecondary)
+                    Stepper(value: textSizeBinding, in: 20...36, step: 1) {
+                        HStack {
+                            Text("Arabic text size")
+                            Spacer()
+                            Text("\(Int(textSizeBinding.wrappedValue))pt")
+                                .foregroundStyle(IQColor.textSecondary)
+                        }
                     }
+                    // Only one translation ships with the app, so a picker here would be a
+                    // control with a single option. Left as a plain row until there are more.
+                    LabeledContent("Translation", value: "Saheeh International")
                 } header: {
                     Text("Reading")
                 }
@@ -72,9 +85,10 @@ struct YouView: View {
                 }
 
                 Section("Reminders") {
-                    LabeledContent(
+                    DatePicker(
                         "Reminder time",
-                        value: String(format: "%02d:%02d", profile?.reminderHour ?? 21, profile?.reminderMinute ?? 0)
+                        selection: reminderBinding,
+                        displayedComponents: .hourAndMinute
                     )
                 }
 
@@ -161,6 +175,57 @@ struct YouView: View {
                 profile?.dailyGoalPages = newValue
                 appModel.store.dailyGoalPages = newValue
                 try? modelContext.save()
+            }
+        )
+    }
+
+    /// Mirrored into the App Group as well as the profile: Home greets from the store, and the
+    /// shield extensions read it too, so writing only the SwiftData copy leaves the name stale
+    /// everywhere outside this screen.
+    private var nameBinding: Binding<String> {
+        Binding(
+            get: { profile?.displayName ?? appModel.store.userDisplayName },
+            set: { newValue in
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                profile?.displayName = trimmed
+                appModel.store.userDisplayName = trimmed
+                try? modelContext.save()
+            }
+        )
+    }
+
+    /// Matches the range of the reader's own text-size sheet, so the two controls cannot
+    /// disagree about what sizes are allowed.
+    private var textSizeBinding: Binding<Double> {
+        Binding(
+            get: { profile?.arabicTextSize ?? 26 },
+            set: { newValue in
+                profile?.arabicTextSize = newValue
+                try? modelContext.save()
+            }
+        )
+    }
+
+    /// Hour and minute are stored as separate integers; DatePicker wants a Date. The date part
+    /// is irrelevant — only the time components are read back.
+    private var reminderBinding: Binding<Date> {
+        Binding(
+            get: {
+                var components = DateComponents()
+                components.hour = profile?.reminderHour ?? 21
+                components.minute = profile?.reminderMinute ?? 0
+                return Calendar.current.date(from: components) ?? Date()
+            },
+            set: { newValue in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                let hour = components.hour ?? 21
+                let minute = components.minute ?? 0
+                profile?.reminderHour = hour
+                profile?.reminderMinute = minute
+                try? modelContext.save()
+                // Rescheduled immediately — persisting the new time without re-registering the
+                // notification would leave the reminder firing at the old one indefinitely.
+                appModel.notifications.scheduleDailyReminder(hour: hour, minute: minute)
             }
         )
     }

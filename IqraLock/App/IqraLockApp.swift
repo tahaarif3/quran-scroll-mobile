@@ -57,7 +57,7 @@ final class AppModel {
 
     init(
         analytics: AnalyticsService = NoopAnalytics(),
-        purchases: PurchaseService = MockPurchaseService(),
+        purchases: PurchaseService = StoreKitPurchaseService(),
         screenTime: ScreenTimeService? = nil,
         store: AppGroupStore = .shared,
         notifications: NotificationScheduling = LocalNotificationScheduler()
@@ -123,6 +123,9 @@ final class AppModel {
         IQFontAudit.verify()
         #endif
         recoverFromFailedLaunchesIfNeeded()
+        // Loads prices and re-reads the entitlement. Without it the paywall shows fallback
+        // prices and a subscriber who reinstalled would look unsubscribed until they restored.
+        Task { await purchases.refresh() }
         store.ensureCurrentDay()
         store.resetEmergencyPassesIfNeeded()
         shield.reevaluate()
