@@ -353,10 +353,15 @@ struct OnboardingFlowView: View {
                 Text("Select the apps IqraLock should shield until you finish today's pages.")
                     .iqraStyle(.subtitle, color: IQColor.textMuted)
 
-                if ScreenTimeAvailability.isSupported {
+                if !ScreenTimeAvailability.isSupported {
+                    simulatorAppPicker
+                } else if appModel.screenTime.authStatus == .approved {
                     realAppPicker
                 } else {
-                    simulatorAppPicker
+                    // Without this the user sees Apple's picker with every category empty and
+                    // no explanation — which reads as a broken app rather than a missing
+                    // permission.
+                    authorizationNeeded
                 }
             }
             .padding(.top, 8)
@@ -409,6 +414,50 @@ struct OnboardingFlowView: View {
         #endif
     }
 
+    /// Shown when Family Controls has not been authorised — either the user declined the system
+    /// prompt, or Screen Time is switched off on the device entirely. Apple's picker gives no
+    /// hint in either case; it simply lists nothing.
+    private var authorizationNeeded: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 14) {
+                IQIconView(.lock, size: IQIcon.rowSize)
+                    .frame(width: IQIcon.rowColumnWidth)
+                Text("Screen Time access is needed to choose apps")
+                    .iqraStyle(.option, color: IQColor.textInk)
+            }
+            Text("Without it, Apple's app list comes up empty. If you dismissed the prompt, you can allow it now. If Screen Time is turned off on this device, enable it in Settings → Screen Time first.")
+                .iqraStyle(.caption, color: IQColor.textMuted2)
+
+            Button {
+                Task {
+                    do {
+                        try await appModel.screenTime.requestAuthorization()
+                    } catch {
+                        appModel.analytics.track("screentime_auth_retry_failed", properties: [
+                            "error": String(describing: error)
+                        ])
+                    }
+                }
+            } label: {
+                Text("Allow Screen Time access")
+                    .iqraStyle(.captionStrong, color: IQColor.brandPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
+                .fill(IQColor.bgCard)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
+                .strokeBorder(IQColor.borderSubtle, lineWidth: 1.6)
+        )
+    }
+
     /// Simulator / un-entitled builds, where FamilyControls traps at runtime. Keeps the flow
     /// walkable; it records a count so the CTA enables, but shields nothing.
     private var simulatorAppPicker: some View {
@@ -456,7 +505,17 @@ struct OnboardingFlowView: View {
     private var systemPrompt: some View {
         OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: {
             Task {
-                try? await appModel.screenTime.requestAuthorization()
+                // Deliberately not `try?`. A denial here is the difference between a working
+                // app and one that silently shields nothing — the user sails on believing they
+                // are set up, the picker comes up empty, and no Screen Time toggle ever appears
+                // under the app's permissions.
+                do {
+                    try await appModel.screenTime.requestAuthorization()
+                } catch {
+                    appModel.analytics.track("screentime_auth_failed", properties: [
+                        "error": String(describing: error)
+                    ])
+                }
                 vm.next()
             }
         }) {
