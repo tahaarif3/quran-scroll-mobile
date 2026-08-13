@@ -10,8 +10,14 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
     override func intervalDidStart(for activity: DeviceActivityName) {
         super.intervalDidStart(for: activity)
+        // Only the daily interval is a reset. The unlock window an ayah buys is scheduled as a
+        // separate activity starting immediately, so without this guard tapping "Continue to
+        // app" fired the midnight reset a second later: apps re-shielded instantly and the
+        // day's pages were wiped. The window is ended by intervalDidEnd, never started here.
+        guard activity == .daily else { return }
         store.ensureCurrentDay()
         store.pagesReadToday = 0
+        store.ayahsReadToday = 0
         store.isLockedNow = true
         store.unlockedUntil = nil
         // Re-shield from the saved selection. Relying on the app to re-apply on next foreground

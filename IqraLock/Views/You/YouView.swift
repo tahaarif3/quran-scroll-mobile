@@ -75,6 +75,10 @@ struct YouView: View {
                         appModel.store.dailyGoalAyahs = new
                         profile?.dailyGoalPages = appModel.store.dailyGoalPages
                         try? modelContext.save()
+                        // Raising the goal past what has been read today un-meets it, so the
+                        // apps have to go back behind the shield. Without this the user could
+                        // finish a one-ayah goal, raise it to ten pages, and stay unlocked.
+                        appModel.shield.reevaluate()
                     }
 
                     Picker("Reading style", selection: readingStyleBinding) {

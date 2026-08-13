@@ -92,6 +92,36 @@ Caveat: TestFlight builds are **Release**, so `#if DEBUG` is compiled out and th
 there. To get it on a device, either build Debug to the device from a Mac, or temporarily change
 the archive step's `-configuration Release` to `Debug` (do not ship that).
 
+## OUTSTANDING: the certificate limit
+
+**Every CI run creates a new signing certificate, and the account will fill up.**
+
+The runner's keychain starts empty each time, so `-allowProvisioningUpdates` cannot reuse an
+existing signing identity and mints a fresh one instead. This first bit after about ten builds:
+
+```
+error: Choose a certificate to revoke. Your account has reached the maximum number of certificates.
+error: No profiles for 'com.tahaarif.iqralock' were found
+```
+
+**Stopgap** (browser only, no Mac needed — a phone works): developer.apple.com → Certificates,
+Identifiers & Profiles → Certificates → revoke the Apple Distribution certificates created by CI,
+keeping one. Don't revoke one your local Xcode is using, or one tied to a build already on the
+App Store.
+
+**Permanent fix** (needs a Mac once):
+
+1. Keychain Access → your Apple Distribution certificate → right-click → Export → `.p12` with a
+   password.
+2. `base64 -i cert.p12 | pbcopy`
+3. Add two GitHub secrets: `SIGNING_CERTIFICATE_P12` (the base64) and
+   `SIGNING_CERTIFICATE_PASSWORD`.
+4. Add a step to `testflight.yml` before Archive that creates a temporary keychain, imports the
+   `.p12`, and unlocks it. Xcode then reuses that identity instead of creating one, and only
+   provisioning profiles are fetched automatically.
+
+Until step 4 exists, expect to revoke certificates roughly every ten builds.
+
 ## Things that will bite
 
 - **Build numbers are permanent.** The workflow uses `github.run_number`, which only increases.

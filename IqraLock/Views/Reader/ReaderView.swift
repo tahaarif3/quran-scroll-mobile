@@ -9,6 +9,10 @@ import UIKit
 /// position, and every ayah passed through counts the same wherever it was read. The previous
 /// page-scrolling reader made those two different mechanics that had to be reconciled.
 struct ReaderView: View {
+    /// False when the reader *is* a tab root. `dismiss()` has nothing to dismiss there, so the
+    /// chevron did nothing at all — it only means something for the pushed instance from Home.
+    var showsBack: Bool = true
+
     @Environment(AppModel.self) private var appModel
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -80,11 +84,16 @@ struct ReaderView: View {
 
     private var topBar: some View {
         HStack {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(IQColor.textFaint)
-                    .frame(width: 44, height: 44)
+            if showsBack {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(IQColor.textFaint)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Back")
+            } else {
+                Color.clear.frame(width: 44, height: 44)
             }
             Button { showSurahList = true } label: {
                 VStack(spacing: 2) {

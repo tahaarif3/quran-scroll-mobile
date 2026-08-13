@@ -16,7 +16,7 @@ struct MainTabView: View {
                 .tabItem { Label("Today", systemImage: "house") }
                 .tag(MainTab.today)
 
-            NavigationStack { ReaderView() }
+            NavigationStack { ReaderView(showsBack: false) }
                 .tabItem { Label("Read", systemImage: "book") }
                 .tag(MainTab.read)
 
