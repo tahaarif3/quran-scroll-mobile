@@ -45,55 +45,38 @@ public final class UnlockCoordinator: @unchecked Sendable {
         public let goalMet: Bool
     }
 
-    /// Minimum gap between two ayahs that both count.
-    ///
-    /// The shield's read button is one tap, so without this the whole day's goal is a few
-    /// seconds of tapping and the app's central claim is worthless. Deliberately lenient — it
-    /// is meant to stop reflex tapping, not to police a fast reader.
-    public static let minimumAyahInterval: TimeInterval = 5
-
-    /// Record a single ayah. Ten of them — `ayahsPerPage` — roll into a page.
-    ///
-    /// This is the small-progress path: a user who reads one ayah off the shield has moved
-    /// forward, rather than facing an all-or-nothing page. Rolling into pages rather than
-    /// replacing them keeps the goal, the streak and the khatm count denominated in something
-    /// that means something.
+    /// Record a single ayah. The roll-into-a-page rule lives on the store so the ShieldAction
+    /// extension shares it; this adds the analytics and unlock side effects the extension
+    /// cannot perform.
     @discardableResult
     public func recordAyahRead(now: Date = Date()) -> AyahOutcome {
-        store.ensureCurrentDay(now: now)
+        let pagesBefore = store.pagesReadToday
+        let record = store.recordAyah(now: now)
 
-        if let last = store.lastAyahReadAt,
-           now.timeIntervalSince(last) < Self.minimumAyahInterval {
+        guard record.counted else {
             analytics.track("ayah_read_rejected_too_fast", properties: [:])
             return AyahOutcome(
                 counted: false,
-                ayahsIntoPage: store.ayahsReadToday,
-                ayahsPerPage: store.ayahsPerPage,
-                pagesToday: store.pagesReadToday,
-                goalMet: store.goalMetToday
+                ayahsIntoPage: record.ayahsIntoPage,
+                ayahsPerPage: record.ayahsPerPage,
+                pagesToday: record.pagesToday,
+                goalMet: record.goalMet
             )
         }
-        store.lastAyahReadAt = now
 
-        store.ayahsReadToday += 1
-        var met = false
-        if store.ayahsReadToday >= store.ayahsPerPage {
-            store.ayahsReadToday -= store.ayahsPerPage
-            store.pagesReadToday += 1
-            met = evaluate(now: now)
-        } else {
-            analytics.track("ayah_read", properties: [
-                "ayahsIntoPage": store.ayahsReadToday,
-                "ayahsPerPage": store.ayahsPerPage
-            ])
-            met = store.goalMetToday
-        }
+        analytics.track("ayah_read", properties: [
+            "ayahsIntoPage": record.ayahsIntoPage,
+            "ayahsPerPage": record.ayahsPerPage
+        ])
 
+        // Only run the unlock path when an ayah actually completed a page, so the notification
+        // and shield clearing fire once rather than on every ayah after the goal is met.
+        let met = record.pagesToday > pagesBefore ? evaluate(now: now) : record.goalMet
         return AyahOutcome(
             counted: true,
-            ayahsIntoPage: store.ayahsReadToday,
-            ayahsPerPage: store.ayahsPerPage,
-            pagesToday: store.pagesReadToday,
+            ayahsIntoPage: record.ayahsIntoPage,
+            ayahsPerPage: record.ayahsPerPage,
+            pagesToday: record.pagesToday,
             goalMet: met
         )
     }

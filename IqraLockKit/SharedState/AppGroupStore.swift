@@ -167,6 +167,52 @@ public final class AppGroupStore: @unchecked Sendable {
         "\(pagesReadToday) of \(dailyGoalPages) pages read · \(pagesRemaining) to go"
     }
 
+    public struct AyahRecord: Equatable, Sendable {
+        public let counted: Bool
+        public let ayahsIntoPage: Int
+        public let ayahsPerPage: Int
+        public let pagesToday: Int
+        public let goalMet: Bool
+    }
+
+    /// Minimum gap between two ayahs that both count. The shield's read button is a single tap,
+    /// so without this the whole day's goal is a few seconds of tapping.
+    public static let minimumAyahInterval: TimeInterval = 5
+
+    /// Records one ayah and rolls it into a page every `ayahsPerPage`.
+    ///
+    /// Lives on the store rather than the coordinator because the ShieldAction extension needs
+    /// exactly this and cannot afford to build a coordinator — two implementations of the
+    /// roll-into-a-page rule would drift, and the app and the lock screen disagreeing about how
+    /// much you have read is the worst possible bug in this app.
+    @discardableResult
+    public func recordAyah(now: Date = Date()) -> AyahRecord {
+        ensureCurrentDay(now: now)
+
+        if let last = lastAyahReadAt, now.timeIntervalSince(last) < Self.minimumAyahInterval {
+            return AyahRecord(
+                counted: false,
+                ayahsIntoPage: ayahsReadToday,
+                ayahsPerPage: ayahsPerPage,
+                pagesToday: pagesReadToday,
+                goalMet: goalMetToday
+            )
+        }
+        lastAyahReadAt = now
+        ayahsReadToday += 1
+        if ayahsReadToday >= ayahsPerPage {
+            ayahsReadToday -= ayahsPerPage
+            pagesReadToday += 1
+        }
+        return AyahRecord(
+            counted: true,
+            ayahsIntoPage: ayahsReadToday,
+            ayahsPerPage: ayahsPerPage,
+            pagesToday: pagesReadToday,
+            goalMet: goalMetToday
+        )
+    }
+
     #if DEBUG
     /// Wipe every key this store owns, returning the app-group side to a first-run state.
     /// Debug builds only — this is the reset path for TestFlight/device testing, where

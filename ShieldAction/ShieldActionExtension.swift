@@ -37,8 +37,7 @@ final class ShieldActionExtension: ShieldActionDelegate {
     ) {
         switch action {
         case .primaryButtonPressed:
-            scheduleReadNotification()
-            completionHandler(.close)
+            completionHandler(recordAyahRead())
         case .secondaryButtonPressed:
             _ = consumeEmergencyPass()
             completionHandler(.close)
@@ -47,17 +46,43 @@ final class ShieldActionExtension: ShieldActionDelegate {
         }
     }
 
-    private func scheduleReadNotification() {
+    /// Credits one ayah and decides whether that finished the day.
+    ///
+    /// `.defer` keeps the shield up and re-runs the configuration, which serves the next ayah —
+    /// so the same button is both "I've read it" and "read another", without needing a third
+    /// button the API does not offer. Reading happens on the lock screen; the app never opens.
+    private func recordAyahRead() -> ShieldActionResponse {
+        let record = store.recordAyah()
+
+        guard record.counted else {
+            // Tapped within the minimum interval. Deferring re-presents the same ayah, which is
+            // the correct feedback: it has not been counted, so it is still there to read.
+            return .defer
+        }
+
+        guard record.goalMet else { return .defer }
+
+        // Goal complete — lift the shield for the rest of the day and let the app through.
+        store.isLockedNow = false
+        let calendar = Calendar.current
+        store.unlockedUntil = calendar.date(
+            byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())
+        )
+        ManagedSettingsStore().shield.applications = nil
+        ManagedSettingsStore().shield.applicationCategories = nil
+        scheduleUnlockedNotification()
+        return .close
+    }
+
+    private func scheduleUnlockedNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "Ready to read?"
-        content.body = "Tap to open today's pages and unlock your apps."
-        content.userInfo = ["deepLink": "iqralock://read"]
+        content.title = "Apps unlocked"
+        content.body = "You finished today's reading. Your apps are open until tomorrow."
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.4, repeats: false)
         UNUserNotificationCenter.current().add(
-            UNNotificationRequest(identifier: "shield_read_prompt", content: content, trigger: trigger)
+            UNNotificationRequest(identifier: "shield_unlocked", content: content, trigger: trigger)
         )
-        store.pendingDeepLink = "iqralock://read"
     }
 
     @discardableResult

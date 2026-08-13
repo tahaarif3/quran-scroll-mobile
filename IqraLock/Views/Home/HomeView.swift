@@ -7,6 +7,8 @@ struct HomeView: View {
     @Query private var profiles: [UserProfile]
     @Query(sort: \DailyRecord.day, order: .reverse) private var records: [DailyRecord]
     @State private var ringProgress: Double = 0
+    @State private var dailyAyah: Ayah?
+    @State private var ayahCredited = false
 
     private var name: String { profiles.first?.displayName ?? appModel.store.userDisplayName }
     private var goal: Int { profiles.first?.dailyGoalPages ?? appModel.store.dailyGoalPages }
@@ -98,19 +100,50 @@ struct HomeView: View {
                     Spacer()
                     IQIconView(.bookmark, size: 20)
                 }
-                Text("فَإِنَّ مَعَ ٱلْعُسْرِ يُسْرًا")
+                Text(dailyAyah?.textUthmani ?? "فَإِنَّ مَعَ ٱلْعُسْرِ يُسْرًا")
                     .font(.custom("Amiri-Bold", size: 27))
                     .foregroundStyle(IQColor.textInk)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .environment(\.layoutDirection, .rightToLeft)
-                Text("Indeed, with hardship comes ease.")
+                Text(dailyAyah?.translationEn ?? "Indeed, with hardship comes ease.")
                     .iqraStyle(.translation, color: IQColor.textMuted2)
                     .multilineTextAlignment(.center)
-                Text("Ash-Sharh 94:6")
+                Text(dailyAyah?.verseKey ?? "Ash-Sharh 94:6")
                     .iqraStyle(.captionStrong, color: IQColor.textMuted2)
+
+                // One ayah, there the moment the app opens, crediting real progress. The
+                // smallest step forward the app offers — small enough to always say yes to.
+                if ayahCredited {
+                    Text("Counted · \(appModel.store.ayahsReadToday)/\(appModel.store.ayahsPerPage) toward your next page")
+                        .iqraStyle(.caption, color: IQColor.accentOlive)
+                        .padding(.top, 2)
+                } else {
+                    ChunkyButton("✓ I've read it", kind: .secondary) {
+                        guard appModel.unlock.recordAyahRead().counted else { return }
+                        ayahCredited = true
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
+                    .padding(.top, 2)
+                }
+
+                Button {
+                    appModel.showReader = true
+                } label: {
+                    Text("Read more →")
+                        .iqraStyle(.captionStrong, color: IQColor.brandPrimary)
+                        .frame(minHeight: 40)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
+        .task { await loadDailyAyah() }
+    }
+
+    private func loadDailyAyah() async {
+        guard dailyAyah == nil, let repository = try? BundledQuranRepository() else { return }
+        dailyAyah = try? repository.ayah(verseKey: AyahOfTheDay.key())
     }
 
     private var todayCard: some View {

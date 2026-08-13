@@ -12,26 +12,47 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         let name = application.localizedDisplayName ?? "This app"
         analyticsShown()
 
+        let cream = UIColor(red: 0xF7 / 255, green: 0xED / 255, blue: 0xD8 / 255, alpha: 1)
+        let ayah = ShieldAyahProvider.ayah(for: store)
+
+        // The ayah goes in the icon, not the subtitle, because the subtitle has no font control
+        // and truncates. Falling back to the lock mark keeps the shield coherent if the database
+        // cannot be opened from the extension.
+        let icon = ayah.flatMap { ShieldAyahProvider.arabicImage(for: $0, color: cream) }
+            ?? Self.lockIcon()
+
+        // Subtitle carries the translation and the progress — Latin text the system renders
+        // predictably. Reference included so the ayah can be looked up.
+        let subtitle: String
+        if let ayah {
+            subtitle = "\"\(ayah.translationEn)\"\n— \(ayah.verseKey)\n\n\(ShieldAyahProvider.progressLine(for: store))"
+        } else {
+            subtitle = store.shieldSubtitle()
+        }
+
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterialDark,
             backgroundColor: UIColor(red: 0x25 / 255, green: 0x15 / 255, blue: 0x0C / 255, alpha: 1),
-            icon: Self.lockIcon(),
+            icon: icon,
             title: ShieldConfiguration.Label(
                 text: "\(name) is locked",
-                color: UIColor(red: 0xF7 / 255, green: 0xED / 255, blue: 0xD8 / 255, alpha: 1)
+                color: cream
             ),
             subtitle: ShieldConfiguration.Label(
-                text: store.shieldSubtitle(),
+                text: subtitle,
                 color: UIColor(red: 0xC8 / 255, green: 0xB2 / 255, blue: 0x4E / 255, alpha: 1)
             ),
+            // Reading happens here rather than in the app. There are only two buttons, and
+            // "read more" needs no third — this one re-presents the shield with the next ayah,
+            // so tapping it repeatedly is reading on.
             primaryButtonLabel: ShieldConfiguration.Label(
-                text: "Read now to unlock",
+                text: ayah == nil ? "Read now to unlock" : "I've read this ayah",
                 color: UIColor(red: 0x2B / 255, green: 0x25 / 255, blue: 0x21 / 255, alpha: 1)
             ),
             primaryButtonBackgroundColor: UIColor(red: 0xF0 / 255, green: 0xC2 / 255, blue: 0x4B / 255, alpha: 1),
             secondaryButtonLabel: ShieldConfiguration.Label(
                 text: "Use emergency pass (\(store.emergencyPassesRemaining) left)",
-                color: UIColor(red: 0xF7 / 255, green: 0xED / 255, blue: 0xD8 / 255, alpha: 0.85)
+                color: cream.withAlphaComponent(0.85)
             )
         )
     }
