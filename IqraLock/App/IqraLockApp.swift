@@ -4,6 +4,7 @@ import IqraLockKit
 
 @main
 struct IqraLockApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var appModel = AppModel()
 
     init() {
@@ -16,6 +17,16 @@ struct IqraLockApp: App {
             RootView()
                 .environment(appModel)
                 .onOpenURL { appModel.handle(url: $0) }
+                // Also on foreground, not just launch. The window only refills while the app
+                // runs, and a user reading from the shield may go a long time without opening
+                // it — which is the entire point of putting the ayah there.
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    appModel.store.ensureCurrentDay()
+                    Task.detached(priority: .utility) { [store = appModel.store] in
+                        ShieldAyahProvider.refreshCache(store: store)
+                    }
+                }
                 .task {
                     appModel.bootstrap()
                     // Surviving a few seconds of real running is the signal that the launch

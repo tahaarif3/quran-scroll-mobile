@@ -16,7 +16,12 @@ public enum ShieldAyahProvider {
     /// The cost is that some ayahs are long, and the shield truncates its subtitle. That is a
     /// smaller price than a progress number that isn't true.
     /// How many ayahs ahead the app caches, so the shield can advance repeatedly on its own.
-    public static let cacheWindow = 40
+    ///
+    /// Generous on purpose. Once the window is exhausted the shield has nothing to show until
+    /// the app is next opened — and the whole point of reading from the shield is that the user
+    /// never has to open the app. At roughly 300 bytes an ayah this is well under any practical
+    /// limit for an App Group defaults entry.
+    public static let cacheWindow = 150
 
     /// Cache first, database second.
     ///
@@ -64,14 +69,13 @@ public enum ShieldAyahProvider {
     }
 
     /// Progress line for the shield subtitle, in ayahs rather than pages so that a single ayah
-    /// visibly moves it. A page-only counter would sit unchanged for nine taps out of ten.
+    /// visibly moves it. A page-only counter would sit unchanged for nine taps out of ten, and
+    /// now that the goal can be smaller than a page it could not describe it at all.
     public static func progressLine(for store: AppGroupStore = .shared) -> String {
-        let pages = store.pagesReadToday
-        let goal = store.dailyGoalPages
-        let into = store.ayahsReadToday
-        let per = store.ayahsPerPage
-        if pages >= goal { return "Today's goal is complete." }
-        return "\(pages)/\(goal) pages · \(into)/\(per) ayahs to the next"
+        if store.goalMetToday { return "Today's goal is complete." }
+        let read = store.totalAyahsToday
+        let goal = store.dailyGoalAyahs
+        return "\(read) of \(goal) ayahs today · goal \(store.goalDescription)"
     }
 
     // MARK: - Arabic rendering
