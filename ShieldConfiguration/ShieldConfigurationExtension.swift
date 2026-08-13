@@ -24,7 +24,11 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         // Subtitle carries the translation and the progress — Latin text the system renders
         // predictably. Reference included so the ayah can be looked up.
         let subtitle: String
-        if let ayah {
+        if let rejected = store.ayahRejectedAt, Date().timeIntervalSince(rejected) < 20 {
+            // The tap was refused for arriving too fast. Say so — an unexplained no-op reads as
+            // a broken button, and the user's next move is to delete the app.
+            subtitle = "Take a moment with it, then continue."
+        } else if let ayah {
             subtitle = "\"\(ayah.translationEn)\"\n— \(ayah.verseKey)\n\n\(ShieldAyahProvider.progressLine(for: store))"
         } else {
             subtitle = store.shieldSubtitle()
@@ -42,16 +46,16 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
                 text: subtitle,
                 color: UIColor(red: 0xC8 / 255, green: 0xB2 / 255, blue: 0x4E / 255, alpha: 1)
             ),
-            // Reading happens here rather than in the app. There are only two buttons, and
-            // "read more" needs no third — this one re-presents the shield with the next ayah,
-            // so tapping it repeatedly is reading on.
+            // Both buttons read the ayah. One spends it on a timed window, the other banks it
+            // and serves another — so "read more" needs no third button.
+            // Emergency passes moved into the app; they were too easy to reach from here.
             primaryButtonLabel: ShieldConfiguration.Label(
-                text: ayah == nil ? "Read now to unlock" : "I've read this ayah",
+                text: "Continue to app (\(store.ayahUnlockMinutes) min)",
                 color: UIColor(red: 0x2B / 255, green: 0x25 / 255, blue: 0x21 / 255, alpha: 1)
             ),
             primaryButtonBackgroundColor: UIColor(red: 0xF0 / 255, green: 0xC2 / 255, blue: 0x4B / 255, alpha: 1),
             secondaryButtonLabel: ShieldConfiguration.Label(
-                text: "Use emergency pass (\(store.emergencyPassesRemaining) left)",
+                text: "Read another ayah",
                 color: cream.withAlphaComponent(0.85)
             )
         )

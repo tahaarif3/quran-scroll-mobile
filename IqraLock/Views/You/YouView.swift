@@ -12,6 +12,7 @@ struct YouView: View {
     @Query private var profiles: [UserProfile]
     @State private var showShieldPreview = false
     @State private var showAbout = false
+    @State private var showPassConfirm = false
     #if canImport(FamilyControls)
     @State private var activitySelection = FamilyActivitySelection()
     @State private var showActivityPicker = false
@@ -75,7 +76,29 @@ struct YouView: View {
                     } else {
                         LabeledContent("Locked apps", value: "\(appModel.screenTime.selectedAppCount) selected")
                     }
+                    Stepper(value: ayahMinutesBinding, in: 5...120, step: 5) {
+                        HStack {
+                            Text("One ayah unlocks")
+                            Spacer()
+                            Text("\(ayahMinutesBinding.wrappedValue) min")
+                                .foregroundStyle(IQColor.textSecondary)
+                        }
+                    }
+                    Stepper(value: ayahsPerPageBinding, in: 1...30) {
+                        HStack {
+                            Text("Ayahs per page")
+                            Spacer()
+                            Text("\(ayahsPerPageBinding.wrappedValue)")
+                                .foregroundStyle(IQColor.textSecondary)
+                        }
+                    }
+
+                    // Moved off the shield deliberately: a pass one tap away from the thing you
+                    // are trying not to open is not much of a brake. Coming into the app for it
+                    // is the friction.
                     LabeledContent("Emergency passes", value: "\(appModel.store.emergencyPassesRemaining) left")
+                    Button("Use an emergency pass") { showPassConfirm = true }
+                        .disabled(appModel.store.emergencyPassesRemaining == 0)
                     Button("Preview lock screen") { showShieldPreview = true }
                     if !appModel.purchases.gate.canBlockApps {
                         Text("Blocking requires Pro")
@@ -139,6 +162,18 @@ struct YouView: View {
                 }
             }
             #endif
+            .confirmationDialog(
+                "Use an emergency pass?",
+                isPresented: $showPassConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Unlock for 15 minutes", role: .destructive) {
+                    _ = appModel.screenTime.consumeEmergencyPass(durationMinutes: 15)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your apps open for 15 minutes. You have \(appModel.store.emergencyPassesRemaining) left this month.")
+            }
             .sheet(isPresented: $showShieldPreview) {
                 ShieldPreviewView()
             }
@@ -227,6 +262,20 @@ struct YouView: View {
                 // notification would leave the reminder firing at the old one indefinitely.
                 appModel.notifications.scheduleDailyReminder(hour: hour, minute: minute)
             }
+        )
+    }
+
+    private var ayahMinutesBinding: Binding<Int> {
+        Binding(
+            get: { appModel.store.ayahUnlockMinutes },
+            set: { appModel.store.ayahUnlockMinutes = $0 }
+        )
+    }
+
+    private var ayahsPerPageBinding: Binding<Int> {
+        Binding(
+            get: { appModel.store.ayahsPerPage },
+            set: { appModel.store.ayahsPerPage = $0 }
         )
     }
 

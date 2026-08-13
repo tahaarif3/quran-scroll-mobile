@@ -1,3 +1,4 @@
+import DeviceActivity
 import ManagedSettings
 import IqraLockKit
 import UserNotifications
@@ -37,63 +38,80 @@ final class ShieldActionExtension: ShieldActionDelegate {
     ) {
         switch action {
         case .primaryButtonPressed:
-            completionHandler(recordAyahRead())
+            // "Continue to app" — credit the ayah, then spend it.
+            completionHandler(readAyah(thenContinue: true))
         case .secondaryButtonPressed:
-            _ = consumeEmergencyPass()
-            completionHandler(.close)
+            // "Read another ayah" — credit it and stay, so a fresh one is served.
+            completionHandler(readAyah(thenContinue: false))
         @unknown default:
             completionHandler(.close)
         }
     }
 
-    /// Credits one ayah and decides whether that finished the day.
+    /// Credits one ayah, and either spends it on access or banks it and serves another.
     ///
-    /// `.defer` keeps the shield up and re-runs the configuration, which serves the next ayah —
-    /// so the same button is both "I've read it" and "read another", without needing a third
-    /// button the API does not offer. Reading happens on the lock screen; the app never opens.
-    private func recordAyahRead() -> ShieldActionResponse {
-        let record = store.recordAyah()
+    /// Both buttons read. The only difference is what happens next — which is why there is no
+    /// need for the third button the API doesn't offer.
+    private func readAyah(thenContinue: Bool) -> ShieldActionResponse {
+        let now = Date()
+        let record = store.recordAyah(now: now)
 
         guard record.counted else {
-            // Tapped within the minimum interval. Deferring re-presents the same ayah, which is
-            // the correct feedback: it has not been counted, so it is still there to read.
+            // Arrived inside the minimum interval. Deferring re-presents the shield; the flag
+            // lets the configuration explain why nothing happened rather than looking broken.
+            store.ayahRejectedAt = now
             return .defer
         }
 
-        guard record.goalMet else { return .defer }
+        // Finishing the day's goal is worth more than a single window.
+        if record.goalMet {
+            let calendar = Calendar.current
+            store.isLockedNow = false
+            store.unlockedUntil = calendar.date(
+                byAdding: .day, value: 1, to: calendar.startOfDay(for: now)
+            )
+            clearShield()
+            notify(title: "Apps unlocked", body: "You finished today's reading. Your apps are open until tomorrow.")
+            return .close
+        }
 
-        // Goal complete — lift the shield for the rest of the day and let the app through.
-        store.isLockedNow = false
-        let calendar = Calendar.current
-        store.unlockedUntil = calendar.date(
-            byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())
-        )
-        ManagedSettingsStore().shield.applications = nil
-        ManagedSettingsStore().shield.applicationCategories = nil
-        scheduleUnlockedNotification()
+        guard thenContinue else { return .defer }
+
+        store.grantAyahWindow(now: now)
+        clearShield()
+        scheduleReshield(at: store.unlockedUntil ?? now)
         return .close
     }
 
-    private func scheduleUnlockedNotification() {
+    private func clearShield() {
+        let managed = ManagedSettingsStore()
+        managed.shield.applications = nil
+        managed.shield.applicationCategories = nil
+    }
+
+    /// ManagedSettings has no expiry of its own — a lifted shield stays lifted until something
+    /// puts it back. Without this the "30 minutes" would last until the user next opened
+    /// IqraLock, which for someone avoiding the app is indefinitely.
+    private func scheduleReshield(at date: Date) {
+        let calendar = Calendar.current
+        let start = calendar.dateComponents([.hour, .minute, .second], from: Date())
+        let end = calendar.dateComponents([.hour, .minute, .second], from: date)
+        let schedule = DeviceActivitySchedule(
+            intervalStart: start,
+            intervalEnd: end,
+            repeats: false
+        )
+        try? DeviceActivityCenter().startMonitoring(.emergencyReshield, during: schedule)
+    }
+
+    private func notify(title: String, body: String) {
         let content = UNMutableNotificationContent()
-        content.title = "Apps unlocked"
-        content.body = "You finished today's reading. Your apps are open until tomorrow."
+        content.title = title
+        content.body = body
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.4, repeats: false)
         UNUserNotificationCenter.current().add(
             UNNotificationRequest(identifier: "shield_unlocked", content: content, trigger: trigger)
         )
-    }
-
-    @discardableResult
-    private func consumeEmergencyPass() -> Bool {
-        store.resetEmergencyPassesIfNeeded()
-        guard store.emergencyPassesRemaining > 0 else { return false }
-        store.emergencyPassesRemaining -= 1
-        store.isLockedNow = false
-        store.unlockedUntil = Date().addingTimeInterval(15 * 60)
-        let managed = ManagedSettingsStore()
-        managed.shield.applications = nil
-        return true
     }
 }

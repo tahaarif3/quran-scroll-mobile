@@ -30,9 +30,21 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
     override func intervalDidEnd(for activity: DeviceActivityName) {
         super.intervalDidEnd(for: activity)
-        if activity.rawValue.contains("emergency") || activity.rawValue.contains("debug") {
-            store.isLockedNow = true
-            store.unlockedUntil = nil
+        guard activity.rawValue.contains("emergency") || activity.rawValue.contains("debug") else {
+            return
         }
+        store.isLockedNow = true
+        store.unlockedUntil = nil
+        // The window an ayah bought has run out. Re-applying the tokens here is what makes it a
+        // window at all — clearing a shield is permanent until something puts it back, and the
+        // app cannot be relied on to be opened.
+        guard !store.goalMetToday,
+              let selection = FamilyActivitySelectionStore.load(from: store) else { return }
+        managed.shield.applications = selection.applicationTokens.isEmpty
+            ? nil
+            : selection.applicationTokens
+        managed.shield.applicationCategories = selection.categoryTokens.isEmpty
+            ? nil
+            : .specific(selection.categoryTokens)
     }
 }

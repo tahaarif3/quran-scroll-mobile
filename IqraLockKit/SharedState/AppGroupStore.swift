@@ -30,6 +30,56 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let ayahsReadToday = "ayahsReadToday"
         public static let ayahsPerPage = "ayahsPerPage"
         public static let lastAyahReadAt = "lastAyahReadAt"
+        public static let ayahUnlockMinutes = "ayahUnlockMinutes"
+        public static let ayahRejectedAt = "ayahRejectedAt"
+        public static let totalPagesRead = "totalPagesRead"
+        public static let khatmCount = "khatmCount"
+    }
+
+    /// Minutes of access a single ayah buys. Adjustable — it is the exchange rate between
+    /// reading and scrolling, and the single most consequential number in the app.
+    public var ayahUnlockMinutes: Int {
+        get {
+            let v = defaults.integer(forKey: Key.ayahUnlockMinutes)
+            return v > 0 ? v : 30
+        }
+        set { defaults.set(max(1, newValue), forKey: Key.ayahUnlockMinutes) }
+    }
+
+    /// When a read was refused for arriving too fast, so the shield can explain itself instead
+    /// of appearing to ignore the tap.
+    public var ayahRejectedAt: Date? {
+        get { defaults.object(forKey: Key.ayahRejectedAt) as? Date }
+        set { defaults.set(newValue, forKey: Key.ayahRejectedAt) }
+    }
+
+    /// Lifetime pages, never reset by the day roll — the khatm counter reads from this.
+    public var totalPagesRead: Int {
+        get { defaults.integer(forKey: Key.totalPagesRead) }
+        set { defaults.set(newValue, forKey: Key.totalPagesRead) }
+    }
+
+    /// Completed readings of the whole Qur'an.
+    public var khatmCount: Int {
+        get { defaults.integer(forKey: Key.khatmCount) }
+        set { defaults.set(newValue, forKey: Key.khatmCount) }
+    }
+
+    public static let pagesInMushaf = 604
+
+    /// Pages into the current khatm, 0..<604.
+    public var pagesIntoKhatm: Int { totalPagesRead % Self.pagesInMushaf }
+    public var pagesToKhatm: Int { Self.pagesInMushaf - pagesIntoKhatm }
+    public var khatmProgress: Double {
+        Double(pagesIntoKhatm) / Double(Self.pagesInMushaf)
+    }
+
+    /// Opens the apps for `ayahUnlockMinutes`. Extends rather than replaces, so reading two
+    /// ayahs back to back is worth two windows rather than resetting the first.
+    public func grantAyahWindow(now: Date = Date()) {
+        let base = max(now, unlockedUntil ?? now)
+        unlockedUntil = base.addingTimeInterval(TimeInterval(ayahUnlockMinutes * 60))
+        isLockedNow = false
     }
 
     /// Set at launch, cleared once the app has run long enough to be considered healthy. If it
@@ -199,10 +249,15 @@ public final class AppGroupStore: @unchecked Sendable {
             )
         }
         lastAyahReadAt = now
+        ayahRejectedAt = nil
         ayahsReadToday += 1
         if ayahsReadToday >= ayahsPerPage {
             ayahsReadToday -= ayahsPerPage
             pagesReadToday += 1
+            totalPagesRead += 1
+            if totalPagesRead % Self.pagesInMushaf == 0 {
+                khatmCount += 1
+            }
         }
         return AyahRecord(
             counted: true,
