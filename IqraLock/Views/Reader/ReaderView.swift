@@ -19,6 +19,30 @@ struct ReaderView: View {
     @State private var repository: BundledQuranRepository?
     @State private var surahs: [SurahMeta] = []
     @State private var showSurahList = false
+    @State private var visibleAyahID: Int?
+
+    /// Position within the current page, 1-based, for the "ayah 7 of 15" readout.
+    private var ayahIndexOnPage: Int {
+        guard let visibleAyahID,
+              let index = ayahs.firstIndex(where: { $0.id == visibleAyahID }) else { return 1 }
+        return index + 1
+    }
+
+    private var currentAyah: Ayah? {
+        guard let visibleAyahID else { return ayahs.first }
+        return ayahs.first { $0.id == visibleAyahID } ?? ayahs.first
+    }
+
+    /// How far through the page's own ayahs the reader has scrolled.
+    ///
+    /// Deliberately not credited as loose ayahs: a mushaf page holds anywhere from three to
+    /// twenty ayahs, so crediting each one at the flat `ayahsPerPage` rate would make a short
+    /// page worth a fraction of a long one. Sequential reading credits whole pages; the
+    /// ayah-at-a-time rate is for loose ayahs off the shield.
+    private var pageScrollProgress: Double {
+        guard !ayahs.isEmpty else { return 0 }
+        return Double(ayahIndexOnPage) / Double(ayahs.count)
+    }
 
     /// Resolved from `AppModel`, never constructed here. A stored `UnlockCoordinator()` ran at
     /// view-struct init — which `TabView` performs for every tab up front — and cascaded through
@@ -56,12 +80,18 @@ struct ReaderView: View {
 
                     ForEach(ayahs) { ayah in
                         ayahBlock(ayah)
+                            .id(ayah.id)
                     }
                 }
+                .scrollTargetLayout()
                 .padding(.horizontal, 20)
                 .padding(.bottom, bottomBarHeight + 24)
             }
             .background(IQColor.bgReader)
+            // Tracks which ayah is at the top of the viewport, so the saved position is where
+            // the reader actually is rather than where the page starts.
+            .scrollPosition(id: $visibleAyahID, anchor: .top)
+            .onChange(of: visibleAyahID) { _, _ in savePosition() }
         }
         .background(IQColor.bgReader.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) { bottomBar }
@@ -174,10 +204,25 @@ struct ReaderView: View {
                 VStack(spacing: 1) {
                     Text("Page \(pageOfGoal) of \(goal)")
                         .iqraStyle(.caption, color: IQColor.textMuted)
-                    Text("Mushaf p.\(pageNumber)")
+                    Text("Mushaf p.\(pageNumber) · ayah \(ayahIndexOnPage) of \(max(1, ayahs.count))")
                         .iqraStyle(.finePrint, color: IQColor.textFaint)
                 }
                 .frame(maxWidth: .infinity)
+                .overlay(alignment: .bottom) {
+                    // Fills as the page is scrolled, so the page is visibly being worked
+                    // through rather than jumping from nothing to done at the button press.
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(IQColor.trackReader)
+                            Capsule()
+                                .fill(IQColor.accentOlive.opacity(0.7))
+                                .frame(width: geo.size.width * pageScrollProgress)
+                        }
+                    }
+                    .frame(height: 3)
+                    .offset(y: 8)
+                    .animation(.easeOut(duration: 0.25), value: pageScrollProgress)
+                }
                 pageStepButton(systemName: "chevron.right", enabled: pageNumber < 604) {
                     goToPage(pageNumber + 1)
                 }
@@ -226,6 +271,9 @@ struct ReaderView: View {
             }
             surah = try repo.surah(number: surahNumber)
             ayahs = try repo.page(pageNumber).ayahs
+            // Resume on the exact ayah, not the top of its page.
+            let savedAyah = positions.first?.ayahNumber
+            visibleAyahID = ayahs.first(where: { $0.ayah == savedAyah })?.id ?? ayahs.first?.id
             surahs = (try? repo.allSurahs()) ?? []
             textSize = profiles.first?.arabicTextSize ?? 26
         } catch {
@@ -282,6 +330,9 @@ struct ReaderView: View {
               let page = try? repo.page(target) else { return }
         pageNumber = target
         ayahs = page.ayahs
+        // Start a new page at its first ayah rather than inheriting the previous page's scroll
+        // offset, which would otherwise leave the reader part-way down a page it just opened.
+        visibleAyahID = page.ayahs.first?.id
         if let first = page.ayahs.first {
             surahNumber = first.surah
             surah = try? repo.surah(number: first.surah)
@@ -301,17 +352,20 @@ struct ReaderView: View {
     }
 
     private func savePosition() {
+        // The ayah actually on screen, not the first on the page — so reopening returns the
+        // reader to where the user stopped rather than to the top of the page they were on.
+        let ayahNumber = currentAyah?.ayah ?? ayahs.first?.ayah ?? 1
         let pos = positions.first ?? {
             let p = ReadingPosition(
                 surahNumber: surahNumber,
-                ayahNumber: ayahs.first?.ayah ?? 1,
+                ayahNumber: ayahNumber,
                 pageNumber: pageNumber
             )
             modelContext.insert(p)
             return p
         }()
         pos.surahNumber = surahNumber
-        pos.ayahNumber = ayahs.first?.ayah ?? 1
+        pos.ayahNumber = ayahNumber
         pos.pageNumber = pageNumber
         pos.updatedAt = Date()
         try? modelContext.save()
