@@ -34,6 +34,7 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let ayahRejectedAt = "ayahRejectedAt"
         public static let totalPagesRead = "totalPagesRead"
         public static let khatmCount = "khatmCount"
+        public static let khatmCursor = "khatmCursor"
     }
 
     /// Minutes of access a single ayah buys. Adjustable — it is the exchange rate between
@@ -66,12 +67,44 @@ public final class AppGroupStore: @unchecked Sendable {
     }
 
     public static let pagesInMushaf = 604
+    public static let ayahsInMushaf = 6236
 
-    /// Pages into the current khatm, 0..<604.
-    public var pagesIntoKhatm: Int { totalPagesRead % Self.pagesInMushaf }
-    public var pagesToKhatm: Int { Self.pagesInMushaf - pagesIntoKhatm }
+    /// The next ayah to read, as a global id in 1...6236.
+    ///
+    /// One cursor shared by the reader and the shield. It has to live here rather than in
+    /// SwiftData because the shield extension cannot reach SwiftData, and a shield that served
+    /// ayahs from a separate list is what made the khatm counter dishonest: eighteen short
+    /// verses on rotation, each tenth tap claiming another page of the Qur'an had been read.
+    public var khatmCursor: Int {
+        get {
+            let v = defaults.integer(forKey: Key.khatmCursor)
+            return v > 0 ? v : 1
+        }
+        set { defaults.set(min(max(1, newValue), Self.ayahsInMushaf), forKey: Key.khatmCursor) }
+    }
+
+    /// Moves the cursor forward, rolling over into a completed khatm at the end of the mushaf.
+    public func advanceKhatmCursor(by count: Int = 1) {
+        guard count > 0 else { return }
+        var next = khatmCursor + count
+        while next > Self.ayahsInMushaf {
+            next -= Self.ayahsInMushaf
+            khatmCount += 1
+        }
+        khatmCursor = next
+    }
+
+    /// Only ever moves forward — jumping back to re-read an earlier surah shouldn't undo
+    /// progress through the mushaf.
+    public func advanceKhatmCursor(toAyahID id: Int) {
+        guard id > khatmCursor else { return }
+        advanceKhatmCursor(by: id - khatmCursor)
+    }
+
+    public var ayahsIntoKhatm: Int { khatmCursor - 1 }
+    public var ayahsToKhatm: Int { Self.ayahsInMushaf - ayahsIntoKhatm }
     public var khatmProgress: Double {
-        Double(pagesIntoKhatm) / Double(Self.pagesInMushaf)
+        Double(ayahsIntoKhatm) / Double(Self.ayahsInMushaf)
     }
 
     /// Opens the apps for `ayahUnlockMinutes`. Extends rather than replaces, so reading two
@@ -217,18 +250,14 @@ public final class AppGroupStore: @unchecked Sendable {
         "\(pagesReadToday) of \(dailyGoalPages) pages read · \(pagesRemaining) to go"
     }
 
-    /// Credits one page to today, to the lifetime total, and to the khatm.
+    /// Credits one page to today and to the lifetime total.
     ///
-    /// Every path that completes a page must go through here. The khatm counters used to be
-    /// incremented only inside `recordAyah`, so pages read in the reader — the app's main way of
-    /// reading — advanced the daily goal but never the khatm, while tapping ayahs on the shield
-    /// did. Exactly backwards, and invisible until someone compared the two screens.
+    /// Khatm progress is deliberately *not* incremented here — it is driven by the cursor, so
+    /// that it only ever reflects ayahs actually passed through in order. Callers that know
+    /// which ayahs were covered advance the cursor themselves.
     public func creditPage() {
         pagesReadToday += 1
         totalPagesRead += 1
-        if totalPagesRead % Self.pagesInMushaf == 0 {
-            khatmCount += 1
-        }
     }
 
     public struct AyahRecord: Equatable, Sendable {
@@ -288,7 +317,9 @@ public final class AppGroupStore: @unchecked Sendable {
             Key.emergencyPassesRemaining, Key.emergencyPassesMonthKey, Key.selectedAppsData,
             Key.selectedAppsCount, Key.userDisplayName, Key.dayKey, Key.pendingDeepLink,
             Key.launchInProgress, Key.consecutiveLaunchFailures,
-            Key.ayahsReadToday, Key.ayahsPerPage, Key.lastAyahReadAt
+            Key.ayahsReadToday, Key.ayahsPerPage, Key.lastAyahReadAt,
+            Key.ayahUnlockMinutes, Key.ayahRejectedAt, Key.totalPagesRead,
+            Key.khatmCount, Key.khatmCursor
         ] {
             defaults.removeObject(forKey: key)
         }

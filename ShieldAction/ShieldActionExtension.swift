@@ -63,6 +63,10 @@ final class ShieldActionExtension: ShieldActionDelegate {
             return .defer
         }
 
+        // The ayah just shown was the one at the cursor, so move past it. This is what makes the
+        // khatm number honest: it counts ayahs actually passed through, in order.
+        store.advanceKhatmCursor()
+
         // Finishing the day's goal is worth more than a single window.
         if record.goalMet {
             let calendar = Calendar.current

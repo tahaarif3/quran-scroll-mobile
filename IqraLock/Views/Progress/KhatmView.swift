@@ -10,15 +10,27 @@ import IqraLockKit
 struct KhatmView: View {
     @Environment(AppModel.self) private var appModel
 
-    private var pagesInto: Int { appModel.store.pagesIntoKhatm }
-    private var pagesLeft: Int { appModel.store.pagesToKhatm }
+    @State private var cursorPage: Int?
+
+    private var ayahsInto: Int { appModel.store.ayahsIntoKhatm }
+    private var ayahsLeft: Int { appModel.store.ayahsToKhatm }
     private var progress: Double { appModel.store.khatmProgress }
     private var completed: Int { appModel.store.khatmCount }
+
+    /// The mushaf page the cursor sits on, looked up from the database — derived from where the
+    /// user actually is rather than counted separately, so it cannot drift from the cursor.
+    private var pagesInto: Int { max(0, (cursorPage ?? 1) - 1) }
+    private var pagesLeft: Int { AppGroupStore.pagesInMushaf - pagesInto }
 
     /// Days remaining at the pace they've actually set, not an average of everyone.
     private var projectedDays: Int {
         let perDay = max(1, appModel.store.dailyGoalPages)
         return Int((Double(pagesLeft) / Double(perDay)).rounded(.up))
+    }
+
+    private func loadCursorPage() async {
+        guard cursorPage == nil, let repository = try? BundledQuranRepository() else { return }
+        cursorPage = (try? repository.ayah(globalID: appModel.store.khatmCursor))?.page
     }
 
     var body: some View {
@@ -37,13 +49,14 @@ struct KhatmView: View {
         .background(IQColor.bgSand.ignoresSafeArea())
         .navigationTitle("Your khatm")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await loadCursorPage() }
     }
 
     private var headline: some View {
         VStack(spacing: 6) {
             Text(completed == 0 ? "Your first khatm" : "Khatm \(completed + 1)")
                 .iqraStyle(.h2, color: IQColor.textInk)
-            Text("\(pagesLeft) pages to go")
+            Text("\(ayahsLeft) ayahs to go · about \(pagesLeft) pages")
                 .iqraStyle(.subtitle, color: IQColor.textMuted2)
         }
         .frame(maxWidth: .infinity)
@@ -64,13 +77,14 @@ struct KhatmView: View {
                     Text("\(Int((progress * 100).rounded()))%")
                         .font(.custom("Nunito-Black", size: 34))
                         .foregroundStyle(.white)
-                    Text("\(pagesInto) / \(AppGroupStore.pagesInMushaf)")
+                    Text("\(ayahsInto) / \(AppGroupStore.ayahsInMushaf)")
                         .font(.custom("Nunito-SemiBold", size: 13))
                         .foregroundStyle(.white.opacity(0.7))
                 }
             )
-            Text("pages of the mushaf read")
+            Text("ayahs read, in order — around page \(cursorPage ?? 1)")
                 .iqraStyle(.caption, color: .white.opacity(0.75))
+                .multilineTextAlignment(.center)
         }
         .padding(24)
         .frame(maxWidth: .infinity)

@@ -7,24 +7,17 @@ import UIKit
 /// pool is restricted to genuinely short ayahs and the Arabic is drawn into the icon image —
 /// the one part of the shield we render ourselves — instead of being handed to a system label.
 public enum ShieldAyahProvider {
-    /// Short, well-known ayahs. Length is the selection criterion, not just meaning: anything
-    /// long is truncated mid-sentence by the system, which reads worse than not showing it.
-    public static let verseKeys = [
-        "94:5", "94:6", "2:152", "13:28", "65:3", "2:286",
-        "3:191", "39:53", "14:7", "21:87", "33:41", "55:13",
-        "57:4", "67:2", "93:5", "112:1", "18:10", "25:74"
-    ]
-
-    /// Rotates with how much has been read today, so every tap of "I've read this ayah" brings a
-    /// different one rather than re-showing the same verse.
-    public static func verseKey(for store: AppGroupStore = .shared) -> String {
-        let offset = store.pagesReadToday * store.ayahsPerPage + store.ayahsReadToday
-        return verseKeys[abs(offset) % verseKeys.count]
-    }
-
+    /// The next ayah in the mushaf, taken from the shared khatm cursor.
+    ///
+    /// Sequential rather than a curated list, so that reading from the shield genuinely moves
+    /// the reader through the Qur'an. A rotating pool of short verses made the khatm counter
+    /// false — the same eighteen ayahs, every tenth tap claiming another page read.
+    ///
+    /// The cost is that some ayahs are long, and the shield truncates its subtitle. That is a
+    /// smaller price than a progress number that isn't true.
     public static func ayah(for store: AppGroupStore = .shared) -> Ayah? {
         guard let repository = try? BundledQuranRepository() else { return nil }
-        return try? repository.ayah(verseKey: verseKey(for: store))
+        return try? repository.ayah(globalID: store.khatmCursor)
     }
 
     /// Progress line for the shield subtitle, in ayahs rather than pages so that a single ayah
@@ -58,11 +51,12 @@ public enum ShieldAyahProvider {
         paragraph.baseWritingDirection = .rightToLeft
         paragraph.lineBreakMode = .byWordWrapping
 
-        // Descend until it fits rather than truncating. 15pt is the floor — below that it is not
-        // readable on a shield and showing nothing is more honest than showing a smear.
+        // Descend until it fits. Now that ayahs are served sequentially rather than picked for
+        // brevity, long ones do occur — 12pt is the floor and the smallest size is used even if
+        // it still overflows, because dropping the Arabic entirely is worse than a tight fit.
         var attributes: [NSAttributedString.Key: Any] = [:]
         var fitted = false
-        for pointSize in stride(from: 34.0, through: 15.0, by: -1.0) {
+        for pointSize in stride(from: 34.0, through: 12.0, by: -1.0) {
             let font = UIFont(name: "Amiri-Bold", size: pointSize)
                 ?? .systemFont(ofSize: pointSize, weight: .semibold)
             paragraph.lineSpacing = pointSize * 0.35
@@ -82,7 +76,10 @@ public enum ShieldAyahProvider {
                 break
             }
         }
-        guard fitted else { return nil }
+        // `attributes` holds the floor size when nothing fitted; render at that rather than
+        // bailing out. The very longest ayahs will be cramped, which is a fair price for the
+        // cursor covering the whole mushaf in order.
+        _ = fitted
 
         let format = UIGraphicsImageRendererFormat.default()
         format.opaque = false

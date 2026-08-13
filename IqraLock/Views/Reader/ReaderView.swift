@@ -297,6 +297,11 @@ struct ReaderView: View {
         // interleave. `now` is captured once and reused for the DailyRecord below, so the record
         // and the counter can never disagree about which day this page belongs to.
         let now = Date()
+        // Move the shared cursor past every ayah on this page, so the shield picks up where the
+        // reader left off instead of re-serving verses that have just been read.
+        if let last = ayahs.last {
+            appModel.store.advanceKhatmCursor(toAyahID: last.id + 1)
+        }
         let outcome = appModel.unlock.recordPageRead(now: now)
         let day = Calendar.current.startOfDay(for: now)
         let descriptor = FetchDescriptor<DailyRecord>()

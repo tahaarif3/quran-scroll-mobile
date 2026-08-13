@@ -62,7 +62,7 @@ struct ProgressViewScreen: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Your khatm")
                             .iqraStyle(.bodyStrong, color: IQColor.textInk)
-                        Text("\(appModel.store.pagesToKhatm) pages to finishing the Qur'an")
+                        Text("\(appModel.store.ayahsToKhatm) ayahs to finishing the Qur'an")
                             .iqraStyle(.caption, color: IQColor.textMuted2)
                     }
                     Spacer(minLength: 8)
