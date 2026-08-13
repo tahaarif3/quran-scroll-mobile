@@ -16,6 +16,30 @@ import UIKit
 public enum IQFontRegistrar {
     private static let lock = NSLock()
     private static var hasRegistered = false
+    private static var registeredFiles: Set<String> = []
+
+    /// Registers a single font file by name.
+    ///
+    /// The shield extension is relaunched for every presentation and only ever needs Amiri.
+    /// Registering all eight faces there cost enough to make "Read another ayah" feel laggy.
+    public static func register(_ fileName: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !registeredFiles.contains(fileName), !hasRegistered else { return }
+        registeredFiles.insert(fileName)
+        for bundle in [Bundle.iqraLockKit, Bundle.main] {
+            for subdirectory in [nil, "Fonts"] as [String?] {
+                if let url = bundle.url(
+                    forResource: fileName,
+                    withExtension: "ttf",
+                    subdirectory: subdirectory
+                ) {
+                    CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+                    return
+                }
+            }
+        }
+    }
 
     /// Idempotent and cheap after the first call. Safe to call from any thread.
     public static func registerIfNeeded() {

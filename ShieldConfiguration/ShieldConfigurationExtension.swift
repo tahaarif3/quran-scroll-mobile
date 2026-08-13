@@ -24,12 +24,17 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         // Subtitle carries the translation and the progress — Latin text the system renders
         // predictably. Reference included so the ayah can be looked up.
         let subtitle: String
-        if let rejected = store.ayahRejectedAt, Date().timeIntervalSince(rejected) < 20 {
-            // The tap was refused for arriving too fast. Say so — an unexplained no-op reads as
-            // a broken button, and the user's next move is to delete the app.
-            subtitle = "Take a moment with it, then continue."
-        } else if let ayah {
-            subtitle = "\"\(ayah.translationEn)\"\n— \(ayah.verseKey)\n\n\(ShieldAyahProvider.progressLine(for: store))"
+        if let ayah {
+            // The "too fast" nudge is appended, not substituted. Replacing the whole subtitle
+            // hid the translation for twenty seconds after any quick tap, which read as the
+            // translation randomly failing to appear.
+            let recentlyRejected = store.ayahRejectedAt.map {
+                Date().timeIntervalSince($0) < AppGroupStore.minimumAyahInterval
+            } ?? false
+            let tail = recentlyRejected
+                ? "Take a moment with it, then continue."
+                : ShieldAyahProvider.progressLine(for: store)
+            subtitle = "\"\(ayah.translationEn)\"\n— \(ayah.verseKey)\n\n\(tail)"
         } else {
             subtitle = store.shieldSubtitle()
         }

@@ -87,65 +87,74 @@ public enum ShieldAyahProvider {
     /// drawing goes through CoreText, so Arabic shaping and right-to-left ordering are correct.
     public static func arabicImage(
         for ayah: Ayah,
-        size: CGSize = CGSize(width: 320, height: 200),
+        width: CGFloat = 300,
+        maxHeight: CGFloat = 340,
         color: UIColor = UIColor(red: 0xF7 / 255, green: 0xED / 255, blue: 0xD8 / 255, alpha: 1)
     ) -> UIImage? {
-        IQFontRegistrar.registerIfNeeded()
+        // Only the face actually used. Registering all eight in an extension that relaunches on
+        // every presentation is what made "Read another ayah" feel slow.
+        IQFontRegistrar.register("Amiri-Bold")
 
-        let inset = CGRect(origin: .zero, size: size).insetBy(dx: 12, dy: 12)
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         paragraph.baseWritingDirection = .rightToLeft
         paragraph.lineBreakMode = .byWordWrapping
 
-        // Descend until it fits. Now that ayahs are served sequentially rather than picked for
-        // brevity, long ones do occur — 12pt is the floor and the smallest size is used even if
-        // it still overflows, because dropping the Arabic entirely is worse than a tight fit.
-        var attributes: [NSAttributedString.Key: Any] = [:]
-        var fitted = false
-        for pointSize in stride(from: 34.0, through: 12.0, by: -1.0) {
-            let font = UIFont(name: "Amiri-Bold", size: pointSize)
-                ?? .systemFont(ofSize: pointSize, weight: .semibold)
-            paragraph.lineSpacing = pointSize * 0.35
-            attributes = [
-                .font: font,
+        let text = ayah.textUthmani as NSString
+        let available = CGSize(width: width, height: .greatestFiniteMagnitude)
+
+        func attributes(at pointSize: CGFloat) -> [NSAttributedString.Key: Any] {
+            let style = paragraph.mutableCopy() as! NSMutableParagraphStyle
+            style.lineSpacing = pointSize * 0.34
+            return [
+                .font: UIFont(name: "Amiri-Bold", size: pointSize)
+                    ?? .systemFont(ofSize: pointSize, weight: .semibold),
                 .foregroundColor: color,
-                .paragraphStyle: paragraph
+                .paragraphStyle: style
             ]
-            let bounds = (ayah.textUthmani as NSString).boundingRect(
-                with: CGSize(width: inset.width, height: .greatestFiniteMagnitude),
+        }
+
+        // Start far higher than before. iOS scales this image down into its icon slot, so what
+        // matters is how much of the image the text occupies, not the absolute point size —
+        // rendering 34pt text on a fixed 320x200 canvas left it tiny on screen.
+        var chosen = attributes(at: 30)
+        var bounds = CGSize(width: width, height: 0)
+        for pointSize in stride(from: 96.0, through: 30.0, by: -2.0) {
+            let candidate = attributes(at: pointSize)
+            let rect = text.boundingRect(
+                with: available,
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: attributes,
+                attributes: candidate,
                 context: nil
             )
-            if bounds.height <= inset.height {
-                fitted = true
+            if rect.height <= maxHeight {
+                chosen = candidate
+                bounds = CGSize(width: width, height: ceil(rect.height))
                 break
             }
         }
-        // `attributes` holds the floor size when nothing fitted; render at that rather than
-        // bailing out. The very longest ayahs will be cramped, which is a fair price for the
-        // cursor covering the whole mushaf in order.
-        _ = fitted
-
-        let format = UIGraphicsImageRendererFormat.default()
-        format.opaque = false
-        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
-            let text = ayah.textUthmani as NSString
-            let bounds = text.boundingRect(
-                with: CGSize(width: inset.width, height: .greatestFiniteMagnitude),
+        if bounds.height == 0 {
+            // Longest ayahs: keep the floor size and accept the full height rather than drop the
+            // Arabic. Cramped is better than absent.
+            let rect = text.boundingRect(
+                with: available,
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: attributes,
+                attributes: chosen,
                 context: nil
             )
-            let origin = CGPoint(
-                x: inset.minX,
-                y: inset.minY + max(0, (inset.height - bounds.height) / 2)
-            )
+            bounds = CGSize(width: width, height: ceil(rect.height))
+        }
+
+        // Canvas sized to the text, so no space is wasted and the glyphs survive the downscale
+        // as large as they can be.
+        let canvas = CGSize(width: width, height: bounds.height + 16)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: canvas, format: format).image { _ in
             text.draw(
-                with: CGRect(origin: origin, size: CGSize(width: inset.width, height: bounds.height)),
+                with: CGRect(x: 0, y: 8, width: width, height: bounds.height),
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: attributes,
+                attributes: chosen,
                 context: nil
             )
         }
