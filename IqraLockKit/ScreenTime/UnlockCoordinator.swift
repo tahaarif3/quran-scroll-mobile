@@ -31,7 +31,7 @@ public final class UnlockCoordinator: @unchecked Sendable {
     @discardableResult
     public func recordPageRead(now: Date = Date()) -> (pagesToday: Int, goalMet: Bool) {
         store.ensureCurrentDay(now: now)
-        store.pagesReadToday += 1
+        store.creditPage()
         let met = evaluate(now: now)
         return (store.pagesReadToday, met)
     }

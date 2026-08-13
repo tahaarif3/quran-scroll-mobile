@@ -217,6 +217,20 @@ public final class AppGroupStore: @unchecked Sendable {
         "\(pagesReadToday) of \(dailyGoalPages) pages read · \(pagesRemaining) to go"
     }
 
+    /// Credits one page to today, to the lifetime total, and to the khatm.
+    ///
+    /// Every path that completes a page must go through here. The khatm counters used to be
+    /// incremented only inside `recordAyah`, so pages read in the reader — the app's main way of
+    /// reading — advanced the daily goal but never the khatm, while tapping ayahs on the shield
+    /// did. Exactly backwards, and invisible until someone compared the two screens.
+    public func creditPage() {
+        pagesReadToday += 1
+        totalPagesRead += 1
+        if totalPagesRead % Self.pagesInMushaf == 0 {
+            khatmCount += 1
+        }
+    }
+
     public struct AyahRecord: Equatable, Sendable {
         public let counted: Bool
         public let ayahsIntoPage: Int
@@ -253,11 +267,7 @@ public final class AppGroupStore: @unchecked Sendable {
         ayahsReadToday += 1
         if ayahsReadToday >= ayahsPerPage {
             ayahsReadToday -= ayahsPerPage
-            pagesReadToday += 1
-            totalPagesRead += 1
-            if totalPagesRead % Self.pagesInMushaf == 0 {
-                khatmCount += 1
-            }
+            creditPage()
         }
         return AyahRecord(
             counted: true,
