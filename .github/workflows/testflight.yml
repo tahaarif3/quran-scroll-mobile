@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   upload:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 45
 
     env:
@@ -36,11 +36,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # App Store Connect rejects anything built with an SDK older than iOS 26, so the runner's
+      # default Xcode is not necessarily good enough — pick the newest installed and fail loudly
+      # rather than discovering it 12 minutes later at the upload step.
+      - name: Select newest Xcode
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode*.app
+          NEWEST=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "${NEWEST}/Contents/Developer"
+          xcodebuild -version
+          SDK=$(xcodebuild -showsdks | grep -oE 'iphoneos[0-9]+' | grep -oE '[0-9]+' | sort -n | tail -1)
+          echo "iOS SDK major: ${SDK}"
+          if [ "${SDK}" -lt 26 ]; then
+            echo "::error::Need the iOS 26 SDK or later to upload; newest available is ${SDK}."
+            exit 1
+          fi
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
       - name: Generate Xcode project
         run: xcodegen generate
+
+      # CFBundleIconName is declared in project.yml under info.properties, yet three builds
+      # reached App Store validation without it. Rather than guess again, print what actually
+      # lands in the generated plist and then write the key directly, so its presence does not
+      # depend on how XcodeGen or Xcode treat the properties block.
+      - name: Force CFBundleIconName into the generated plist
+        run: |
+          set -euo pipefail
+          PLIST=IqraLock/Info.plist
+          echo "--- as generated ---"
+          plutil -p "$PLIST" | grep -E "CFBundleIconName|UIDeviceFamily" || echo "(neither key present)"
+          plutil -replace CFBundleIconName -string AppIcon "$PLIST"
+          plutil -insert UIDeviceFamily -json '[1]' "$PLIST" 2>/dev/null \
+            || plutil -replace UIDeviceFamily -json '[1]' "$PLIST"
+          echo "--- after forcing ---"
+          plutil -p "$PLIST" | grep -E "CFBundleIconName|UIDeviceFamily"
 
       # altool and xcodebuild both look for the key here by its KEY_ID.
       - name: Install App Store Connect API key
@@ -79,6 +112,47 @@ jobs:
             DEVELOPMENT_TEAM="${TEAM_ID}" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             -quiet
+
+      # Resources went missing silently for a long time: a `resources:` block in project.yml is
+      # not a key XcodeGen understands, so the fonts, the Qur'an database and both asset
+      # catalogues were dropped without any warning, and the unit test that would have caught
+      # the database is written to skip when it is absent. Fail here instead of at upload, or
+      # worse, on a device.
+      - name: Verify the archived bundle actually contains its resources
+        run: |
+          set -euo pipefail
+          APP="${ARCHIVE_PATH}/Products/Applications/IqraLock.app"
+          FW="$APP/Frameworks/IqraLockKit.framework"
+
+          echo "--- app Info.plist ---"
+          plutil -p "$APP/Info.plist" | grep -E "CFBundleIconName|UIDeviceFamily" || echo "(missing)"
+
+          fail=0
+          check() {  # description, path
+            if [ -e "$2" ]; then echo "  ok   $1"; else echo "  MISS $1  ($2)"; fail=1; fi
+          }
+          echo "--- required payload ---"
+          check "app icon catalogue"   "$APP/Assets.car"
+          check "Qur'an database"      "$FW/quran.sqlite"
+          check "Nunito-Black"         "$FW/Nunito-Black.ttf"
+          check "Amiri-Bold"           "$FW/Amiri-Bold.ttf"
+          check "Fluent icon assets"   "$FW/Assets.car"
+
+          # UIAppFonts only registers fonts in the *app* bundle, and only when the plist names
+          # match the layout — so print both, because a mismatch here is invisible until a font
+          # comes back nil on device and UIKit aborts on the NSNull it gets handed.
+          echo "--- fonts in app bundle ---"
+          ls "$APP"/*.ttf 2>/dev/null | xargs -n1 basename 2>/dev/null || echo "  (none at bundle root)"
+          ls "$APP/Fonts" 2>/dev/null || echo "  (no Fonts/ subdirectory)"
+          echo "--- UIAppFonts declared ---"
+          plutil -extract UIAppFonts json -o - "$APP/Info.plist" 2>/dev/null || echo "  (not declared)"
+
+          if [ "$fail" -ne 0 ]; then
+            echo "--- app bundle ---";       ls "$APP"
+            echo "--- framework bundle ---"; ls "$FW" 2>/dev/null || echo "(no framework)"
+            echo "::error::Resources are missing from the archive — check the sources/buildPhase entries in project.yml."
+            exit 1
+          fi
 
       - name: Write ExportOptions.plist
         env:

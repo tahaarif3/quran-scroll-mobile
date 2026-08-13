@@ -24,13 +24,19 @@ public enum OnboardingStep: String, CaseIterable, Codable, Sendable, Identifiabl
 
     public var id: String { rawValue }
 
-    /// Design order: welcome → 2a → 2b → 2c → 2d…2f → 2g…2m → 2n → appPicker → 2o → 2p → 2q → 2r
+    /// Design order: welcome → 2a → 2b → 2c → 2d…2f → 2g…2m → 2n → 2o → appPicker → 2p → 2q → 2r
+    ///
+    /// `systemPrompt` must come before `appPicker`. It is the step that actually calls
+    /// `requestAuthorization`, and `FamilyActivityPicker` only populates once Family Controls
+    /// authorization has been granted — asked earlier it renders with empty categories, and iOS
+    /// never lists a Screen Time toggle under the app's permissions because permission was never
+    /// requested. The original order was harmless only while the picker was a mock list.
     public static var flowOrder: [OnboardingStep] {
         [
             .welcome, .howItWorks, .socialProof, .screenTime,
             .reveal, .reframe, .promise,
             .age, .gender, .faith, .arabic, .frequency, .readingStyle, .goals,
-            .permissionPrimer, .appPicker, .systemPrompt, .rating, .planReady, .paywall
+            .permissionPrimer, .systemPrompt, .appPicker, .rating, .planReady, .paywall
         ]
     }
 
@@ -50,6 +56,25 @@ public enum OnboardingStep: String, CaseIterable, Codable, Sendable, Identifiabl
 
     public var showsBack: Bool { self != .welcome }
     public var analyticsName: String { rawValue }
+
+    /// Steps a user can pass without answering. Every one of these has a sensible default
+    /// downstream — the projection falls back, `GoalDeriver` handles nils, and apps can be
+    /// chosen later in You → Locked apps — so an unanswered question costs personalisation
+    /// rather than blocking the flow. Nobody should be stuck on a question they don't want to
+    /// answer, or on one whose control isn't responding.
+    public var isSkippable: Bool {
+        switch self {
+        case .screenTime, .age, .gender, .faith, .arabic,
+             .frequency, .readingStyle, .goals, .appPicker:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public var skipTitle: String {
+        self == .appPicker ? "Choose apps later" : "Decide later"
+    }
 }
 
 public enum ScreenTimeAnswer: String, CaseIterable, Codable, Sendable {
@@ -165,8 +190,13 @@ public enum ReadFrequency: String, CaseIterable, Codable, Sendable {
 public enum ReadingStyleAnswer: String, CaseIterable, Codable, Sendable {
     case arabicTranslation = "Arabic + translation"
     case translationFirst = "Translation first"
-    case arabicTransliteration = "Arabic + transliteration"
     case arabicOnly = "Arabic only"
+
+    // "Arabic + transliteration" was offered here and gated behind Pro, but the bundled
+    // database has no transliteration column — only surah *names* have one — so the reader
+    // silently showed the English translation instead. Removed rather than left selling
+    // something that does not exist. Reinstating it means adding a transliteration column in
+    // Scripts/build_quran_sqlite.py; QuranComTransliterationService is a starting point.
 }
 
 public enum GoalAnswer: String, CaseIterable, Codable, Sendable, Identifiable {

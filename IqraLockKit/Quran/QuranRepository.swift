@@ -7,6 +7,7 @@ public protocol QuranRepository: Sendable {
     func ayahs(forSurah number: Int) throws -> [Ayah]
     func ayah(surah: Int, ayah: Int) throws -> Ayah
     func ayah(verseKey: String) throws -> Ayah
+    func ayah(globalID: Int) throws -> Ayah
     func page(_ pageNumber: Int) throws -> QuranPage
     func pageNumber(surah: Int, ayah: Int) throws -> Int
     func arabicChecksum() throws -> String
@@ -100,6 +101,19 @@ public final class BundledQuranRepository: QuranRepository, @unchecked Sendable 
         defer { sqlite3_finalize(stmt) }
         sqlite3_bind_int(stmt, 1, Int32(surah))
         sqlite3_bind_int(stmt, 2, Int32(ayah))
+        guard sqlite3_step(stmt) == SQLITE_ROW else { throw QuranRepositoryError.notFound }
+        return readAyah(stmt)
+    }
+
+    /// Lookup by the sequential id, 1...6236 — how the khatm cursor addresses the mushaf.
+    public func ayah(globalID: Int) throws -> Ayah {
+        let sql = "SELECT id, surah, ayah, verse_key, text_uthmani, translation_en, page FROM ayahs WHERE id = ?;"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw QuranRepositoryError.queryFailed
+        }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_int(stmt, 1, Int32(globalID))
         guard sqlite3_step(stmt) == SQLITE_ROW else { throw QuranRepositoryError.notFound }
         return readAyah(stmt)
     }

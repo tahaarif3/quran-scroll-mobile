@@ -96,6 +96,17 @@ public final class OnboardingViewModel {
         onAppear()
     }
 
+    /// Advances without recording an answer. Tracked separately from `next` so a step that gets
+    /// skipped unusually often is visible — that is either a question people resent or a control
+    /// that isn't responding, and both are worth knowing about.
+    public func skip() {
+        guard step.isSkippable else { return }
+        analytics.track("onboarding_step_skipped", properties: [
+            "step": step.analyticsName
+        ])
+        next()
+    }
+
     public func back() {
         guard let idx = OnboardingStep.flowOrder.firstIndex(of: step), idx > 0 else { return }
         step = OnboardingStep.flowOrder[idx - 1]

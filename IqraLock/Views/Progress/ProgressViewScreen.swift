@@ -3,6 +3,7 @@ import SwiftData
 import IqraLockKit
 
 struct ProgressViewScreen: View {
+    @Environment(AppModel.self) private var appModel
     @Query(sort: \DailyRecord.day, order: .reverse) private var records: [DailyRecord]
 
     private var stats: HabitStats {
@@ -14,12 +15,19 @@ struct ProgressViewScreen: View {
     }
 
     var body: some View {
+        NavigationStack {
+            content
+        }
+    }
+
+    private var content: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Your progress")
                     .iqraStyle(.h1)
                     .padding(.top, 8)
 
+                khatmLink
                 streakCard
 
                 HStack(spacing: 12) {
@@ -40,6 +48,31 @@ struct ProgressViewScreen: View {
             .padding(.bottom, 28)
         }
         .background(IQColor.bgSand.ignoresSafeArea())
+    }
+
+    /// Above the streak on purpose. A streak measures consistency; a khatm measures the thing
+    /// the consistency is for.
+    private var khatmLink: some View {
+        NavigationLink {
+            KhatmView()
+        } label: {
+            SectionCard {
+                HStack(spacing: 14) {
+                    IQIconView(.book, size: 30)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Your khatm")
+                            .iqraStyle(.bodyStrong, color: IQColor.textInk)
+                        Text("\(appModel.store.ayahsToKhatm) ayahs to finishing the Qur'an")
+                            .iqraStyle(.caption, color: IQColor.textMuted2)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(IQColor.textFaint)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var streakCard: some View {

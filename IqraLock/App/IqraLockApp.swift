@@ -4,15 +4,36 @@ import IqraLockKit
 
 @main
 struct IqraLockApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var appModel = AppModel()
+
+    init() {
+        // Before any view is built, so no code path can observe an unregistered font.
+        IQFontRegistrar.registerIfNeeded()
+    }
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(appModel)
                 .onOpenURL { appModel.handle(url: $0) }
+                // Also on foreground, not just launch. The window only refills while the app
+                // runs, and a user reading from the shield may go a long time without opening
+                // it — which is the entire point of putting the ayah there.
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    appModel.store.ensureCurrentDay()
+                    Task.detached(priority: .utility) { [store = appModel.store] in
+                        ShieldAyahProvider.refreshCache(store: store)
+                    }
+                }
                 .task {
                     appModel.bootstrap()
+                    // Surviving a few seconds of real running is the signal that the launch
+                    // actually worked — long enough to be past view construction, the first
+                    // layout pass and the initial shield evaluation.
+                    try? await Task.sleep(for: .seconds(4))
+                    appModel.markLaunchHealthy()
                 }
         }
         .modelContainer(for: [
@@ -47,6 +68,10 @@ final class AppModel {
 
     init(
         analytics: AnalyticsService = NoopAnalytics(),
+        // Temporarily mocked for testing. StoreKitPurchaseService is finished and wired — swap
+        // this line back once the App Store Connect products exist and the Paid Apps Agreement
+        // is active, otherwise every purchase throws "Subscriptions aren't available" and Pro,
+        // which gates blocking, can never be reached on a test build.
         purchases: PurchaseService = MockPurchaseService(),
         screenTime: ScreenTimeService? = nil,
         store: AppGroupStore = .shared,
@@ -72,10 +97,55 @@ final class AppModel {
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: onboardingFlagKey)
     }
 
+    /// Number of consecutive launches that died before the app was healthy, after which the
+    /// shield is lifted. Two rather than one: a single crash can be a one-off, but a user whose
+    /// apps are blocked by an app that will not open has no way out except deleting it.
+    private static let launchFailureThreshold = 2
+
+    /// Lifts the shield when the app cannot survive its own launch.
+    ///
+    /// Blocking apps is only defensible while the user can reach the thing that unblocks them.
+    /// A crash on launch otherwise strands them with their apps locked and no recourse — which
+    /// is exactly what happened when an unregistered tab-bar font aborted the app on every
+    /// start. Runs before anything else touches the shield.
+    private func recoverFromFailedLaunchesIfNeeded() {
+        if store.launchInProgress {
+            store.consecutiveLaunchFailures += 1
+        } else {
+            store.consecutiveLaunchFailures = 0
+        }
+        store.launchInProgress = true
+
+        guard store.consecutiveLaunchFailures >= Self.launchFailureThreshold else { return }
+        analytics.track("shield_released_after_failed_launches", properties: [
+            "failures": store.consecutiveLaunchFailures
+        ])
+        screenTime.clearShield()
+        store.unlockedUntil = Date().addingTimeInterval(60 * 60)
+        store.consecutiveLaunchFailures = 0
+    }
+
+    /// Called once the app has run long enough to be considered healthy. Deliberately not on
+    /// `onAppear`: the font crash happened in the layout pass *after* onAppear had fired, so
+    /// clearing the marker there would have recorded a successful launch moments before dying.
+    func markLaunchHealthy() {
+        store.launchInProgress = false
+        store.consecutiveLaunchFailures = 0
+    }
+
     func bootstrap() {
         #if DEBUG
         IQFontAudit.verify()
         #endif
+        recoverFromFailedLaunchesIfNeeded()
+        // Loads prices and re-reads the entitlement. Without it the paywall shows fallback
+        // prices and a subscriber who reinstalled would look unsubscribed until they restored.
+        Task { await purchases.refresh() }
+        // Refill the shield's ayah window. The extension cannot read the database itself, so
+        // this is the only thing that keeps an ayah on the lock screen.
+        Task.detached(priority: .utility) { [store] in
+            ShieldAyahProvider.refreshCache(store: store)
+        }
         store.ensureCurrentDay()
         store.resetEmergencyPassesIfNeeded()
         shield.reevaluate()

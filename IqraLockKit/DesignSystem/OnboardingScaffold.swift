@@ -89,6 +89,8 @@ public struct OnboardingScaffold<Content: View>: View {
     let ctaEnabled: Bool
     let ctaKind: ChunkyButtonStyle.Kind
     let centersContent: Bool
+    let skipTitle: String?
+    let onSkip: (() -> Void)?
     let onCTA: () -> Void
     let content: Content
 
@@ -98,6 +100,8 @@ public struct OnboardingScaffold<Content: View>: View {
         ctaEnabled: Bool = true,
         ctaKind: ChunkyButtonStyle.Kind = .primary,
         centersContent: Bool = false,
+        skipTitle: String? = nil,
+        onSkip: (() -> Void)? = nil,
         onCTA: @escaping () -> Void,
         @ViewBuilder content: () -> Content
     ) {
@@ -106,6 +110,8 @@ public struct OnboardingScaffold<Content: View>: View {
         self.ctaEnabled = ctaEnabled
         self.ctaKind = ctaKind
         self.centersContent = centersContent
+        self.skipTitle = skipTitle
+        self.onSkip = onSkip
         self.onCTA = onCTA
         self.content = content()
     }
@@ -138,11 +144,23 @@ public struct OnboardingScaffold<Content: View>: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            ChunkyButton(ctaTitle, kind: ctaKind, enabled: ctaEnabled, action: onCTA)
-                .padding(.horizontal, IQSpace.gutterWide)
-                .padding(.bottom, IQSpace.ctaBottom)
-                .padding(.top, 10)
-                .background(IQColor.bgSand.opacity(0.92))
+            VStack(spacing: 4) {
+                ChunkyButton(ctaTitle, kind: ctaKind, enabled: ctaEnabled, action: onCTA)
+                if let skipTitle, let onSkip {
+                    Button(action: onSkip) {
+                        Text(skipTitle)
+                            .iqraStyle(.captionStrong, color: IQColor.textMuted)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Skips this question. You can change it later in settings.")
+                }
+            }
+            .padding(.horizontal, IQSpace.gutterWide)
+            .padding(.bottom, IQSpace.ctaBottom)
+            .padding(.top, 10)
+            .background(IQColor.bgSand.opacity(0.92))
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
     }

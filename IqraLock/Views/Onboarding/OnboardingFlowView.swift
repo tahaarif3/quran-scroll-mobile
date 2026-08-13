@@ -12,6 +12,7 @@ struct OnboardingFlowView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var vm: OnboardingViewModel
     @State private var selectedPlan: PaywallPlan = .annual
+    @State private var purchaseError: String?
     /// Simulator-only stand-in; see `simulatorAppPicker`.
     @State private var mockSelected: Set<String> = []
 
@@ -175,27 +176,10 @@ struct OnboardingFlowView: View {
     }
 
     private var howItWorks: some View {
+        // Played, not described — see OnboardingDemoView. Replaces the static explainer rather
+        // than adding a step, so the flow doesn't get longer.
         OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
-            VStack(spacing: 22) {
-                HighlightedText(
-                    "IqraLock **locks distracting apps** until…",
-                    style: .h1,
-                    highlight: IQColor.brandPrimary,
-                    alignment: .center
-                )
-                HStack(spacing: 8) {
-                    ForEach(LockedAppTile.Brand.allCases, id: \.self) { brand in
-                        LockedAppTile(brand: brand)
-                    }
-                }
-                HighlightedText(
-                    "You **read the Qur'an** every day",
-                    style: .h1,
-                    highlight: IQColor.brandPrimary,
-                    alignment: .center,
-                    trailingIcon: .dua
-                )
-            }
+            OnboardingDemoView()
         }
     }
 
@@ -293,6 +277,8 @@ struct OnboardingFlowView: View {
         OnboardingScaffold(
             ctaTitle: vm.ctaTitle,
             ctaEnabled: vm.ctaEnabled,
+            skipTitle: vm.step.skipTitle,
+            onSkip: vm.skip,
             onCTA: vm.next
         ) {
             VStack(alignment: .leading, spacing: 14) {
@@ -342,6 +328,8 @@ struct OnboardingFlowView: View {
         OnboardingScaffold(
             ctaTitle: vm.ctaTitle,
             ctaEnabled: vm.ctaEnabled,
+            skipTitle: vm.step.skipTitle,
+            onSkip: vm.skip,
             onCTA: vm.next
         ) {
             VStack(alignment: .leading, spacing: 14) {
@@ -349,10 +337,15 @@ struct OnboardingFlowView: View {
                 Text("Select the apps IqraLock should shield until you finish today's pages.")
                     .iqraStyle(.subtitle, color: IQColor.textMuted)
 
-                if ScreenTimeAvailability.isSupported {
+                if !ScreenTimeAvailability.isSupported {
+                    simulatorAppPicker
+                } else if appModel.screenTime.authStatus == .approved {
                     realAppPicker
                 } else {
-                    simulatorAppPicker
+                    // Without this the user sees Apple's picker with every category empty and
+                    // no explanation — which reads as a broken app rather than a missing
+                    // permission.
+                    authorizationNeeded
                 }
             }
             .padding(.top, 8)
@@ -405,6 +398,50 @@ struct OnboardingFlowView: View {
         #endif
     }
 
+    /// Shown when Family Controls has not been authorised — either the user declined the system
+    /// prompt, or Screen Time is switched off on the device entirely. Apple's picker gives no
+    /// hint in either case; it simply lists nothing.
+    private var authorizationNeeded: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 14) {
+                IQIconView(.lock, size: IQIcon.rowSize)
+                    .frame(width: IQIcon.rowColumnWidth)
+                Text("Screen Time access is needed to choose apps")
+                    .iqraStyle(.option, color: IQColor.textInk)
+            }
+            Text("Without it, Apple's app list comes up empty. If you dismissed the prompt, you can allow it now. If Screen Time is turned off on this device, enable it in Settings → Screen Time first.")
+                .iqraStyle(.caption, color: IQColor.textMuted2)
+
+            Button {
+                Task {
+                    do {
+                        try await appModel.screenTime.requestAuthorization()
+                    } catch {
+                        appModel.analytics.track("screentime_auth_retry_failed", properties: [
+                            "error": String(describing: error)
+                        ])
+                    }
+                }
+            } label: {
+                Text("Allow Screen Time access")
+                    .iqraStyle(.captionStrong, color: IQColor.brandPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
+                .fill(IQColor.bgCard)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
+                .strokeBorder(IQColor.borderSubtle, lineWidth: 1.6)
+        )
+    }
+
     /// Simulator / un-entitled builds, where FamilyControls traps at runtime. Keeps the flow
     /// walkable; it records a count so the CTA enables, but shields nothing.
     private var simulatorAppPicker: some View {
@@ -452,7 +489,17 @@ struct OnboardingFlowView: View {
     private var systemPrompt: some View {
         OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: {
             Task {
-                try? await appModel.screenTime.requestAuthorization()
+                // Deliberately not `try?`. A denial here is the difference between a working
+                // app and one that silently shields nothing — the user sails on believing they
+                // are set up, the picker comes up empty, and no Screen Time toggle ever appears
+                // under the app's permissions.
+                do {
+                    try await appModel.screenTime.requestAuthorization()
+                } catch {
+                    appModel.analytics.track("screentime_auth_failed", properties: [
+                        "error": String(describing: error)
+                    ])
+                }
                 vm.next()
             }
         }) {
@@ -480,14 +527,18 @@ struct OnboardingFlowView: View {
                         .padding(.top, 8)
                         .padding(.bottom, 14)
                     Divider()
+                    // Order matches the real system prompt on device: Continue on the left,
+                    // Don't Allow on the right as the emphasised button. The primer teaches the
+                    // user where to tap, so having it mirrored teaches the wrong thing — and the
+                    // wrong tap here is the one that leaves the app unable to shield anything.
                     HStack(spacing: 0) {
-                        Text("Don't Allow")
+                        Text("Continue")
                             .font(.system(size: 17))
                             .foregroundStyle(Color(hex: 0x007AFF))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                         Divider().frame(height: 44)
-                        Text("Continue")
+                        Text("Don't Allow")
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(Color(hex: 0x007AFF))
                             .frame(maxWidth: .infinity)
@@ -616,13 +667,31 @@ struct OnboardingFlowView: View {
                             "plan": selectedPlan.rawValue
                         ])
                         finishOnboarding()
-                    } catch {}
+                    } catch {
+                        // A swallowed error here reads as a dead button: the user taps
+                        // subscribe, nothing happens, and they have no idea why. Cancellation
+                        // is the one case that stays silent — they chose it.
+                        appModel.analytics.track("purchase_failed", properties: [
+                            "plan": selectedPlan.rawValue,
+                            "error": String(describing: error)
+                        ])
+                        purchaseError = (error as? PurchaseError)?.errorDescription
+                            ?? error.localizedDescription
+                    }
                 }
             },
             onRestore: {
                 Task {
-                    try? await appModel.purchases.restore()
-                    if appModel.purchases.hasPro { finishOnboarding() }
+                    do {
+                        try await appModel.purchases.restore()
+                        if appModel.purchases.hasPro {
+                            finishOnboarding()
+                        } else {
+                            purchaseError = "No previous subscription was found for this Apple ID."
+                        }
+                    } catch {
+                        purchaseError = "Couldn't reach the App Store to restore. Please try again."
+                    }
                 }
             },
             onSkipRevealed: {
@@ -633,6 +702,14 @@ struct OnboardingFlowView: View {
             appModel.analytics.track("paywall_viewed", properties: [
                 "offering": appModel.purchases.offeringId
             ])
+        }
+        .alert(
+            "Purchase didn't complete",
+            isPresented: Binding(get: { purchaseError != nil }, set: { if !$0 { purchaseError = nil } })
+        ) {
+            Button("OK", role: .cancel) { purchaseError = nil }
+        } message: {
+            Text(purchaseError ?? "")
         }
     }
 
@@ -678,6 +755,8 @@ struct OnboardingFlowView: View {
         OnboardingScaffold(
             ctaTitle: vm.ctaTitle,
             ctaEnabled: vm.ctaEnabled,
+            skipTitle: vm.step.isSkippable ? vm.step.skipTitle : nil,
+            onSkip: vm.step.isSkippable ? vm.skip : nil,
             onCTA: vm.next
         ) {
             VStack(alignment: .leading, spacing: IQSpace.optionGap) {

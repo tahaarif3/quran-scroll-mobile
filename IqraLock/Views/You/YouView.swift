@@ -12,6 +12,16 @@ struct YouView: View {
     @Query private var profiles: [UserProfile]
     @State private var showShieldPreview = false
     @State private var showAbout = false
+    @State private var showPassConfirm = false
+
+    // Mirrors of App Group values. AppGroupStore is a plain class over UserDefaults with no
+    // observation, so binding a control straight to it left the control frozen — the value
+    // changed underneath and SwiftUI never re-rendered. These hold the live value; the store is
+    // written through on change.
+    @State private var goalAyahs: Int = 30
+    @State private var ayahMinutes: Int = 30
+    @State private var perPage: Int = 10
+    @State private var arabicSize: Double = 26
     #if canImport(FamilyControls)
     @State private var activitySelection = FamilyActivitySelection()
     @State private var showActivityPicker = false
@@ -26,20 +36,67 @@ struct YouView: View {
         NavigationStack {
             List {
                 Section {
-                    LabeledContent("Name", value: profile?.displayName ?? appModel.store.userDisplayName)
-                    stepperRow
+                    HStack {
+                        Text("Name")
+                        Spacer()
+                        TextField("Your name", text: nameBinding)
+                            .multilineTextAlignment(.trailing)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                            .foregroundStyle(IQColor.textSecondary)
+                    }
+                    // Continuous from a single ayah to ten pages. A whole-page stepper could not
+                    // express a goal smaller than a page, which is exactly the size of goal
+                    // someone starting out — or restarting after a bad week — needs.
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Daily goal")
+                            Spacer()
+                            Text(goalLabel)
+                                .foregroundStyle(IQColor.textSecondary)
+                        }
+                        Slider(
+                            value: Binding(
+                                get: { Double(goalAyahs) },
+                                set: { goalAyahs = Int($0.rounded()) }
+                            ),
+                            in: 1...Double(perPage * 10),
+                            step: 1
+                        )
+                        .tint(IQColor.accentOlive)
+                        HStack {
+                            Text("1 ayah").iqraStyle(.finePrint, color: IQColor.textFaint)
+                            Spacer()
+                            Text("10 pages").iqraStyle(.finePrint, color: IQColor.textFaint)
+                        }
+                    }
+                    .onChange(of: goalAyahs) { _, new in
+                        appModel.store.dailyGoalAyahs = new
+                        profile?.dailyGoalPages = appModel.store.dailyGoalPages
+                        try? modelContext.save()
+                    }
+
                     Picker("Reading style", selection: readingStyleBinding) {
                         ForEach(ReadingStyleAnswer.allCases, id: \.self) { style in
                             Text(style.rawValue).tag(style)
                         }
                     }
-                    LabeledContent("Translation", value: "Saheeh International")
-                    HStack {
-                        Text("Arabic text size")
-                        Spacer()
-                        Text("\(Int(profile?.arabicTextSize ?? 26))pt")
-                            .foregroundStyle(IQColor.textSecondary)
+                    Stepper(value: $arabicSize, in: 20...40, step: 1) {
+                        HStack {
+                            Text("Arabic text size")
+                            Spacer()
+                            Text("\(Int(arabicSize))pt")
+                                .foregroundStyle(IQColor.textSecondary)
+                        }
                     }
+                    .onChange(of: arabicSize) { _, new in
+                        profile?.arabicTextSize = new
+                        try? modelContext.save()
+                    }
+                    // Only one translation ships with the app, so a picker here would be a
+                    // control with a single option. Left as a plain row until there are more.
+                    LabeledContent("Translation", value: "Saheeh International")
                 } header: {
                     Text("Reading")
                 }
@@ -62,7 +119,37 @@ struct YouView: View {
                     } else {
                         LabeledContent("Locked apps", value: "\(appModel.screenTime.selectedAppCount) selected")
                     }
+                    Stepper(value: $ayahMinutes, in: 5...120, step: 5) {
+                        HStack {
+                            Text("One ayah unlocks")
+                            Spacer()
+                            Text("\(ayahMinutes) min")
+                                .foregroundStyle(IQColor.textSecondary)
+                        }
+                    }
+                    .onChange(of: ayahMinutes) { _, new in appModel.store.ayahUnlockMinutes = new }
+
+                    Stepper(value: $perPage, in: 1...30) {
+                        HStack {
+                            Text("Ayahs per page")
+                            Spacer()
+                            Text("\(perPage)")
+                                .foregroundStyle(IQColor.textSecondary)
+                        }
+                    }
+                    .onChange(of: perPage) { _, new in
+                        appModel.store.ayahsPerPage = new
+                        // Keep the goal where the user put it in ayahs; only its page-equivalent
+                        // label moves when the conversion rate changes.
+                        goalAyahs = min(goalAyahs, new * 10)
+                    }
+
+                    // Moved off the shield deliberately: a pass one tap away from the thing you
+                    // are trying not to open is not much of a brake. Coming into the app for it
+                    // is the friction.
                     LabeledContent("Emergency passes", value: "\(appModel.store.emergencyPassesRemaining) left")
+                    Button("Use an emergency pass") { showPassConfirm = true }
+                        .disabled(appModel.store.emergencyPassesRemaining == 0)
                     Button("Preview lock screen") { showShieldPreview = true }
                     if !appModel.purchases.gate.canBlockApps {
                         Text("Blocking requires Pro")
@@ -72,9 +159,10 @@ struct YouView: View {
                 }
 
                 Section("Reminders") {
-                    LabeledContent(
+                    DatePicker(
                         "Reminder time",
-                        value: String(format: "%02d:%02d", profile?.reminderHour ?? 21, profile?.reminderMinute ?? 0)
+                        selection: reminderBinding,
+                        displayedComponents: .hourAndMinute
                     )
                 }
 
@@ -84,7 +172,7 @@ struct YouView: View {
                         Task { try? await appModel.purchases.restore() }
                     }
                     if !appModel.purchases.hasPro {
-                        Text("Pro unlocks app blocking, stats, transliteration, and extra passes. The Qur'an reader stays free.")
+                        Text("Pro unlocks app blocking, stats, and extra passes. The Qur'an reader stays free.")
                             .font(.footnote)
                             .foregroundStyle(IQColor.textSecondary)
                     }
@@ -107,6 +195,7 @@ struct YouView: View {
                 #endif
             }
             .navigationTitle("You")
+            .onAppear { syncFromStore() }
             #if canImport(FamilyControls)
             .familyActivityPicker(isPresented: $showActivityPicker, selection: $activitySelection)
             .onChange(of: activitySelection) { _, newValue in
@@ -125,6 +214,18 @@ struct YouView: View {
                 }
             }
             #endif
+            .confirmationDialog(
+                "Use an emergency pass?",
+                isPresented: $showPassConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Unlock for 15 minutes", role: .destructive) {
+                    _ = appModel.screenTime.consumeEmergencyPass(durationMinutes: 15)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your apps open for 15 minutes. You have \(appModel.store.emergencyPassesRemaining) left this month.")
+            }
             .sheet(isPresented: $showShieldPreview) {
                 ShieldPreviewView()
             }
@@ -148,21 +249,67 @@ struct YouView: View {
         }
     }
 
-    private var stepperRow: some View {
-        Stepper(value: goalBinding, in: 2...5) {
-            Text("Daily goal: \(profile?.dailyGoalPages ?? appModel.store.dailyGoalPages) pages")
-        }
-    }
 
-    private var goalBinding: Binding<Int> {
+
+    /// Mirrored into the App Group as well as the profile: Home greets from the store, and the
+    /// shield extensions read it too, so writing only the SwiftData copy leaves the name stale
+    /// everywhere outside this screen.
+    private var nameBinding: Binding<String> {
         Binding(
-            get: { profile?.dailyGoalPages ?? appModel.store.dailyGoalPages },
+            get: { profile?.displayName ?? appModel.store.userDisplayName },
             set: { newValue in
-                profile?.dailyGoalPages = newValue
-                appModel.store.dailyGoalPages = newValue
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                profile?.displayName = trimmed
+                appModel.store.userDisplayName = trimmed
                 try? modelContext.save()
             }
         )
+    }
+
+    /// Matches the range of the reader's own text-size sheet, so the two controls cannot
+    /// disagree about what sizes are allowed.
+
+    /// Hour and minute are stored as separate integers; DatePicker wants a Date. The date part
+    /// is irrelevant — only the time components are read back.
+    private var reminderBinding: Binding<Date> {
+        Binding(
+            get: {
+                var components = DateComponents()
+                components.hour = profile?.reminderHour ?? 21
+                components.minute = profile?.reminderMinute ?? 0
+                return Calendar.current.date(from: components) ?? Date()
+            },
+            set: { newValue in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                let hour = components.hour ?? 21
+                let minute = components.minute ?? 0
+                profile?.reminderHour = hour
+                profile?.reminderMinute = minute
+                try? modelContext.save()
+                // Rescheduled immediately — persisting the new time without re-registering the
+                // notification would leave the reminder firing at the old one indefinitely.
+                appModel.notifications.scheduleDailyReminder(hour: hour, minute: minute)
+            }
+        )
+    }
+
+    /// Reads the goal the way a person would say it: ayahs below a page, pages above.
+    private var goalLabel: String {
+        if goalAyahs < perPage {
+            return goalAyahs == 1 ? "1 ayah" : "\(goalAyahs) ayahs"
+        }
+        let pages = Int(ceil(Double(goalAyahs) / Double(max(1, perPage))))
+        let remainder = goalAyahs % max(1, perPage)
+        let base = pages == 1 ? "1 page" : "\(pages) pages"
+        return remainder == 0 ? base : "\(goalAyahs) ayahs · about \(base)"
+    }
+
+    /// Pulls the App Group values into the local mirrors once the view is on screen.
+    private func syncFromStore() {
+        goalAyahs = appModel.store.dailyGoalAyahs
+        ayahMinutes = appModel.store.ayahUnlockMinutes
+        perPage = appModel.store.ayahsPerPage
+        arabicSize = profile?.arabicTextSize ?? 26
     }
 
     private var readingStyleBinding: Binding<ReadingStyleAnswer> {
