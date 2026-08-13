@@ -176,27 +176,10 @@ struct OnboardingFlowView: View {
     }
 
     private var howItWorks: some View {
+        // Played, not described — see OnboardingDemoView. Replaces the static explainer rather
+        // than adding a step, so the flow doesn't get longer.
         OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
-            VStack(spacing: 22) {
-                HighlightedText(
-                    "IqraLock **locks distracting apps** until…",
-                    style: .h1,
-                    highlight: IQColor.brandPrimary,
-                    alignment: .center
-                )
-                HStack(spacing: 8) {
-                    ForEach(LockedAppTile.Brand.allCases, id: \.self) { brand in
-                        LockedAppTile(brand: brand)
-                    }
-                }
-                HighlightedText(
-                    "You **read the Qur'an** every day",
-                    style: .h1,
-                    highlight: IQColor.brandPrimary,
-                    alignment: .center,
-                    trailingIcon: .dua
-                )
-            }
+            OnboardingDemoView()
         }
     }
 

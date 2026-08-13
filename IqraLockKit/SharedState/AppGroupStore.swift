@@ -27,6 +27,9 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let pendingDeepLink = "pendingDeepLink"
         public static let launchInProgress = "launchInProgress"
         public static let consecutiveLaunchFailures = "consecutiveLaunchFailures"
+        public static let ayahsReadToday = "ayahsReadToday"
+        public static let ayahsPerPage = "ayahsPerPage"
+        public static let lastAyahReadAt = "lastAyahReadAt"
     }
 
     /// Set at launch, cleared once the app has run long enough to be considered healthy. If it
@@ -44,6 +47,37 @@ public final class AppGroupStore: @unchecked Sendable {
     public var pagesReadToday: Int {
         get { defaults.integer(forKey: Key.pagesReadToday) }
         set { defaults.set(newValue, forKey: Key.pagesReadToday) }
+    }
+
+    /// Ayahs read today that have not yet rolled into a whole page.
+    ///
+    /// The goal stays denominated in pages — pages are what ladder up to a khatm — but progress
+    /// accrues an ayah at a time, so reading is never all-or-nothing. A single ayah from the
+    /// shield moves the bar.
+    public var ayahsReadToday: Int {
+        get { defaults.integer(forKey: Key.ayahsReadToday) }
+        set { defaults.set(newValue, forKey: Key.ayahsReadToday) }
+    }
+
+    /// How many loose ayahs count as one page. The mushaf averages roughly ten (6,236 ayahs over
+    /// 604 pages), which is the default. User-adjustable because it is the dial that decides how
+    /// much a single tap is worth.
+    public var ayahsPerPage: Int {
+        get {
+            let v = defaults.integer(forKey: Key.ayahsPerPage)
+            return v > 0 ? v : 10
+        }
+        set { defaults.set(max(1, newValue), forKey: Key.ayahsPerPage) }
+    }
+
+    public var lastAyahReadAt: Date? {
+        get { defaults.object(forKey: Key.lastAyahReadAt) as? Date }
+        set { defaults.set(newValue, forKey: Key.lastAyahReadAt) }
+    }
+
+    /// Fraction of the next page already earned by loose ayahs, for the progress ring.
+    public var partialPageProgress: Double {
+        min(1, Double(ayahsReadToday) / Double(max(1, ayahsPerPage)))
     }
 
     public var dailyGoalPages: Int {
@@ -112,6 +146,7 @@ public final class AppGroupStore: @unchecked Sendable {
         if dayKey != key {
             dayKey = key
             pagesReadToday = 0
+            ayahsReadToday = 0
             isLockedNow = true
             unlockedUntil = nil
         }
@@ -141,7 +176,8 @@ public final class AppGroupStore: @unchecked Sendable {
             Key.pagesReadToday, Key.dailyGoalPages, Key.isLockedNow, Key.unlockedUntil,
             Key.emergencyPassesRemaining, Key.emergencyPassesMonthKey, Key.selectedAppsData,
             Key.selectedAppsCount, Key.userDisplayName, Key.dayKey, Key.pendingDeepLink,
-            Key.launchInProgress, Key.consecutiveLaunchFailures
+            Key.launchInProgress, Key.consecutiveLaunchFailures,
+            Key.ayahsReadToday, Key.ayahsPerPage, Key.lastAyahReadAt
         ] {
             defaults.removeObject(forKey: key)
         }
