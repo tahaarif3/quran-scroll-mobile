@@ -15,9 +15,52 @@ public enum ShieldAyahProvider {
     ///
     /// The cost is that some ayahs are long, and the shield truncates its subtitle. That is a
     /// smaller price than a progress number that isn't true.
+    /// How many ayahs ahead the app caches, so the shield can advance repeatedly on its own.
+    public static let cacheWindow = 40
+
+    /// Cache first, database second.
+    ///
+    /// Opening the bundled SQLite from inside the shield extension returned nothing on device —
+    /// the shield rendered its bare fallback with no ayah at all. Extensions get a hard memory
+    /// and time budget, so the app now writes plain strings ahead of time and this only reads
+    /// them. The direct lookup stays as a fallback for the first run, before the app has filled
+    /// the window.
     public static func ayah(for store: AppGroupStore = .shared) -> Ayah? {
+        if let cached = store.cachedAyahAtCursor {
+            return Ayah(
+                id: cached.id,
+                surah: 0,
+                ayah: 0,
+                verseKey: cached.verseKey,
+                textUthmani: cached.arabic,
+                translationEn: cached.translation,
+                page: 0
+            )
+        }
         guard let repository = try? BundledQuranRepository() else { return nil }
         return try? repository.ayah(globalID: store.khatmCursor)
+    }
+
+    /// Fills the window from the cursor forward. Called by the app, never the extension.
+    public static func refreshCache(store: AppGroupStore = .shared) {
+        guard let repository = try? BundledQuranRepository() else { return }
+        let start = store.khatmCursor
+        var window: [AppGroupStore.CachedAyah] = []
+        window.reserveCapacity(cacheWindow)
+        for offset in 0..<cacheWindow {
+            var id = start + offset
+            if id > AppGroupStore.ayahsInMushaf { id -= AppGroupStore.ayahsInMushaf }
+            guard let ayah = try? repository.ayah(globalID: id) else { continue }
+            window.append(
+                AppGroupStore.CachedAyah(
+                    id: ayah.id,
+                    verseKey: ayah.verseKey,
+                    arabic: ayah.textUthmani,
+                    translation: ayah.translationEn
+                )
+            )
+        }
+        store.cachedAyahs = window
     }
 
     /// Progress line for the shield subtitle, in ayahs rather than pages so that a single ayah

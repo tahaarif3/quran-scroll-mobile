@@ -13,6 +13,15 @@ struct YouView: View {
     @State private var showShieldPreview = false
     @State private var showAbout = false
     @State private var showPassConfirm = false
+
+    // Mirrors of App Group values. AppGroupStore is a plain class over UserDefaults with no
+    // observation, so binding a control straight to it left the control frozen — the value
+    // changed underneath and SwiftUI never re-rendered. These hold the live value; the store is
+    // written through on change.
+    @State private var goalAyahs: Int = 30
+    @State private var ayahMinutes: Int = 30
+    @State private var perPage: Int = 10
+    @State private var arabicSize: Double = 26
     #if canImport(FamilyControls)
     @State private var activitySelection = FamilyActivitySelection()
     @State private var showActivityPicker = false
@@ -37,19 +46,53 @@ struct YouView: View {
                             .submitLabel(.done)
                             .foregroundStyle(IQColor.textSecondary)
                     }
-                    stepperRow
+                    // Continuous from a single ayah to ten pages. A whole-page stepper could not
+                    // express a goal smaller than a page, which is exactly the size of goal
+                    // someone starting out — or restarting after a bad week — needs.
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Daily goal")
+                            Spacer()
+                            Text(goalLabel)
+                                .foregroundStyle(IQColor.textSecondary)
+                        }
+                        Slider(
+                            value: Binding(
+                                get: { Double(goalAyahs) },
+                                set: { goalAyahs = Int($0.rounded()) }
+                            ),
+                            in: 1...Double(perPage * 10),
+                            step: 1
+                        )
+                        .tint(IQColor.accentOlive)
+                        HStack {
+                            Text("1 ayah").iqraStyle(.finePrint, color: IQColor.textFaint)
+                            Spacer()
+                            Text("10 pages").iqraStyle(.finePrint, color: IQColor.textFaint)
+                        }
+                    }
+                    .onChange(of: goalAyahs) { _, new in
+                        appModel.store.dailyGoalAyahs = new
+                        profile?.dailyGoalPages = appModel.store.dailyGoalPages
+                        try? modelContext.save()
+                    }
+
                     Picker("Reading style", selection: readingStyleBinding) {
                         ForEach(ReadingStyleAnswer.allCases, id: \.self) { style in
                             Text(style.rawValue).tag(style)
                         }
                     }
-                    Stepper(value: textSizeBinding, in: 20...36, step: 1) {
+                    Stepper(value: $arabicSize, in: 20...40, step: 1) {
                         HStack {
                             Text("Arabic text size")
                             Spacer()
-                            Text("\(Int(textSizeBinding.wrappedValue))pt")
+                            Text("\(Int(arabicSize))pt")
                                 .foregroundStyle(IQColor.textSecondary)
                         }
+                    }
+                    .onChange(of: arabicSize) { _, new in
+                        profile?.arabicTextSize = new
+                        try? modelContext.save()
                     }
                     // Only one translation ships with the app, so a picker here would be a
                     // control with a single option. Left as a plain row until there are more.
@@ -76,21 +119,29 @@ struct YouView: View {
                     } else {
                         LabeledContent("Locked apps", value: "\(appModel.screenTime.selectedAppCount) selected")
                     }
-                    Stepper(value: ayahMinutesBinding, in: 5...120, step: 5) {
+                    Stepper(value: $ayahMinutes, in: 5...120, step: 5) {
                         HStack {
                             Text("One ayah unlocks")
                             Spacer()
-                            Text("\(ayahMinutesBinding.wrappedValue) min")
+                            Text("\(ayahMinutes) min")
                                 .foregroundStyle(IQColor.textSecondary)
                         }
                     }
-                    Stepper(value: ayahsPerPageBinding, in: 1...30) {
+                    .onChange(of: ayahMinutes) { _, new in appModel.store.ayahUnlockMinutes = new }
+
+                    Stepper(value: $perPage, in: 1...30) {
                         HStack {
                             Text("Ayahs per page")
                             Spacer()
-                            Text("\(ayahsPerPageBinding.wrappedValue)")
+                            Text("\(perPage)")
                                 .foregroundStyle(IQColor.textSecondary)
                         }
+                    }
+                    .onChange(of: perPage) { _, new in
+                        appModel.store.ayahsPerPage = new
+                        // Keep the goal where the user put it in ayahs; only its page-equivalent
+                        // label moves when the conversion rate changes.
+                        goalAyahs = min(goalAyahs, new * 10)
                     }
 
                     // Moved off the shield deliberately: a pass one tap away from the thing you
@@ -144,6 +195,7 @@ struct YouView: View {
                 #endif
             }
             .navigationTitle("You")
+            .onAppear { syncFromStore() }
             #if canImport(FamilyControls)
             .familyActivityPicker(isPresented: $showActivityPicker, selection: $activitySelection)
             .onChange(of: activitySelection) { _, newValue in
@@ -197,22 +249,7 @@ struct YouView: View {
         }
     }
 
-    private var stepperRow: some View {
-        Stepper(value: goalBinding, in: 2...5) {
-            Text("Daily goal: \(profile?.dailyGoalPages ?? appModel.store.dailyGoalPages) pages")
-        }
-    }
 
-    private var goalBinding: Binding<Int> {
-        Binding(
-            get: { profile?.dailyGoalPages ?? appModel.store.dailyGoalPages },
-            set: { newValue in
-                profile?.dailyGoalPages = newValue
-                appModel.store.dailyGoalPages = newValue
-                try? modelContext.save()
-            }
-        )
-    }
 
     /// Mirrored into the App Group as well as the profile: Home greets from the store, and the
     /// shield extensions read it too, so writing only the SwiftData copy leaves the name stale
@@ -231,15 +268,6 @@ struct YouView: View {
 
     /// Matches the range of the reader's own text-size sheet, so the two controls cannot
     /// disagree about what sizes are allowed.
-    private var textSizeBinding: Binding<Double> {
-        Binding(
-            get: { profile?.arabicTextSize ?? 26 },
-            set: { newValue in
-                profile?.arabicTextSize = newValue
-                try? modelContext.save()
-            }
-        )
-    }
 
     /// Hour and minute are stored as separate integers; DatePicker wants a Date. The date part
     /// is irrelevant — only the time components are read back.
@@ -265,18 +293,23 @@ struct YouView: View {
         )
     }
 
-    private var ayahMinutesBinding: Binding<Int> {
-        Binding(
-            get: { appModel.store.ayahUnlockMinutes },
-            set: { appModel.store.ayahUnlockMinutes = $0 }
-        )
+    /// Reads the goal the way a person would say it: ayahs below a page, pages above.
+    private var goalLabel: String {
+        if goalAyahs < perPage {
+            return goalAyahs == 1 ? "1 ayah" : "\(goalAyahs) ayahs"
+        }
+        let pages = Int(ceil(Double(goalAyahs) / Double(max(1, perPage))))
+        let remainder = goalAyahs % max(1, perPage)
+        let base = pages == 1 ? "1 page" : "\(pages) pages"
+        return remainder == 0 ? base : "\(goalAyahs) ayahs · about \(base)"
     }
 
-    private var ayahsPerPageBinding: Binding<Int> {
-        Binding(
-            get: { appModel.store.ayahsPerPage },
-            set: { appModel.store.ayahsPerPage = $0 }
-        )
+    /// Pulls the App Group values into the local mirrors once the view is on screen.
+    private func syncFromStore() {
+        goalAyahs = appModel.store.dailyGoalAyahs
+        ayahMinutes = appModel.store.ayahUnlockMinutes
+        perPage = appModel.store.ayahsPerPage
+        arabicSize = profile?.arabicTextSize ?? 26
     }
 
     private var readingStyleBinding: Binding<ReadingStyleAnswer> {

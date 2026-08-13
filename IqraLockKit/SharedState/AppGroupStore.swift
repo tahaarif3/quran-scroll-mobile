@@ -35,6 +35,42 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let totalPagesRead = "totalPagesRead"
         public static let khatmCount = "khatmCount"
         public static let khatmCursor = "khatmCursor"
+        public static let cachedAyahs = "cachedAyahs"
+        public static let dailyGoalAyahs = "dailyGoalAyahs"
+    }
+
+    public struct CachedAyah: Codable, Equatable, Sendable {
+        public let id: Int
+        public let verseKey: String
+        public let arabic: String
+        public let translation: String
+
+        public init(id: Int, verseKey: String, arabic: String, translation: String) {
+            self.id = id
+            self.verseKey = verseKey
+            self.arabic = arabic
+            self.translation = translation
+        }
+    }
+
+    /// A window of upcoming ayahs, written by the app and read by the shield.
+    ///
+    /// The shield extension opened the bundled SQLite directly and got nothing — it fell back to
+    /// the bare progress line with no ayah at all. Rather than debug a database inside an
+    /// extension with a hard memory and time budget, the app writes plain strings here and the
+    /// extension only ever reads them. It also caches a window rather than a single ayah, so the
+    /// shield can advance several times without the app ever running.
+    public var cachedAyahs: [CachedAyah] {
+        get {
+            guard let data = defaults.data(forKey: Key.cachedAyahs) else { return [] }
+            return (try? decoder.decode([CachedAyah].self, from: data)) ?? []
+        }
+        set { defaults.set(try? encoder.encode(newValue), forKey: Key.cachedAyahs) }
+    }
+
+    /// The cached ayah for the current cursor, if the window still covers it.
+    public var cachedAyahAtCursor: CachedAyah? {
+        cachedAyahs.first { $0.id == khatmCursor }
     }
 
     /// Minutes of access a single ayah buys. Adjustable — it is the exchange rate between
@@ -163,12 +199,30 @@ public final class AppGroupStore: @unchecked Sendable {
         min(1, Double(ayahsReadToday) / Double(max(1, ayahsPerPage)))
     }
 
+    /// The daily goal, in ayahs.
+    ///
+    /// Authoritative because it is continuous: a goal of one ayah and a goal of ten pages are the
+    /// same setting at different points, where whole pages could not express anything under a
+    /// page. `dailyGoalPages` is kept as a derived view of this so existing callers still work.
+    public var dailyGoalAyahs: Int {
+        get {
+            let v = defaults.integer(forKey: Key.dailyGoalAyahs)
+            return v > 0 ? v : 3 * ayahsPerPage
+        }
+        set { defaults.set(max(1, newValue), forKey: Key.dailyGoalAyahs) }
+    }
+
+    /// Everything read today expressed in ayahs, so partial pages count toward the goal.
+    public var totalAyahsToday: Int {
+        pagesReadToday * ayahsPerPage + ayahsReadToday
+    }
+
     public var dailyGoalPages: Int {
         get {
-            let v = defaults.integer(forKey: Key.dailyGoalPages)
-            return v > 0 ? v : 3
+            let derived = Int(ceil(Double(dailyGoalAyahs) / Double(max(1, ayahsPerPage))))
+            return max(1, derived)
         }
-        set { defaults.set(newValue, forKey: Key.dailyGoalPages) }
+        set { dailyGoalAyahs = max(1, newValue) * ayahsPerPage }
     }
 
     public var isLockedNow: Bool {
@@ -215,8 +269,19 @@ public final class AppGroupStore: @unchecked Sendable {
         max(0, dailyGoalPages - pagesReadToday)
     }
 
+    /// Measured in ayahs, so a goal smaller than a page can be met at all and a partial page
+    /// counts toward one that isn't.
     public var goalMetToday: Bool {
-        pagesReadToday >= dailyGoalPages
+        totalAyahsToday >= dailyGoalAyahs
+    }
+
+    /// The goal as a person would say it: ayahs below a page, pages above.
+    public var goalDescription: String {
+        if dailyGoalAyahs < ayahsPerPage {
+            return dailyGoalAyahs == 1 ? "1 ayah" : "\(dailyGoalAyahs) ayahs"
+        }
+        let pages = dailyGoalPages
+        return pages == 1 ? "1 page" : "\(pages) pages"
     }
 
     /// Call at midnight reset / foreground. Resets day counters when the local date changes.

@@ -527,14 +527,18 @@ struct OnboardingFlowView: View {
                         .padding(.top, 8)
                         .padding(.bottom, 14)
                     Divider()
+                    // Order matches the real system prompt on device: Continue on the left,
+                    // Don't Allow on the right as the emphasised button. The primer teaches the
+                    // user where to tap, so having it mirrored teaches the wrong thing — and the
+                    // wrong tap here is the one that leaves the app unable to shield anything.
                     HStack(spacing: 0) {
-                        Text("Don't Allow")
+                        Text("Continue")
                             .font(.system(size: 17))
                             .foregroundStyle(Color(hex: 0x007AFF))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                         Divider().frame(height: 44)
-                        Text("Continue")
+                        Text("Don't Allow")
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(Color(hex: 0x007AFF))
                             .frame(maxWidth: .infinity)

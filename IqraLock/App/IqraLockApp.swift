@@ -130,6 +130,11 @@ final class AppModel {
         // Loads prices and re-reads the entitlement. Without it the paywall shows fallback
         // prices and a subscriber who reinstalled would look unsubscribed until they restored.
         Task { await purchases.refresh() }
+        // Refill the shield's ayah window. The extension cannot read the database itself, so
+        // this is the only thing that keeps an ayah on the lock screen.
+        Task.detached(priority: .utility) { [store] in
+            ShieldAyahProvider.refreshCache(store: store)
+        }
         store.ensureCurrentDay()
         store.resetEmergencyPassesIfNeeded()
         shield.reevaluate()
