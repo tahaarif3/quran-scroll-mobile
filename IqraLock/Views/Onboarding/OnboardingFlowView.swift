@@ -293,6 +293,8 @@ struct OnboardingFlowView: View {
         OnboardingScaffold(
             ctaTitle: vm.ctaTitle,
             ctaEnabled: vm.ctaEnabled,
+            skipTitle: vm.step.skipTitle,
+            onSkip: vm.skip,
             onCTA: vm.next
         ) {
             VStack(alignment: .leading, spacing: 14) {
@@ -342,6 +344,8 @@ struct OnboardingFlowView: View {
         OnboardingScaffold(
             ctaTitle: vm.ctaTitle,
             ctaEnabled: vm.ctaEnabled,
+            skipTitle: vm.step.skipTitle,
+            onSkip: vm.skip,
             onCTA: vm.next
         ) {
             VStack(alignment: .leading, spacing: 14) {
@@ -678,6 +682,8 @@ struct OnboardingFlowView: View {
         OnboardingScaffold(
             ctaTitle: vm.ctaTitle,
             ctaEnabled: vm.ctaEnabled,
+            skipTitle: vm.step.isSkippable ? vm.step.skipTitle : nil,
+            onSkip: vm.step.isSkippable ? vm.skip : nil,
             onCTA: vm.next
         ) {
             VStack(alignment: .leading, spacing: IQSpace.optionGap) {

@@ -50,6 +50,25 @@ public enum OnboardingStep: String, CaseIterable, Codable, Sendable, Identifiabl
 
     public var showsBack: Bool { self != .welcome }
     public var analyticsName: String { rawValue }
+
+    /// Steps a user can pass without answering. Every one of these has a sensible default
+    /// downstream — the projection falls back, `GoalDeriver` handles nils, and apps can be
+    /// chosen later in You → Locked apps — so an unanswered question costs personalisation
+    /// rather than blocking the flow. Nobody should be stuck on a question they don't want to
+    /// answer, or on one whose control isn't responding.
+    public var isSkippable: Bool {
+        switch self {
+        case .screenTime, .age, .gender, .faith, .arabic,
+             .frequency, .readingStyle, .goals, .appPicker:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public var skipTitle: String {
+        self == .appPicker ? "Choose apps later" : "Decide later"
+    }
 }
 
 public enum ScreenTimeAnswer: String, CaseIterable, Codable, Sendable {
