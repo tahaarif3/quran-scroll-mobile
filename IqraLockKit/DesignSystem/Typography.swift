@@ -55,8 +55,12 @@ public enum IQFontStyle: Equatable, Sendable {
         // `Font.Weight.extraBold`; the scale runs ultraLight/thin/light/regular/medium/
         // semibold/bold/heavy/black.
         case .option, .button, .stat, .finePrint: return .heavy
-        case .h2, .h3, .streak, .ayah, .ayahHome: return .bold
-        case .subtitle, .body, .bodyStrong, .caption, .captionStrong, .translation: return .semibold
+        // The "Strong" variants used to sit alongside their plain counterparts at .semibold,
+        // which made them identical — every emphasis in the app that reached for `.bodyStrong`
+        // or `.captionStrong` rendered exactly like body text. That is most of the missing bold
+        // in the design comparison, not absent markup.
+        case .h2, .h3, .streak, .ayah, .ayahHome, .bodyStrong, .captionStrong: return .bold
+        case .subtitle, .body, .caption, .translation: return .semibold
         case .bismillah: return .regular
         }
     }
