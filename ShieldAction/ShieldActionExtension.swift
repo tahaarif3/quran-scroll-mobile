@@ -54,6 +54,28 @@ final class ShieldActionExtension: ShieldActionDelegate {
     /// need for the third button the API doesn't offer.
     private func readAyah(thenContinue: Bool) -> ShieldActionResponse {
         let now = Date()
+
+        // A long ayah is served in waqf-bounded pieces. Every piece earns a window, because
+        // every piece is a real act of reading — but the ayah only counts toward the goal and
+        // only moves the cursor when its final piece is read.
+        let segmentCount = ShieldAyahProvider.segmentCount(for: store)
+        let isFinalSegment = store.shieldSegmentIndex >= segmentCount - 1
+
+        guard isFinalSegment else {
+            if let last = store.lastAyahReadAt,
+               now.timeIntervalSince(last) < AppGroupStore.minimumAyahInterval {
+                store.ayahRejectedAt = now
+                return .defer
+            }
+            store.lastAyahReadAt = now
+            store.ayahRejectedAt = nil
+            store.shieldSegmentIndex += 1
+            store.grantAyahWindow(now: now)
+            clearShield()
+            scheduleReshield(at: store.unlockedUntil ?? now)
+            return thenContinue ? .close : .defer
+        }
+
         let record = store.recordAyah(now: now)
 
         guard record.counted else {
@@ -66,6 +88,7 @@ final class ShieldActionExtension: ShieldActionDelegate {
         // The ayah just shown was the one at the cursor, so move past it. This is what makes the
         // khatm number honest: it counts ayahs actually passed through, in order.
         store.advanceKhatmCursor()
+        store.shieldSegmentIndex = 0
 
         // Finishing the day's goal is worth more than a single window.
         if record.goalMet {

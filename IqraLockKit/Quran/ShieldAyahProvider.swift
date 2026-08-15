@@ -68,95 +68,77 @@ public enum ShieldAyahProvider {
         store.cachedAyahs = window
     }
 
-    /// Progress line for the shield subtitle, in ayahs rather than pages so that a single ayah
-    /// visibly moves it. A page-only counter would sit unchanged for nine taps out of ten, and
-    /// now that the goal can be smaller than a page it could not describe it at all.
-    public static func progressLine(for store: AppGroupStore = .shared) -> String {
-        if store.goalMetToday { return "Today's goal is complete." }
-        let read = store.totalAyahsToday
-        let goal = store.dailyGoalAyahs
-        return "\(read) of \(goal) ayahs today · goal \(store.goalDescription)"
+    public struct Segmented {
+        public let arabic: String
+        public let translation: String
+        /// Carries "· 2 of 3" when the ayah is broken up, so the reader knows a pause is coming.
+        public let reference: String
+        public let index: Int
+        public let count: Int
+
+        public var isFinalSegment: Bool { index >= count - 1 }
+        /// Naming the next action honestly: there is more of *this* ayah, not a new one.
+        public var secondaryLabel: String { isFinalSegment ? "Read another ayah" : "Read the rest" }
     }
 
-    // MARK: - Arabic rendering
-
-    /// Draws the Arabic into an image, shrinking the font until it fits.
+    /// The ayah at the cursor, divided at waqf marks if it cannot be legible whole.
     ///
-    /// This exists because the shield's labels expose no font control. Rendering it ourselves is
-    /// the only way to keep Amiri, control the size, and wrap rather than truncate. UIKit's text
-    /// drawing goes through CoreText, so Arabic shaping and right-to-left ordering are correct.
-    public static func arabicImage(
-        for ayah: Ayah,
-        width: CGFloat = 300,
-        maxHeight: CGFloat = 340,
-        color: UIColor = UIColor(red: 0xF7 / 255, green: 0xED / 255, blue: 0xD8 / 255, alpha: 1)
-    ) -> UIImage? {
-        // Only the face actually used. Registering all eight in an extension that relaunches on
-        // every presentation is what made "Read another ayah" feel slow.
-        IQFontRegistrar.register("Amiri-Bold")
-
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .center
-        paragraph.baseWritingDirection = .rightToLeft
-        paragraph.lineBreakMode = .byWordWrapping
-
-        let text = ayah.textUthmani as NSString
-        let available = CGSize(width: width, height: .greatestFiniteMagnitude)
-
-        func attributes(at pointSize: CGFloat) -> [NSAttributedString.Key: Any] {
-            let style = paragraph.mutableCopy() as! NSMutableParagraphStyle
-            style.lineSpacing = pointSize * 0.34
-            return [
-                .font: UIFont(name: "Amiri-Bold", size: pointSize)
-                    ?? .systemFont(ofSize: pointSize, weight: .semibold),
-                .foregroundColor: color,
-                .paragraphStyle: style
-            ]
+    /// Only the final segment counts toward the goal and moves the cursor; each segment earns
+    /// its own window, because each is a real act of reading.
+    public static func segmented(for store: AppGroupStore = .shared) -> Segmented? {
+        guard let ayah = ayah(for: store) else { return nil }
+        let pieces = ShieldAyahSegmenter.segments(of: ayah.textUthmani) {
+            ShieldIconComposer.fitsWhole($0)
         }
+        let index = min(store.shieldSegmentIndex, pieces.count - 1)
+        let reference = pieces.count > 1
+            ? "\(ayah.verseKey) · \(index + 1) of \(pieces.count)"
+            : ayah.verseKey
+        return Segmented(
+            arabic: pieces[index],
+            // The translation belongs to the whole ayah; showing a fragment of it against a
+            // fragment of the Arabic would imply a correspondence that isn't there.
+            translation: ayah.translationEn,
+            reference: reference,
+            index: index,
+            count: pieces.count
+        )
+    }
 
-        // Start far higher than before. iOS scales this image down into its icon slot, so what
-        // matters is how much of the image the text occupies, not the absolute point size —
-        // rendering 34pt text on a fixed 320x200 canvas left it tiny on screen.
-        var chosen = attributes(at: 30)
-        var bounds = CGSize(width: width, height: 0)
-        for pointSize in stride(from: 96.0, through: 30.0, by: -2.0) {
-            let candidate = attributes(at: pointSize)
-            let rect = text.boundingRect(
-                with: available,
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: candidate,
-                context: nil
-            )
-            if rect.height <= maxHeight {
-                chosen = candidate
-                bounds = CGSize(width: width, height: ceil(rect.height))
-                break
-            }
-        }
-        if bounds.height == 0 {
-            // Longest ayahs: keep the floor size and accept the full height rather than drop the
-            // Arabic. Cramped is better than absent.
-            let rect = text.boundingRect(
-                with: available,
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: chosen,
-                context: nil
-            )
-            bounds = CGSize(width: width, height: ceil(rect.height))
-        }
+    /// How many pieces the ayah at the cursor divides into. Used by the action extension to know
+    /// whether a read finishes the ayah.
+    public static func segmentCount(for store: AppGroupStore = .shared) -> Int {
+        guard let ayah = ayah(for: store) else { return 1 }
+        return ShieldAyahSegmenter.segments(of: ayah.textUthmani) {
+            ShieldIconComposer.fitsWhole($0)
+        }.count
+    }
 
-        // Canvas sized to the text, so no space is wasted and the glyphs survive the downscale
-        // as large as they can be.
-        let canvas = CGSize(width: width, height: bounds.height + 16)
-        let format = UIGraphicsImageRendererFormat.default()
-        format.opaque = false
-        return UIGraphicsImageRenderer(size: canvas, format: format).image { _ in
-            text.draw(
-                with: CGRect(x: 0, y: 8, width: width, height: bounds.height),
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: chosen,
-                context: nil
-            )
+    /// The subtitle's single job: progress. It is the only one of its three former contents that
+    /// changes between renders and so cannot be baked into the cached image. Held under 55
+    /// characters at every value so it can never truncate.
+    public static func progressLine(for store: AppGroupStore = .shared) -> String {
+        if store.goalMetToday { return "Today's goal is done — open until tomorrow" }
+        let remaining = max(0, store.dailyGoalAyahs - store.totalAyahsToday)
+        if remaining == 1 { return "One more ayah opens everything until tomorrow" }
+        // At page scale the ayah count stops being meaningful to a reader.
+        if remaining >= store.ayahsPerPage * 2 {
+            let pages = Int((Double(remaining) / Double(max(1, store.ayahsPerPage))).rounded())
+            return "About \(pages) pages to today's goal"
         }
+        return "\(remaining) ayahs to today's goal, then open until tomorrow"
+    }
+
+    /// The title's single job: the exchange rate, not the state. "Instagram is locked" spends the
+    /// loudest slot telling the user what they already learned by arriving. Tracks the user's own
+    /// 5–120 minute setting and stays under 44 characters at every value.
+    public static func titleLine(appName: String, store: AppGroupStore = .shared) -> String {
+        "One ayah opens \(appName) for \(store.ayahUnlockMinutes) minutes"
+    }
+
+    /// Names the destination and the price. Burying the action the user came for is what makes a
+    /// shield feel like a paywall.
+    public static func primaryLabel(appName: String, store: AppGroupStore = .shared) -> String {
+        "Open \(appName) · \(store.ayahUnlockMinutes) min"
     }
 }

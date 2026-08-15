@@ -13,55 +13,59 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         analyticsShown()
 
         let cream = UIColor(red: 0xF7 / 255, green: 0xED / 255, blue: 0xD8 / 255, alpha: 1)
-        let ayah = ShieldAyahProvider.ayah(for: store)
+        let gold = UIColor(red: 0xC8 / 255, green: 0xB2 / 255, blue: 0x4E / 255, alpha: 1)
+        let shieldBrown = UIColor(red: 0x25 / 255, green: 0x15 / 255, blue: 0x0C / 255, alpha: 1)
+        // Divided at a waqf mark when the ayah cannot be legible whole — the pause the mushaf
+        // itself prints, never a word or character budget.
+        let segment = ShieldAyahProvider.segmented(for: store)
 
-        // The ayah goes in the icon, not the subtitle, because the subtitle has no font control
-        // and truncates. Falling back to the lock mark keeps the shield coherent if the database
-        // cannot be opened from the extension.
-        let icon = ayah.flatMap { ShieldAyahProvider.arabicImage(for: $0, color: cream) }
-            ?? Self.lockIcon()
-
-        // Subtitle carries the translation and the progress — Latin text the system renders
-        // predictably. Reference included so the ayah can be looked up.
-        let subtitle: String
-        if let ayah {
-            // The "too fast" nudge is appended, not substituted. Replacing the whole subtitle
-            // hid the translation for twenty seconds after any quick tap, which read as the
-            // translation randomly failing to appear.
-            let recentlyRejected = store.ayahRejectedAt.map {
-                Date().timeIntervalSince($0) < AppGroupStore.minimumAyahInterval
-            } ?? false
-            let tail = recentlyRejected
-                ? "Take a moment with it, then continue."
-                : ShieldAyahProvider.progressLine(for: store)
-            subtitle = "\"\(ayah.translationEn)\"\n— \(ayah.verseKey)\n\n\(tail)"
-        } else {
-            subtitle = store.shieldSubtitle()
+        // Everything typographic lives in the icon — reference, Arabic, hairline, translation —
+        // because it is the only slot whose type we control. The two text slots then get one
+        // short job each, short enough that neither can truncate.
+        let composition = segment.flatMap {
+            ShieldIconComposer.compose(
+                arabic: $0.arabic,
+                translation: $0.translation,
+                reference: $0.reference
+            )
         }
+
+        // A tap refused for arriving too soon borrows the subtitle briefly. It used to replace
+        // the whole thing for twenty seconds, which read as the ayah randomly disappearing.
+        let recentlyRejected = store.ayahRejectedAt.map {
+            Date().timeIntervalSince($0) < AppGroupStore.minimumAyahInterval
+        } ?? false
 
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterialDark,
-            backgroundColor: UIColor(red: 0x25 / 255, green: 0x15 / 255, blue: 0x0C / 255, alpha: 1),
-            icon: icon,
+            backgroundColor: shieldBrown,
+            icon: composition?.image ?? Self.lockIcon(),
+            // The exchange rate, not the state. "Instagram is locked" spends the loudest slot
+            // telling the user what they learned by arriving.
             title: ShieldConfiguration.Label(
-                text: "\(name) is locked",
+                text: ShieldAyahProvider.titleLine(appName: name, store: store),
                 color: cream
             ),
+            // Progress only — the one thing here that changes between renders, and so the one
+            // thing that cannot be baked into the icon.
             subtitle: ShieldConfiguration.Label(
-                text: subtitle,
-                color: UIColor(red: 0xC8 / 255, green: 0xB2 / 255, blue: 0x4E / 255, alpha: 1)
+                text: recentlyRejected
+                    ? "Take a moment with it, then continue"
+                    : ShieldAyahProvider.progressLine(for: store),
+                color: gold
             ),
-            // Both buttons read the ayah. One spends it on a timed window, the other banks it
-            // and serves another — so "read more" needs no third button.
-            // Emergency passes moved into the app; they were too easy to reach from here.
+            // Names the destination and the price. Burying the action the user came for is what
+            // makes a shield feel like a paywall.
             primaryButtonLabel: ShieldConfiguration.Label(
-                text: "Continue to app (\(store.ayahUnlockMinutes) min)",
-                color: UIColor(red: 0x2B / 255, green: 0x25 / 255, blue: 0x21 / 255, alpha: 1)
+                text: ShieldAyahProvider.primaryLabel(appName: name, store: store),
+                color: shieldBrown
             ),
             primaryButtonBackgroundColor: UIColor(red: 0xF0 / 255, green: 0xC2 / 255, blue: 0x4B / 255, alpha: 1),
+            // Same gold family as the primary, so the two read as halves of one offer rather
+            // than an offer and a dismissal.
             secondaryButtonLabel: ShieldConfiguration.Label(
-                text: "Read another ayah",
-                color: cream.withAlphaComponent(0.85)
+                text: segment?.secondaryLabel ?? "Read another ayah",
+                color: gold
             )
         )
     }

@@ -35,6 +35,7 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let totalPagesRead = "totalPagesRead"
         public static let khatmCount = "khatmCount"
         public static let khatmCursor = "khatmCursor"
+        public static let shieldSegmentIndex = "shieldSegmentIndex"
         public static let cachedAyahs = "cachedAyahs"
         public static let dailyGoalAyahs = "dailyGoalAyahs"
     }
@@ -135,6 +136,13 @@ public final class AppGroupStore: @unchecked Sendable {
     public func advanceKhatmCursor(toAyahID id: Int) {
         guard id > khatmCursor else { return }
         advanceKhatmCursor(by: id - khatmCursor)
+    }
+
+    /// Which piece of a segmented ayah the shield is currently showing. Resets to zero when the
+    /// final segment is read and the cursor moves on.
+    public var shieldSegmentIndex: Int {
+        get { defaults.integer(forKey: Key.shieldSegmentIndex) }
+        set { defaults.set(max(0, newValue), forKey: Key.shieldSegmentIndex) }
     }
 
     public var ayahsIntoKhatm: Int { khatmCursor - 1 }
@@ -384,7 +392,8 @@ public final class AppGroupStore: @unchecked Sendable {
             Key.launchInProgress, Key.consecutiveLaunchFailures,
             Key.ayahsReadToday, Key.ayahsPerPage, Key.lastAyahReadAt,
             Key.ayahUnlockMinutes, Key.ayahRejectedAt, Key.totalPagesRead,
-            Key.khatmCount, Key.khatmCursor
+            Key.khatmCount, Key.khatmCursor, Key.shieldSegmentIndex,
+            Key.cachedAyahs, Key.dailyGoalAyahs
         ] {
             defaults.removeObject(forKey: key)
         }
