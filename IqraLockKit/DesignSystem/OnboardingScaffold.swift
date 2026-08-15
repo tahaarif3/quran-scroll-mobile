@@ -84,6 +84,8 @@ public struct OnboardingScaffold<Content: View>: View {
         case welcomeRadial
     }
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let backdrop: Backdrop
     let ctaTitle: String
     let ctaEnabled: Bool
