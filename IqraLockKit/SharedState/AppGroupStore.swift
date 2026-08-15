@@ -37,6 +37,8 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let khatmCursor = "khatmCursor"
         public static let shieldSegmentIndex = "shieldSegmentIndex"
         public static let sittingsToday = "sittingsToday"
+        public static let khatmRecords = "khatmRecords"
+        public static let khatmStartedAt = "khatmStartedAt"
         public static let cachedAyahs = "cachedAyahs"
         public static let dailyGoalAyahs = "dailyGoalAyahs"
     }
@@ -124,10 +126,17 @@ public final class AppGroupStore: @unchecked Sendable {
     /// Moves the cursor forward, rolling over into a completed khatm at the end of the mushaf.
     public func advanceKhatmCursor(by count: Int = 1) {
         guard count > 0 else { return }
+        if khatmStartedAt == nil { khatmStartedAt = Date() }
         var next = khatmCursor + count
         while next > Self.ayahsInMushaf {
             next -= Self.ayahsInMushaf
             khatmCount += 1
+            let now = Date()
+            let days = khatmStartedAt.map {
+                max(1, Calendar.current.dateComponents([.day], from: $0, to: now).day ?? 1)
+            } ?? 1
+            khatmRecords.append(KhatmRecord(completedAt: now, elapsedDays: days))
+            khatmStartedAt = now
         }
         khatmCursor = next
     }
@@ -144,6 +153,33 @@ public final class AppGroupStore: @unchecked Sendable {
     public var shieldSegmentIndex: Int {
         get { defaults.integer(forKey: Key.shieldSegmentIndex) }
         set { defaults.set(max(0, newValue), forKey: Key.shieldSegmentIndex) }
+    }
+
+    public struct KhatmRecord: Codable, Equatable, Sendable, Identifiable {
+        public let completedAt: Date
+        public let elapsedDays: Int
+        public var id: Date { completedAt }
+
+        public init(completedAt: Date, elapsedDays: Int) {
+            self.completedAt = completedAt
+            self.elapsedDays = elapsedDays
+        }
+    }
+
+    /// A dated ledger, newest last. The Khatm screen shows these instead of a badge — a count
+    /// alone cannot say when, or how long it took.
+    public var khatmRecords: [KhatmRecord] {
+        get {
+            guard let data = defaults.data(forKey: Key.khatmRecords) else { return [] }
+            return (try? decoder.decode([KhatmRecord].self, from: data)) ?? []
+        }
+        set { defaults.set(try? encoder.encode(newValue), forKey: Key.khatmRecords) }
+    }
+
+    /// When the current khatm began, so its elapsed days can be recorded on completion.
+    public var khatmStartedAt: Date? {
+        get { defaults.object(forKey: Key.khatmStartedAt) as? Date }
+        set { defaults.set(newValue, forKey: Key.khatmStartedAt) }
     }
 
     /// Distinct returns to the text today.

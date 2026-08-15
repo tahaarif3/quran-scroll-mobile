@@ -1,145 +1,261 @@
 import SwiftUI
+import SwiftData
 import IqraLockKit
 
-/// Progress toward finishing the whole Qur'an.
+/// Progress through the whole Qur'an.
 ///
-/// A streak only ever continues — there is no completion, so there is no payoff, only eventual
-/// failure. A khatm has an end, it carries real weight, and finishing one is something a person
-/// tells other people about. It is also the frame no competitor can copy: five minutes after a
-/// prayer doesn't ladder up to anything, and pages do.
+/// The structure is constant across every state — where you are, how far the next small ending
+/// is, and when this khatm finishes at your own pace — and only the emphasis moves. 6,236 is
+/// never the headline; the page you are on is. A streak can be broken and ends in deletion; a
+/// khatm can only be finished.
 struct KhatmView: View {
     @Environment(AppModel.self) private var appModel
+    @Query(sort: \DailyRecord.day, order: .reverse) private var records: [DailyRecord]
 
-    @State private var cursorPage: Int?
+    @State private var repository: BundledQuranRepository?
+    @State private var currentPage: Int?
+    @State private var currentSurah: SurahMeta?
+    @State private var remainingSurahs: Int?
 
-    private var ayahsInto: Int { appModel.store.ayahsIntoKhatm }
-    private var ayahsLeft: Int { appModel.store.ayahsToKhatm }
-    private var progress: Double { appModel.store.khatmProgress }
-    private var completed: Int { appModel.store.khatmCount }
+    private var store: AppGroupStore { appModel.store }
+    private var cursor: Int { store.khatmCursor }
+    private var progress: Double { store.khatmProgress }
+    private var pagesLeft: Int { max(0, AppGroupStore.pagesInMushaf - (currentPage ?? 1) + 1) }
+    private var juz: Int { Juz.number(forAyahID: cursor) }
 
-    /// The mushaf page the cursor sits on, looked up from the database — derived from where the
-    /// user actually is rather than counted separately, so it cannot drift from the cursor.
-    private var pagesInto: Int { max(0, (cursorPage ?? 1) - 1) }
-    private var pagesLeft: Int { AppGroupStore.pagesInMushaf - pagesInto }
-
-    /// Days remaining at the pace they've actually set, not an average of everyone.
-    private var projectedDays: Int {
-        let perDay = max(1, appModel.store.dailyGoalPages)
-        return Int((Double(pagesLeft) / Double(perDay)).rounded(.up))
+    /// The user's own last seven days, never a cohort average — a pace someone else set is not
+    /// information about you.
+    private var ayahsPerDay: Double {
+        let recent = records.prefix(7)
+        guard !recent.isEmpty else { return 0 }
+        let ayahs = recent.reduce(0) { $0 + $1.pagesRead * store.ayahsPerPage }
+        return Double(ayahs) / Double(recent.count)
     }
 
-    private func loadCursorPage() async {
-        guard cursorPage == nil, let repository = try? BundledQuranRepository() else { return }
-        cursorPage = (try? repository.ayah(globalID: appModel.store.khatmCursor))?.page
+    private var daysRemaining: Int? {
+        guard ayahsPerDay > 0 else { return nil }
+        return Int((Double(store.ayahsToKhatm) / ayahsPerDay).rounded(.up))
     }
+
+    /// Emphasis moves with distance to the end, not with a mode switch.
+    private var isNearlyFinished: Bool { progress >= 0.97 }
+    private var hasStarted: Bool { progress >= 0.05 }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 18) {
+            VStack(spacing: 16) {
                 headline
-                ringCard
-                statsRow
-                if completed > 0 { completedCard }
-                paceNote
+                positionCard
+                if hasStarted { juzStrip }
+                nextEndingCard
+                if isNearlyFinished { finishCTA }
+                if !store.khatmRecords.isEmpty { ledger }
             }
             .padding(.horizontal, IQSpace.gutter)
-            .padding(.top, 12)
+            .padding(.top, 8)
             .padding(.bottom, 28)
         }
         .background(IQColor.bgSand.ignoresSafeArea())
         .navigationTitle("Your khatm")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await loadCursorPage() }
+        .task { await load() }
     }
 
+    // MARK: - Headline
+
+    /// Position while there is distance left; remainder once the end is in sight. The number that
+    /// matters changes, so the headline changes with it.
     private var headline: some View {
-        VStack(spacing: 6) {
-            Text(completed == 0 ? "Your first khatm" : "Khatm \(completed + 1)")
-                .iqraStyle(.h2, color: IQColor.textInk)
-            Text("\(ayahsLeft) ayahs to go · about \(pagesLeft) pages")
-                .iqraStyle(.subtitle, color: IQColor.textMuted2)
+        VStack(spacing: 4) {
+            if isNearlyFinished {
+                Text("\(pagesLeft) pages left")
+                    .iqraStyle(.h1, color: IQColor.textInk)
+            } else {
+                Text("Page \(currentPage ?? 1)")
+                    .iqraStyle(.h1, color: IQColor.textInk)
+                Text("of 604 · juz \(juz)")
+                    .iqraStyle(.subtitle, color: IQColor.textMuted2)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
     }
 
-    private var ringCard: some View {
-        VStack(spacing: 14) {
-            ProgressRing(
-                progress: progress,
-                lineWidth: 14,
-                size: 176,
-                track: Color.white.opacity(0.14),
-                fill: IQColor.accentGoldOnDark
-            )
-            .overlay(
-                VStack(spacing: 2) {
-                    Text("\(Int((progress * 100).rounded()))%")
-                        .font(.custom("Nunito-Black", size: 34))
-                        .foregroundStyle(.white)
-                    Text("\(ayahsInto) / \(AppGroupStore.ayahsInMushaf)")
-                        .font(.custom("Nunito-SemiBold", size: 13))
-                        .foregroundStyle(.white.opacity(0.7))
+    // MARK: - Position
+
+    private var positionCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.14))
+                    Capsule()
+                        .fill(IQColor.accentGoldOnDark)
+                        .frame(width: max(3, geo.size.width * progress))
                 }
-            )
-            Text("ayahs read, in order — around page \(cursorPage ?? 1)")
-                .iqraStyle(.caption, color: .white.opacity(0.75))
-                .multilineTextAlignment(.center)
+            }
+            .frame(height: 8)
+
+            HStack(alignment: .firstTextBaseline) {
+                Text(String(format: "%.1f%%", progress * 100))
+                    .font(.custom("Nunito-Black", size: 22))
+                    .foregroundStyle(.white)
+                Spacer()
+                if let daysRemaining {
+                    Text("about \(daysRemaining) days at your pace")
+                        .font(.custom("Nunito-SemiBold", size: 13))
+                        .foregroundStyle(IQColor.track)
+                } else {
+                    Text("pace appears after a few days")
+                        .font(.custom("Nunito-SemiBold", size: 13))
+                        .foregroundStyle(IQColor.track)
+                }
+            }
+
+            // 6,236 stays on screen — hiding it would be the lie — but small, and never as the
+            // headline.
+            Text("\(store.ayahsIntoKhatm) of \(AppGroupStore.ayahsInMushaf) ayahs, in order")
+                .font(.custom("Nunito-SemiBold", size: 14))
+                .foregroundStyle(IQColor.track)
         }
-        .padding(24)
-        .frame(maxWidth: .infinity)
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: IQRadius.xl, style: .continuous)
                 .fill(IQColor.bgDark)
         )
     }
 
-    private var statsRow: some View {
-        HStack(spacing: 12) {
-            statTile("\(appModel.store.totalPagesRead)", "pages\nall time")
-            statTile("\(projectedDays)", "days at\nyour pace")
-            statTile("\(completed)", completed == 1 ? "khatm\ncompleted" : "khatms\ncompleted")
-        }
-    }
+    // MARK: - Juz strip
 
-    private func statTile(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.custom("Nunito-Black", size: 24))
-                .foregroundStyle(IQColor.brandPrimary)
-            Text(label)
-                .iqraStyle(.caption, color: IQColor.textMuted)
-                .multilineTextAlignment(.center)
+    /// Deliberately absent at the very start, where twenty-nine empty bars would only advertise
+    /// how little has happened.
+    private var juzStrip: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("THIRTY JUZ")
+                .font(.custom("Nunito-ExtraBold", size: 11))
+                .tracking(0.8)
+                .foregroundStyle(IQColor.accentOlive)
+            HStack(spacing: 3) {
+                ForEach(1...Juz.count, id: \.self) { index in
+                    Capsule()
+                        .fill(colour(forJuz: index))
+                        .frame(height: 22)
+                }
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: IQRadius.card, style: .continuous)
                 .fill(IQColor.bgCard)
-                .shadow(color: IQShadow.card.color, radius: IQShadow.card.radius, y: IQShadow.card.y)
         )
     }
 
-    private var completedCard: some View {
+    private func colour(forJuz index: Int) -> Color {
+        if index < juz { return IQColor.accentOlive }
+        if index == juz { return IQColor.brandGold }
+        return IQColor.track
+    }
+
+    // MARK: - The next small ending
+
+    /// Thirty small endings, not one enormous one. This is the card the eye should land on
+    /// second — a boundary close enough to be worth aiming at.
+    private var nextEndingCard: some View {
         SectionCard {
-            HStack(spacing: 14) {
-                IQIconView(.star, size: 34)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(completed == 1
-                         ? "You've completed the Qur'an once"
-                         : "You've completed the Qur'an \(completed) times")
+            VStack(alignment: .leading, spacing: 8) {
+                if isNearlyFinished {
+                    Text("What's left")
+                        .iqraStyle(.captionStrong, color: IQColor.accentOlive)
+                    Text(remainingSurahsLine)
                         .iqraStyle(.bodyStrong, color: IQColor.textInk)
-                    Text("May Allah accept it from you.")
+                    Text("The duʿāʾ will be waiting at the end.")
                         .iqraStyle(.caption, color: IQColor.textMuted2)
+                } else {
+                    Text("NEXT ENDING")
+                        .font(.custom("Nunito-ExtraBold", size: 11))
+                        .tracking(0.8)
+                        .foregroundStyle(IQColor.accentOlive)
+                    Text(juz < Juz.count ? "Juz \(juz + 1)" : "The end of the mushaf")
+                        .iqraStyle(.h3, color: IQColor.textInk)
+                    Text("\(Juz.ayahsToNextBoundary(fromAyahID: cursor)) ayahs away")
+                        .iqraStyle(.caption, color: IQColor.textMuted2)
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(IQColor.track)
+                            Capsule()
+                                .fill(IQColor.accentOlive)
+                                .frame(width: max(3, geo.size.width * Juz.progress(atAyahID: cursor)))
+                        }
+                    }
+                    .frame(height: 6)
+                    .padding(.top, 2)
                 }
             }
         }
     }
 
-    private var paceNote: some View {
-        Text("Every ayah counts. \(appModel.store.ayahsPerPage) ayahs make a page, whether you read them here or from the lock screen.")
-            .iqraStyle(.caption, color: IQColor.textFaint)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 8)
+    private var remainingSurahsLine: String {
+        guard let currentSurah, let remainingSurahs else { return "The last few surahs" }
+        return "\(currentSurah.nameTransliteration) to An-Nās, \(remainingSurahs) surahs"
+    }
+
+    private var finishCTA: some View {
+        ChunkyButton("Finish it") { appModel.showReader = true }
+    }
+
+    // MARK: - Ledger
+
+    /// A dated ledger and a gold hairline. No badge, no confetti, no level.
+    private var ledger: some View {
+        let all = store.khatmRecords.reversed().map { $0 }
+        // By the tenth the number speaks without emphasis, so the list collapses.
+        let shown = all.count > 3 ? Array(all.prefix(3)) : all
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(all.count == 1 ? "Your first khatm" : "\(all.count) khatms completed")
+                .iqraStyle(.h3, color: IQColor.textInk)
+            ForEach(shown) { record in
+                HStack {
+                    Text(Self.dateFormatter.string(from: record.completedAt))
+                        .iqraStyle(.body, color: IQColor.textInk)
+                    Spacer()
+                    Text("\(record.elapsedDays) days")
+                        .iqraStyle(.caption, color: IQColor.textMuted2)
+                }
+            }
+            if all.count > shown.count {
+                Text("See all \(all.count)")
+                    .iqraStyle(.captionStrong, color: IQColor.brandPrimary)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: IQRadius.xl, style: .continuous)
+                .fill(IQColor.bgDark)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: IQRadius.xl, style: .continuous)
+                .strokeBorder(IQColor.accentGoldOnDark.opacity(0.45), lineWidth: 1)
+        )
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .long
+        return formatter
+    }()
+
+    // MARK: - Data
+
+    private func load() async {
+        if repository == nil { repository = try? BundledQuranRepository() }
+        guard let repository else { return }
+        let ayah = try? repository.ayah(globalID: cursor)
+        currentPage = ayah?.page
+        if let surah = ayah?.surah {
+            currentSurah = try? repository.surah(number: surah)
+            remainingSurahs = 114 - surah + 1
+        }
     }
 }
