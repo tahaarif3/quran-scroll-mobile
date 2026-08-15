@@ -29,7 +29,10 @@ public struct HighlightedText: View {
 
     public var body: some View {
         composedText
-            .font(baseStyle.font)
+            // Deliberately no `.font()` here. Every run already carries its own — plain runs the
+            // base style, highlighted runs Nunito-Black — and a view-level font flattens all of
+            // them to a single weight. The `**bold**` spans were parsed correctly and then
+            // erased at render, which is why none of the emphasis in the design showed up.
             .tracking(baseStyle.tracking)
             .multilineTextAlignment(alignment)
             .frame(maxWidth: .infinity, alignment: alignment == .center ? .center : .leading)
@@ -38,7 +41,11 @@ public struct HighlightedText: View {
     private var composedText: Text {
         let base = Text(attributed)
         guard let trailingIcon else { return base }
-        return base + Text(" ") + trailingIcon.inlineText(pointSize: baseStyle.size)
+        // The separator carries the base font explicitly, since there is no view-level font to
+        // fall back on any more.
+        return base
+            + Text(" ").font(baseStyle.font)
+            + trailingIcon.inlineText(pointSize: baseStyle.size)
     }
 
     public var attributed: AttributedString {

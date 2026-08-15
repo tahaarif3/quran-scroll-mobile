@@ -77,12 +77,15 @@ struct PaywallView: View {
 
                         HStack(alignment: .top, spacing: 12) {
                             IQIconView(.globe, size: 30)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("10% of every subscription")
-                                    .iqraStyle(.bodyStrong, color: IQColor.textInk)
-                                Text("becomes sadaqah jariyah — wells, mushafs & meals.")
-                                    .iqraStyle(.caption, color: IQColor.textMuted2)
-                            }
+                            // One flowing sentence with the figure emphasised, as in the design —
+                            // it was two stacked lines, which reads as a heading over a caption
+                            // rather than a single claim.
+                            HighlightedText(
+                                "**10% of every subscription** becomes sadaqah jariyah — wells, mushafs & meals.",
+                                style: .caption,
+                                color: IQColor.textMuted2,
+                                highlight: IQColor.textInk
+                            )
                         }
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
