@@ -7,6 +7,9 @@ public struct ChunkyButtonStyle: ButtonStyle {
         case secondary
         case dark
         case gold // lock CTA #F0C24B / shadow #C99A2C
+        /// Nothing to sell. White fill, 2pt track border, no hard edge — used where the app
+        /// deliberately declines to push: the goal is met, or the demo has not been played yet.
+        case ghost
     }
 
     public var kind: Kind
@@ -32,10 +35,16 @@ public struct ChunkyButtonStyle: ButtonStyle {
         // The edge is a fixed slab 6pt below the face. Only the face and label travel down onto
         // it when pressed — moving the whole stack as well, as before, double-counted the offset.
         return ZStack {
+            // A ghost has no hard edge — that shadow is what makes the primary look pressable,
+            // and this variant is deliberately not asking to be pressed.
             shape.fill(edgeColor)
                 .offset(y: drop)
+                .opacity(kind == .ghost ? 0 : 1)
             shape.fill(faceColor)
                 .offset(y: pressed ? drop : 0)
+            if kind == .ghost {
+                shape.strokeBorder(IQColor.track, lineWidth: 2)
+            }
             configuration.label
                 .font(IQFontStyle.button.font)
                 .foregroundStyle(textColor)
@@ -54,6 +63,7 @@ public struct ChunkyButtonStyle: ButtonStyle {
         case .secondary: return Color.white
         case .dark: return IQColor.bgDark
         case .gold: return IQColor.lockCTA
+        case .ghost: return Color.white
         }
     }
 
@@ -64,6 +74,7 @@ public struct ChunkyButtonStyle: ButtonStyle {
         case .secondary: return IQColor.borderSubtle
         case .dark: return Color(hex: 0x2A2418)
         case .gold: return IQColor.lockCTAShadow
+        case .ghost: return .clear
         }
     }
 
@@ -73,6 +84,7 @@ public struct ChunkyButtonStyle: ButtonStyle {
         case .primary, .dark: return IQColor.textInverse
         case .secondary: return IQColor.textInk
         case .gold: return IQColor.textOnGold
+        case .ghost: return IQColor.brandPrimary
         }
     }
 }

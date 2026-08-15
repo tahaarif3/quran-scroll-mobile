@@ -13,6 +13,7 @@ struct OnboardingFlowView: View {
     @State private var vm: OnboardingViewModel
     @State private var selectedPlan: PaywallPlan = .annual
     @State private var purchaseError: String?
+    @State private var demoPlayed = false
     /// Simulator-only stand-in; see `simulatorAppPicker`.
     @State private var mockSelected: Set<String> = []
 
@@ -177,9 +178,16 @@ struct OnboardingFlowView: View {
 
     private var howItWorks: some View {
         // Played, not described — see OnboardingDemoView. Replaces the static explainer rather
-        // than adding a step, so the flow doesn't get longer.
-        OnboardingScaffold(ctaTitle: vm.ctaTitle, centersContent: true, onCTA: vm.next) {
-            OnboardingDemoView()
+        // than adding a step, so the flow doesn't get longer. Continue starts as a ghost so
+        // tapping a tile is the obvious move; it fills once the loop has been played, which is
+        // how the screen's emphasis moves forward without a new button appearing.
+        OnboardingScaffold(
+            ctaTitle: vm.ctaTitle,
+            ctaKind: demoPlayed ? .primary : .ghost,
+            centersContent: true,
+            onCTA: vm.next
+        ) {
+            OnboardingDemoView(hasPlayed: $demoPlayed)
         }
     }
 

@@ -146,6 +146,12 @@ public struct OnboardingScaffold<Content: View>: View {
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 4) {
                 ChunkyButton(ctaTitle, kind: ctaKind, enabled: ctaEnabled, action: onCTA)
+                    // Ghost → filled as a cross-fade, so the emphasis moves forward on its own
+                    // rather than a new button appearing.
+                    .animation(
+                        reduceMotion ? .easeOut(duration: 0.1) : .easeInOut(duration: 0.2),
+                        value: ctaKind
+                    )
                 if let skipTitle, let onSkip {
                     Button(action: onSkip) {
                         Text(skipTitle)
