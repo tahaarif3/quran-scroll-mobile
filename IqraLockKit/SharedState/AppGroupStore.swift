@@ -36,6 +36,7 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let khatmCount = "khatmCount"
         public static let khatmCursor = "khatmCursor"
         public static let shieldSegmentIndex = "shieldSegmentIndex"
+        public static let sittingsToday = "sittingsToday"
         public static let cachedAyahs = "cachedAyahs"
         public static let dailyGoalAyahs = "dailyGoalAyahs"
     }
@@ -143,6 +144,12 @@ public final class AppGroupStore: @unchecked Sendable {
     public var shieldSegmentIndex: Int {
         get { defaults.integer(forKey: Key.shieldSegmentIndex) }
         set { defaults.set(max(0, newValue), forKey: Key.shieldSegmentIndex) }
+    }
+
+    /// Distinct returns to the text today.
+    public var sittingsToday: Int {
+        get { defaults.integer(forKey: Key.sittingsToday) }
+        set { defaults.set(max(0, newValue), forKey: Key.sittingsToday) }
     }
 
     public var ayahsIntoKhatm: Int { khatmCursor - 1 }
@@ -303,6 +310,7 @@ public final class AppGroupStore: @unchecked Sendable {
             dayKey = key
             pagesReadToday = 0
             ayahsReadToday = 0
+            sittingsToday = 0
             isLockedNow = true
             unlockedUntil = nil
         }
@@ -363,6 +371,12 @@ public final class AppGroupStore: @unchecked Sendable {
                 pagesToday: pagesReadToday,
                 goalMet: goalMetToday
             )
+        }
+        // A sitting is a return to the text, not a tap. Anything more than ten minutes after the
+        // last ayah is someone coming back. "In four sittings" is a description of the day, not
+        // a score, so a rough boundary is the right precision.
+        if lastAyahReadAt.map({ now.timeIntervalSince($0) > 600 }) ?? true {
+            sittingsToday += 1
         }
         lastAyahReadAt = now
         ayahRejectedAt = nil
