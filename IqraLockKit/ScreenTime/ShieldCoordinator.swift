@@ -38,6 +38,19 @@ public final class ShieldCoordinator: @unchecked Sendable {
         }
     }
 
+    /// Grants the unlock window an ayah has just earned, lifts the shield, and books its return.
+    ///
+    /// Reading an ayah in the app used to credit the goal but buy no time, while reading the
+    /// same ayah off the shield bought thirty minutes — the same act worth different amounts
+    /// depending on where it happened. Every counted ayah now earns the window.
+    public func grantAyahWindow(now: Date = Date()) {
+        store.grantAyahWindow(now: now)
+        screenTime.clearShield()
+        if let until = store.unlockedUntil {
+            screenTime.scheduleReshield(at: until)
+        }
+    }
+
     public func lockSelectedApps() {
         store.isLockedNow = true
         screenTime.applyShield()

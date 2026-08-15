@@ -79,12 +79,12 @@ final class ShieldActionExtension: ShieldActionDelegate {
             return .close
         }
 
-        guard thenContinue else { return .defer }
-
+        // Both buttons earn the window — the ayah was read either way. They differ only in
+        // whether the user leaves now or stays for another.
         store.grantAyahWindow(now: now)
         clearShield()
         scheduleReshield(at: store.unlockedUntil ?? now)
-        return .close
+        return thenContinue ? .close : .defer
     }
 
     private func clearShield() {

@@ -20,6 +20,9 @@ public protocol ScreenTimeService: AnyObject, Sendable {
     func applyShield()
     func clearShield()
     func scheduleMidnightReset()
+    /// Re-applies the shield when a timed unlock window expires. ManagedSettings has no expiry
+    /// of its own, so without this a window lasts until something else puts the shield back.
+    func scheduleReshield(at date: Date)
     func consumeEmergencyPass(durationMinutes: Int) -> Bool
 }
 
@@ -151,6 +154,19 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         #endif
     }
 
+    public func scheduleReshield(at date: Date) {
+        #if canImport(FamilyControls)
+        guard ScreenTimeAvailability.isSupported, authStatus == .approved else { return }
+        let calendar = Calendar.current
+        let schedule = DeviceActivitySchedule(
+            intervalStart: calendar.dateComponents([.hour, .minute, .second], from: Date()),
+            intervalEnd: calendar.dateComponents([.hour, .minute, .second], from: date),
+            repeats: false
+        )
+        try? DeviceActivityCenter().startMonitoring(.emergencyReshield, during: schedule)
+        #endif
+    }
+
     #if DEBUG
     /// Short schedule so the midnight re-shield can be verified in minutes rather than by
     /// waiting for a real day roll.
@@ -235,6 +251,7 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
     }
 
     public func scheduleMidnightReset() {}
+    public func scheduleReshield(at date: Date) {}
 
     public func consumeEmergencyPass(durationMinutes: Int = 15) -> Bool {
         guard store.emergencyPassesRemaining > 0 else { return false }

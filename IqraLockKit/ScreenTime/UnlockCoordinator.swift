@@ -69,6 +69,12 @@ public final class UnlockCoordinator: @unchecked Sendable {
             "ayahsPerPage": record.ayahsPerPage
         ])
 
+        // Reading earns time wherever it happens. Windows extend rather than reset, so two
+        // ayahs are worth two windows.
+        if !record.goalMet {
+            shield.grantAyahWindow(now: now)
+        }
+
         // Only run the unlock path when an ayah actually completed a page, so the notification
         // and shield clearing fire once rather than on every ayah after the goal is met.
         let met = record.pagesToday > pagesBefore ? evaluate(now: now) : record.goalMet
