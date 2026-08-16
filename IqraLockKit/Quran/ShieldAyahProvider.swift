@@ -114,26 +114,30 @@ public enum ShieldAyahProvider {
         }.count
     }
 
-    /// The subtitle's single job: progress. It is the only one of its three former contents that
-    /// changes between renders and so cannot be baked into the cached image. Held under 55
-    /// characters at every value so it can never truncate.
+    /// Reference and progress on one line, because the title slot now carries the translation.
+    ///
+    /// Both halves are kept terse — together they stay under 50 characters at every value, which
+    /// is what keeps the slot from truncating. The exchange rate that used to live in the title
+    /// is now on the primary button, where it reads as a price at the point it is paid.
+    public static func subtitleLine(
+        reference: String,
+        store: AppGroupStore = .shared
+    ) -> String {
+        "\(reference)  ·  \(progressLine(for: store))"
+    }
+
+    /// The changing half of the subtitle — the one thing here that cannot be baked into the
+    /// cached icon.
     public static func progressLine(for store: AppGroupStore = .shared) -> String {
-        if store.goalMetToday { return "Today's goal is done — open until tomorrow" }
+        if store.goalMetToday { return "today's goal done" }
         let remaining = max(0, store.dailyGoalAyahs - store.totalAyahsToday)
-        if remaining == 1 { return "One more ayah opens everything until tomorrow" }
+        if remaining == 1 { return "1 ayah to today's goal" }
         // At page scale the ayah count stops being meaningful to a reader.
         if remaining >= store.ayahsPerPage * 2 {
             let pages = Int((Double(remaining) / Double(max(1, store.ayahsPerPage))).rounded())
-            return "About \(pages) pages to today's goal"
+            return "about \(pages) pages to today's goal"
         }
-        return "\(remaining) ayahs to today's goal, then open until tomorrow"
-    }
-
-    /// The title's single job: the exchange rate, not the state. "Instagram is locked" spends the
-    /// loudest slot telling the user what they already learned by arriving. Tracks the user's own
-    /// 5–120 minute setting and stays under 44 characters at every value.
-    public static func titleLine(appName: String, store: AppGroupStore = .shared) -> String {
-        "One ayah opens \(appName) for \(store.ayahUnlockMinutes) minutes"
+        return "\(remaining) ayahs to today's goal"
     }
 
     /// Names the destination and the price. Burying the action the user came for is what makes a

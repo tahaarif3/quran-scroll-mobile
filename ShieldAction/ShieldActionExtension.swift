@@ -73,7 +73,10 @@ final class ShieldActionExtension: ShieldActionDelegate {
             store.grantAyahWindow(now: now)
             clearShield()
             scheduleReshield(at: store.unlockedUntil ?? now)
-            return thenContinue ? .close : .defer
+            // Both buttons dismiss. `.defer` kept the shield on screen after the apps had
+            // already been unblocked underneath it, which reads as the button doing nothing —
+            // reopening the app is what serves the next ayah.
+            return .close
         }
 
         let record = store.recordAyah(now: now)
@@ -102,12 +105,13 @@ final class ShieldActionExtension: ShieldActionDelegate {
             return .close
         }
 
-        // Both buttons earn the window — the ayah was read either way. They differ only in
-        // whether the user leaves now or stays for another.
+        // Both buttons earn the window and both dismiss. Deferring left the shield on screen
+        // after the apps had already been unblocked underneath it, which reads as the button
+        // having done nothing — reopening a shielded app is what serves the next ayah.
         store.grantAyahWindow(now: now)
         clearShield()
         scheduleReshield(at: store.unlockedUntil ?? now)
-        return thenContinue ? .close : .defer
+        return .close
     }
 
     private func clearShield() {

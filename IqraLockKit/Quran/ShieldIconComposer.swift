@@ -4,10 +4,12 @@ import UIKit
 
 /// Draws the shield's icon — the one slot whose typography we control.
 ///
-/// `ShieldConfiguration` offers five slots, and iOS owns the arrangement of all of them. The
-/// title and subtitle are rendered at the system's own type at sizes we cannot influence, so
-/// everything typographic lives here instead: reference, Arabic, hairline, translation. The two
-/// text slots then get one short job each, short enough that neither can truncate.
+/// It holds the Arabic and nothing else. Apparent size is the fraction of the frame the text
+/// occupies, because iOS scales the whole square into a box of its own choosing: every point
+/// spent on a reference line, a hairline or a translation comes directly out of the Arabic.
+/// Sharing the square three ways left each line at roughly 28% of frame and unreadable on
+/// device. Alone, the Arabic gets more than three times the area, and the reference and
+/// translation move to the text slots where iOS sizes them legibly for free.
 public enum ShieldIconComposer {
     /// Square, always. iOS aspect-fits into a square box, so any other ratio throws away scale —
     /// the same pixels as a 3:1 banner render a third the height. 160pt is what current iPhones
@@ -15,32 +17,29 @@ public enum ShieldIconComposer {
     public static let boxPoints: CGFloat = 160
     public static let renderScale: CGFloat = 3
 
-    /// Zone boundaries as fractions of the frame. Text is centred within each.
     private enum Zone {
-        static let bleedGuard: CGFloat = 0.03
-        static let referenceTop: CGFloat = 0.035
-        static let arabicTop: CGFloat = 0.12
-        static let arabicBottomShort: CGFloat = 0.68
-        static let arabicBottomLong: CGFloat = 0.76
-        static let hairlineShort: CGFloat = 0.72
-        static let hairlineLong: CGFloat = 0.79
-        static let translationTopShort: CGFloat = 0.76
-        static let translationTopLong: CGFloat = 0.82
-        static let translationBottom: CGFloat = 0.96
+        static let bleedGuard: CGFloat = 0.02
+        static let top: CGFloat = 0.04
+        static let bottom: CGFloat = 0.96
+        static var height: CGFloat { bottom - top }
     }
 
-    /// Floors, as fractions of frame height. Below these the text stops being readable, and
-    /// shrinking further would be the same as hiding it.
-    private enum Floor {
-        static let arabic: CGFloat = 0.075
-        static let translation: CGFloat = 0.036
-    }
+    /// The size an ayah has to reach to be worth showing whole — 14% of the frame, against the
+    /// 7.5% floor of the three-way split. Anything that can't reach it is divided at a waqf mark
+    /// instead of shrunk, so this is a segmentation threshold and not a rendering limit: it sets
+    /// the *worst* case at roughly double the old one, and a segmented piece renders larger
+    /// still.
+    private static let comfortableFraction: CGFloat = 0.14
 
-    private enum Palette {
-        static let cream = UIColor(red: 0xF7 / 255, green: 0xED / 255, blue: 0xD8 / 255, alpha: 1)
-        static let gold = UIColor(red: 0xC8 / 255, green: 0xB2 / 255, blue: 0x4E / 255, alpha: 1)
-        static let hairline = UIColor(red: 0xC8 / 255, green: 0xB2 / 255, blue: 0x4E / 255, alpha: 0.45)
-    }
+    /// The point below which we stop shrinking. Only reached by an ayah long enough to need
+    /// splitting but printed without a single waqf mark to split on — rare, and small is still
+    /// better than the clipped text that a hard stop here would produce.
+    private static let hardMinimumFraction: CGFloat = 0.045
+
+    /// Four lines is the most that stays legible once the square is scaled into the shield's box.
+    private static let maxLines = 4
+
+    private static let cream = UIColor(red: 0xF7 / 255, green: 0xED / 255, blue: 0xD8 / 255, alpha: 1)
 
     public struct Composition {
         public let image: UIImage
@@ -48,17 +47,11 @@ public enum ShieldIconComposer {
         public let accessibilityLabel: String
     }
 
-    /// Whether this Arabic sets inside the icon's zone without crossing its floor. The segmenter
-    /// asks this to decide how few pieces an ayah needs.
+    /// Whether this Arabic sets comfortably — inside the zone at a size still worth reading. The
+    /// segmenter asks this to decide how few pieces an ayah needs.
     public static func fitsWhole(_ arabic: String, largerText: Bool = false) -> Bool {
-        let side = boxPoints
-        let width = side - side * Zone.bleedGuard * 2
-        return fitArabic(
-            arabic,
-            width: width,
-            maxHeight: side * (Zone.arabicBottomLong - Zone.arabicTop),
-            floor: side * Floor.arabic * (largerText ? 1.3 : 1)
-        ) != nil
+        guard let size = fittedSize(arabic) else { return false }
+        return size >= boxPoints * comfortableFraction * (largerText ? 1.3 : 1)
     }
 
     public static func compose(
@@ -68,54 +61,16 @@ public enum ShieldIconComposer {
         largerText: Bool = false
     ) -> Composition? {
         IQFontRegistrar.register("Amiri-Bold")
-        IQFontRegistrar.register("Nunito-SemiBold")
 
         let side = boxPoints
         let inset = side * Zone.bleedGuard
         let width = side - inset * 2
 
-        // Fit order: set the Arabic as large as fits its zone in four lines or fewer. Only if it
-        // does not fit does the translation give up its space — and the Arabic floor is never
-        // crossed to make room.
-        let arabicFloor = side * Floor.arabic * (largerText ? 1.3 : 1)
-        let translationFloor = side * Floor.translation * (largerText ? 1.3 : 1)
-
-        var arabicZone = (top: Zone.arabicTop, bottom: Zone.arabicBottomShort)
-        var hairlineY = Zone.hairlineShort
-        var translationZone = (top: Zone.translationTopShort, bottom: Zone.translationBottom)
-
-        var arabicFit = fitArabic(
-            arabic,
-            width: width,
-            maxHeight: side * (arabicZone.bottom - arabicZone.top),
-            floor: arabicFloor
-        )
-
-        if arabicFit == nil {
-            // Reclaim the translation's space rather than shrink the Arabic past its floor.
-            arabicZone = (Zone.arabicTop, Zone.arabicBottomLong)
-            hairlineY = Zone.hairlineLong
-            translationZone = (Zone.translationTopLong, Zone.translationBottom)
-            arabicFit = fitArabic(
-                arabic,
-                width: width,
-                maxHeight: side * (arabicZone.bottom - arabicZone.top),
-                floor: arabicFloor
-            )
-        }
-
-        // Still no fit means the ayah needs segmenting at a waqf mark — see
-        // ShieldAyahSegmenter. Rendering it anyway at the floor is the honest fallback until
-        // segmentation has been reviewed: cramped, never cropped.
-        let arabicAttributes = arabicFit ?? arabicAttributes(pointSize: arabicFloor)
-
-        let translationAttributes = fitTranslation(
-            translation,
-            width: width,
-            maxHeight: side * (translationZone.bottom - translationZone.top),
-            floor: translationFloor,
-            ceiling: side * 0.055
-        )
+        // Falls back to the hard minimum rather than bailing out: cramped is better than absent,
+        // and an ayah that lands here should have been segmented before reaching this point.
+        let pointSize = fittedSize(arabic)
+            ?? side * hardMinimumFraction
+        let attributes = attributes(pointSize: pointSize)
 
         let format = UIGraphicsImageRendererFormat.default()
         format.opaque = false
@@ -124,38 +79,32 @@ public enum ShieldIconComposer {
         let image = UIGraphicsImageRenderer(
             size: CGSize(width: side, height: side),
             format: format
-        ).image { context in
-            (reference as NSString).draw(
-                with: CGRect(x: inset, y: side * Zone.referenceTop, width: width, height: side * 0.07),
+        ).image { _ in
+            let text = arabic as NSString
+            let zone = CGRect(
+                x: inset,
+                y: side * Zone.top,
+                width: width,
+                height: side * Zone.height
+            )
+            let bounds = text.boundingRect(
+                with: CGSize(width: zone.width, height: .greatestFiniteMagnitude),
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: referenceAttributes(pointSize: side * 0.045),
+                attributes: attributes,
                 context: nil
             )
-
-            drawCentred(
-                arabic,
-                in: CGRect(
-                    x: inset,
-                    y: side * arabicZone.top,
-                    width: width,
-                    height: side * (arabicZone.bottom - arabicZone.top)
+            // Optically centred in the square rather than top-aligned, so a two-line ayah sits in
+            // the middle of the box instead of hugging its top edge.
+            text.draw(
+                with: CGRect(
+                    x: zone.minX,
+                    y: zone.minY + max(0, (zone.height - bounds.height) / 2),
+                    width: zone.width,
+                    height: min(bounds.height, zone.height)
                 ),
-                attributes: arabicAttributes
-            )
-
-            let rule = CGRect(x: side * 0.28, y: side * hairlineY, width: side * 0.44, height: 1 / renderScale)
-            context.cgContext.setFillColor(Palette.hairline.cgColor)
-            context.cgContext.fill(rule)
-
-            drawCentred(
-                translation,
-                in: CGRect(
-                    x: inset,
-                    y: side * translationZone.top,
-                    width: width,
-                    height: side * (translationZone.bottom - translationZone.top)
-                ),
-                attributes: translationAttributes
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: attributes,
+                context: nil
             )
         }
 
@@ -167,56 +116,32 @@ public enum ShieldIconComposer {
 
     // MARK: - Fitting
 
-    /// Largest size whose text sets in four lines or fewer inside the zone, or nil if even the
-    /// floor overflows.
-    private static func fitArabic(
-        _ text: String,
-        width: CGFloat,
-        maxHeight: CGFloat,
-        floor: CGFloat
-    ) -> [NSAttributedString.Key: Any]? {
-        var size = maxHeight * 0.62
-        while size >= floor {
-            let attributes = arabicAttributes(pointSize: size)
+    /// Largest point size that sets this text in `maxLines` or fewer inside the zone, or nil if
+    /// even the hard minimum overflows.
+    private static func fittedSize(_ text: String) -> CGFloat? {
+        let side = boxPoints
+        let width = side - side * Zone.bleedGuard * 2
+        let maxHeight = side * Zone.height
+
+        // Starts near the full height of the zone: a very short ayah should be allowed to fill
+        // the square on a single line.
+        var size = maxHeight * 0.55
+        let minimum = side * hardMinimumFraction
+        while size >= minimum {
             let rect = (text as NSString).boundingRect(
                 with: CGSize(width: width, height: .greatestFiniteMagnitude),
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: attributes,
+                attributes: attributes(pointSize: size),
                 context: nil
             )
-            let lineHeight = size * 1.75
-            let lines = Int((rect.height / lineHeight).rounded(.up))
-            if rect.height <= maxHeight && lines <= 4 { return attributes }
+            let lines = Int((rect.height / (size * 1.75)).rounded(.up))
+            if rect.height <= maxHeight && lines <= maxLines { return size }
             size -= 1
         }
         return nil
     }
 
-    private static func fitTranslation(
-        _ text: String,
-        width: CGFloat,
-        maxHeight: CGFloat,
-        floor: CGFloat,
-        ceiling: CGFloat
-    ) -> [NSAttributedString.Key: Any] {
-        var size = ceiling
-        while size > floor {
-            let attributes = translationAttributes(pointSize: size)
-            let rect = (text as NSString).boundingRect(
-                with: CGSize(width: width, height: .greatestFiniteMagnitude),
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: attributes,
-                context: nil
-            )
-            if rect.height <= maxHeight { return attributes }
-            size -= 0.5
-        }
-        return translationAttributes(pointSize: floor)
-    }
-
-    // MARK: - Attributes
-
-    private static func arabicAttributes(pointSize: CGFloat) -> [NSAttributedString.Key: Any] {
+    private static func attributes(pointSize: CGFloat) -> [NSAttributedString.Key: Any] {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         paragraph.baseWritingDirection = .rightToLeft
@@ -226,55 +151,8 @@ public enum ShieldIconComposer {
         return [
             .font: UIFont(name: "Amiri-Bold", size: pointSize)
                 ?? .systemFont(ofSize: pointSize, weight: .bold),
-            .foregroundColor: Palette.cream,
+            .foregroundColor: cream,
             .paragraphStyle: paragraph
         ]
-    }
-
-    private static func translationAttributes(pointSize: CGFloat) -> [NSAttributedString.Key: Any] {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .center
-        paragraph.lineBreakMode = .byWordWrapping
-        paragraph.lineSpacing = pointSize * 0.25
-        return [
-            .font: UIFont(name: "Nunito-SemiBold", size: pointSize)
-                ?? .systemFont(ofSize: pointSize, weight: .semibold),
-            .foregroundColor: Palette.cream.withAlphaComponent(0.88),
-            .paragraphStyle: paragraph
-        ]
-    }
-
-    private static func referenceAttributes(pointSize: CGFloat) -> [NSAttributedString.Key: Any] {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .center
-        return [
-            .font: UIFont(name: "Nunito-SemiBold", size: pointSize)
-                ?? .systemFont(ofSize: pointSize, weight: .semibold),
-            .foregroundColor: Palette.gold,
-            .paragraphStyle: paragraph
-        ]
-    }
-
-    /// Vertically centres within the zone rather than top-aligning, so a short ayah sits in the
-    /// middle of its space instead of hugging the reference above it.
-    private static func drawCentred(
-        _ text: String,
-        in rect: CGRect,
-        attributes: [NSAttributedString.Key: Any]
-    ) {
-        let ns = text as NSString
-        let bounds = ns.boundingRect(
-            with: CGSize(width: rect.width, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: attributes,
-            context: nil
-        )
-        let y = rect.minY + max(0, (rect.height - bounds.height) / 2)
-        ns.draw(
-            with: CGRect(x: rect.minX, y: y, width: rect.width, height: min(bounds.height, rect.height)),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: attributes,
-            context: nil
-        )
     }
 }

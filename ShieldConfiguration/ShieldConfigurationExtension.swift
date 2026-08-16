@@ -19,9 +19,10 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         // itself prints, never a word or character budget.
         let segment = ShieldAyahProvider.segmented(for: store)
 
-        // Everything typographic lives in the icon — reference, Arabic, hairline, translation —
-        // because it is the only slot whose type we control. The two text slots then get one
-        // short job each, short enough that neither can truncate.
+        // Only the Arabic goes in the icon. It is the one slot whose type we control, and the
+        // one line that has to be big — so it gets the whole square rather than a third of it.
+        // The reference and translation are legible at whatever size iOS picks for the text
+        // slots, so they cost the Arabic nothing by living there.
         let composition = segment.flatMap {
             ShieldIconComposer.compose(
                 arabic: $0.arabic,
@@ -40,18 +41,22 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             backgroundBlurStyle: .systemUltraThinMaterialDark,
             backgroundColor: shieldBrown,
             icon: composition?.image ?? Self.lockIcon(),
-            // The exchange rate, not the state. "Instagram is locked" spends the loudest slot
-            // telling the user what they learned by arriving.
+            // The meaning. It moved out of the icon so the Arabic could have the whole square —
+            // and iOS sizes this slot legibly for free, which is exactly what the translation
+            // needed and the Arabic could never get here.
             title: ShieldConfiguration.Label(
-                text: ShieldAyahProvider.titleLine(appName: name, store: store),
+                text: segment?.translation ?? "",
                 color: cream
             ),
-            // Progress only — the one thing here that changes between renders, and so the one
-            // thing that cannot be baked into the icon.
+            // Reference and progress. The rate now lives on the primary button, which states it
+            // as a price where it actually lands.
             subtitle: ShieldConfiguration.Label(
                 text: recentlyRejected
                     ? "Take a moment with it, then continue"
-                    : ShieldAyahProvider.progressLine(for: store),
+                    : ShieldAyahProvider.subtitleLine(
+                        reference: segment?.reference ?? "",
+                        store: store
+                    ),
                 color: gold
             ),
             // Names the destination and the price. Burying the action the user came for is what

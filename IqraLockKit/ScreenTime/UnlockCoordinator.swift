@@ -69,11 +69,15 @@ public final class UnlockCoordinator: @unchecked Sendable {
             "ayahsPerPage": record.ayahsPerPage
         ])
 
-        // Reading earns time wherever it happens. Windows extend rather than reset, so two
-        // ayahs are worth two windows.
-        if !record.goalMet {
-            shield.grantAyahWindow(now: now)
-        }
+        // Reading earns time wherever it happens, unconditionally. Windows extend rather than
+        // reset, so two ayahs are worth two windows.
+        //
+        // This used to be skipped once the goal was met — but the shield grants regardless, so
+        // an ayah read in the app stopped earning while the same ayah read off the lock screen
+        // kept earning. With a small daily goal that meant in-app reading appeared to do nothing
+        // at all. If the goal is met, `evaluate` below extends to tomorrow anyway and this is
+        // simply overwritten.
+        shield.grantAyahWindow(now: now)
 
         // Only run the unlock path when an ayah actually completed a page, so the notification
         // and shield clearing fire once rather than on every ayah after the goal is met.
