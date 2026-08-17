@@ -97,6 +97,13 @@ final class AppModel {
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: onboardingFlagKey)
     }
 
+    /// How far Screen Time setup actually got. Read live rather than cached: authorization can
+    /// be revoked in Settings while the app is backgrounded, and a stale "connected" would keep
+    /// the app claiming to shield apps it can no longer touch.
+    var screenTimeConnection: ScreenTimeConnectionState {
+        ScreenTimeConnection.state(screenTime: screenTime, store: store)
+    }
+
     /// Number of consecutive launches that died before the app was healthy, after which the
     /// shield is lifted. Two rather than one: a single crash can be a one-off, but a user whose
     /// apps are blocked by an app that will not open has no way out except deleting it.

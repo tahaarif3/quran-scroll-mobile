@@ -53,6 +53,12 @@ jobs:
             exit 1
           fi
 
+      # The archive check below proves the font files reached the bundle. This proves they are
+      # the faces they claim to be — a distinct failure, and a silent one: SwiftUI falls back to
+      # San Francisco rather than erroring when a PostScript name doesn't resolve.
+      - name: Verify font names
+        run: python3 Scripts/verify_font_names.py
+
       - name: Install XcodeGen
         run: brew install xcodegen
 

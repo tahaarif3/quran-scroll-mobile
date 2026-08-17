@@ -31,6 +31,13 @@ jobs:
           xcodebuild -version
           swift --version
 
+      # Before anything is built, because the failure this catches is invisible at runtime:
+      # a font whose internal PostScript name doesn't match the name the code asks for makes
+      # SwiftUI fall back to San Francisco silently. Six Nunito weights once shipped all
+      # declaring "Nunito-ExtraLight", which is why no text in the app rendered bold.
+      - name: Verify font names
+        run: python3 Scripts/verify_font_names.py
+
       - name: Install XcodeGen
         run: brew install xcodegen
 

@@ -13,6 +13,7 @@ struct YouView: View {
     @State private var showShieldPreview = false
     @State private var showAbout = false
     @State private var showPassConfirm = false
+    @State private var showScreenTimeSetup = false
 
     // Mirrors of App Group values. AppGroupStore is a plain class over UserDefaults with no
     // observation, so binding a control straight to it left the control frozen — the value
@@ -31,6 +32,8 @@ struct YouView: View {
     #endif
 
     private var profile: UserProfile? { profiles.first }
+
+    private var connection: ScreenTimeConnectionState { appModel.screenTimeConnection }
 
     var body: some View {
         NavigationStack {
@@ -106,22 +109,46 @@ struct YouView: View {
                 }
 
                 Section("Focus") {
-                    if ScreenTimeAvailability.isSupported {
+                    // Setup can be half-finished in two different ways, and the row has to say
+                    // which — "0 selected" gave the same answer whether the user skipped the
+                    // picker or never granted access at all.
+                    switch connection {
+                    case .connected:
                         Button {
                             showActivityPicker = true
                         } label: {
                             HStack {
                                 Text("Locked apps").foregroundStyle(IQColor.textPrimary)
                                 Spacer()
-                                Text("\(appModel.screenTime.selectedAppCount) selected")
+                                Text("\(appModel.store.selectedAppsCount) selected")
                                     .foregroundStyle(IQColor.textSecondary)
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundStyle(IQColor.textFaint)
                             }
                         }
-                    } else {
-                        LabeledContent("Locked apps", value: "\(appModel.screenTime.selectedAppCount) selected")
+                    case .unsupported:
+                        LabeledContent("Locked apps", value: "Needs a device")
+                    case .noAppsChosen, .notConnected, .declined:
+                        Button {
+                            showScreenTimeSetup = true
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(IQColor.star)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Set up app blocking")
+                                        .foregroundStyle(IQColor.textPrimary)
+                                    Text(connection.summary)
+                                        .font(.footnote)
+                                        .foregroundStyle(IQColor.textSecondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(IQColor.textFaint)
+                            }
+                        }
                     }
                     Stepper(value: $ayahMinutes, in: 5...120, step: 5) {
                         HStack {
@@ -232,6 +259,9 @@ struct YouView: View {
             }
             .sheet(isPresented: $showShieldPreview) {
                 ShieldPreviewView()
+            }
+            .sheet(isPresented: $showScreenTimeSetup) {
+                ScreenTimeSetupView()
             }
             .sheet(isPresented: $showAbout) {
                 AboutView()
