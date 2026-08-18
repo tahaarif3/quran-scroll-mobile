@@ -39,6 +39,12 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         guard activity.rawValue.contains("emergency") || activity.rawValue.contains("debug") else {
             return
         }
+        // The clock decides, not the callback. Restarting an activity that is already being
+        // monitored makes iOS end the running interval first, so every ayah after the first
+        // fired this and wiped the window the ayah had just bought — reading twice in a row
+        // re-locked everything, and reading from the shield looked like it granted nothing at
+        // all. The callback is now only believed when the window has genuinely run out.
+        if let until = store.unlockedUntil, until > Date() { return }
         store.isLockedNow = true
         store.unlockedUntil = nil
         // The window an ayah bought has run out. Re-applying the tokens here is what makes it a

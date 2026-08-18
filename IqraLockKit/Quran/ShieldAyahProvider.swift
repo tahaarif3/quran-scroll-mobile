@@ -3,9 +3,14 @@ import UIKit
 
 /// Supplies the ayah shown on the OS shield.
 ///
-/// `ShieldConfiguration` gives no control over fonts and truncates rather than shrinking, so the
-/// pool is restricted to genuinely short ayahs and the Arabic is drawn into the icon image —
-/// the one part of the shield we render ourselves — instead of being handed to a system label.
+/// The Arabic goes in the title slot and the translation in the subtitle. Drawing the Arabic into
+/// the icon instead — the one part of the shield we render ourselves — gave us full control of its
+/// typography and turned out to be the wrong trade: iOS renders that icon small whatever we put in
+/// it, so the Arabic came out smaller than the English no matter how the square was divided. The
+/// text slots are sized by iOS to be read, which is the property that actually mattered.
+///
+/// `ShieldConfiguration` truncates rather than shrinking, so an ayah too long for the slot is
+/// divided at a waqf mark instead.
 public enum ShieldAyahProvider {
     /// The next ayah in the mushaf, taken from the shared khatm cursor.
     ///
@@ -79,6 +84,10 @@ public enum ShieldAyahProvider {
         public var isFinalSegment: Bool { index >= count - 1 }
         /// Naming the next action honestly: there is more of *this* ayah, not a new one.
         public var secondaryLabel: String { isFinalSegment ? "Read another ayah" : "Read the rest" }
+
+        /// The meaning, then where it comes from. The subtitle carries both because the title
+        /// slot now belongs to the Arabic.
+        public var subtitle: String { "\(translation)\n\(reference)" }
     }
 
     /// The ayah at the cursor, divided at waqf marks if it cannot be legible whole.
@@ -87,9 +96,7 @@ public enum ShieldAyahProvider {
     /// its own window, because each is a real act of reading.
     public static func segmented(for store: AppGroupStore = .shared) -> Segmented? {
         guard let ayah = ayah(for: store) else { return nil }
-        let pieces = ShieldAyahSegmenter.segments(of: ayah.textUthmani) {
-            ShieldIconComposer.fitsWhole($0)
-        }
+        let pieces = ShieldAyahSegmenter.segments(of: ayah.textUthmani, fitting: fitsTitleSlot)
         let index = min(store.shieldSegmentIndex, pieces.count - 1)
         let reference = pieces.count > 1
             ? "\(ayah.verseKey) · \(index + 1) of \(pieces.count)"
@@ -109,35 +116,30 @@ public enum ShieldAyahProvider {
     /// whether a read finishes the ayah.
     public static func segmentCount(for store: AppGroupStore = .shared) -> Int {
         guard let ayah = ayah(for: store) else { return 1 }
-        return ShieldAyahSegmenter.segments(of: ayah.textUthmani) {
-            ShieldIconComposer.fitsWhole($0)
-        }.count
+        return ShieldAyahSegmenter.segments(of: ayah.textUthmani, fitting: fitsTitleSlot).count
     }
 
-    /// Reference and progress on one line, because the title slot now carries the translation.
+    /// Whether this much Arabic fits the shield's title slot without being truncated.
     ///
-    /// Both halves are kept terse — together they stay under 50 characters at every value, which
-    /// is what keeps the slot from truncating. The exchange rate that used to live in the title
-    /// is now on the primary button, where it reads as a price at the point it is paid.
-    public static func subtitleLine(
-        reference: String,
-        store: AppGroupStore = .shared
-    ) -> String {
-        "\(reference)  ·  \(progressLine(for: store))"
+    /// iOS owns that slot's typography and offers no way to measure it, so this is a budget
+    /// rather than a fit: count the letters the eye actually sees and cap them. Combining marks
+    /// are excluded because Uthmani text carries a great many of them and none take horizontal
+    /// space — counting them would segment ayahs that fit perfectly well.
+    static func fitsTitleSlot(_ arabic: String) -> Bool {
+        arabic.unicodeScalars.reduce(0) { count, scalar in
+            isCombiningMark(scalar) ? count : count + 1
+        } <= maxTitleCharacters
     }
 
-    /// The changing half of the subtitle — the one thing here that cannot be baked into the
-    /// cached icon.
-    public static func progressLine(for store: AppGroupStore = .shared) -> String {
-        if store.goalMetToday { return "today's goal done" }
-        let remaining = max(0, store.dailyGoalAyahs - store.totalAyahsToday)
-        if remaining == 1 { return "1 ayah to today's goal" }
-        // At page scale the ayah count stops being meaningful to a reader.
-        if remaining >= store.ayahsPerPage * 2 {
-            let pages = Int((Double(remaining) / Double(max(1, store.ayahsPerPage))).rounded())
-            return "about \(pages) pages to today's goal"
+    /// Roughly three lines of the title slot on a current iPhone. Deliberately conservative: an
+    /// ayah divided once too often still reads correctly, one that truncates does not.
+    static let maxTitleCharacters = 95
+
+    private static func isCombiningMark(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x064B...0x065F, 0x0670, 0x06D6...0x06ED: return true
+        default: return false
         }
-        return "\(remaining) ayahs to today's goal"
     }
 
     /// Names the destination and the price. Burying the action the user came for is what makes a

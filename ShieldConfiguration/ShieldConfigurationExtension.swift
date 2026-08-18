@@ -15,21 +15,9 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         let cream = UIColor(red: 0xF7 / 255, green: 0xED / 255, blue: 0xD8 / 255, alpha: 1)
         let gold = UIColor(red: 0xC8 / 255, green: 0xB2 / 255, blue: 0x4E / 255, alpha: 1)
         let shieldBrown = UIColor(red: 0x25 / 255, green: 0x15 / 255, blue: 0x0C / 255, alpha: 1)
-        // Divided at a waqf mark when the ayah cannot be legible whole — the pause the mushaf
-        // itself prints, never a word or character budget.
+        // Divided when the ayah is too long for the title slot. A character budget decides
+        // *whether* to divide; only a printed waqf mark decides *where*.
         let segment = ShieldAyahProvider.segmented(for: store)
-
-        // Only the Arabic goes in the icon. It is the one slot whose type we control, and the
-        // one line that has to be big — so it gets the whole square rather than a third of it.
-        // The reference and translation are legible at whatever size iOS picks for the text
-        // slots, so they cost the Arabic nothing by living there.
-        let composition = segment.flatMap {
-            ShieldIconComposer.compose(
-                arabic: $0.arabic,
-                translation: $0.translation,
-                reference: $0.reference
-            )
-        }
 
         // A tap refused for arriving too soon borrows the subtitle briefly. It used to replace
         // the whole thing for twenty seconds, which read as the ayah randomly disappearing.
@@ -40,23 +28,24 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterialDark,
             backgroundColor: shieldBrown,
-            icon: composition?.image ?? Self.lockIcon(),
-            // The meaning. It moved out of the icon so the Arabic could have the whole square —
-            // and iOS sizes this slot legibly for free, which is exactly what the translation
-            // needed and the Arabic could never get here.
+            icon: Self.lockIcon(),
+            // The Arabic, in the largest slot the shield has.
+            //
+            // It was drawn into the icon before, which gave us the typography — our own Amiri
+            // face, our own sizing — and cost us the thing that mattered more. iOS renders that
+            // icon small whatever is in it, so the Arabic came out smaller than the English
+            // sitting in a plain system label beneath it. The system font renders Uthmani text
+            // correctly if not beautifully, and being read beats being set well.
             title: ShieldConfiguration.Label(
-                text: segment?.translation ?? "",
+                text: segment?.arabic ?? "",
                 color: cream
             ),
-            // Reference and progress. The rate now lives on the primary button, which states it
-            // as a price where it actually lands.
+            // Translation, then the reference under it. The rate the user is paying is on the
+            // primary button, where it reads as a price at the point it is paid.
             subtitle: ShieldConfiguration.Label(
                 text: recentlyRejected
                     ? "Take a moment with it, then continue"
-                    : ShieldAyahProvider.subtitleLine(
-                        reference: segment?.reference ?? "",
-                        store: store
-                    ),
+                    : segment?.subtitle ?? "",
                 color: gold
             ),
             // Names the destination and the price. Burying the action the user came for is what

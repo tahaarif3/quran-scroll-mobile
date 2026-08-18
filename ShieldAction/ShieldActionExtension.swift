@@ -38,10 +38,10 @@ final class ShieldActionExtension: ShieldActionDelegate {
     ) {
         switch action {
         case .primaryButtonPressed:
-            // "Continue to app" — credit the ayah, then spend it.
+            // "Open <app>" — credit the ayah, then spend it and get out of the way.
             completionHandler(readAyah(thenContinue: true))
         case .secondaryButtonPressed:
-            // "Read another ayah" — credit it and stay, so a fresh one is served.
+            // "Read another ayah" — credit it and stay put, so the next one is served.
             completionHandler(readAyah(thenContinue: false))
         @unknown default:
             completionHandler(.close)
@@ -50,8 +50,15 @@ final class ShieldActionExtension: ShieldActionDelegate {
 
     /// Credits one ayah, and either spends it on access or banks it and serves another.
     ///
-    /// Both buttons read. The only difference is what happens next — which is why there is no
-    /// need for the third button the API doesn't offer.
+    /// Both buttons read, both earn the window, and both unblock the apps — the time is real
+    /// either way. The only difference is the response: `.close` steps aside so the app can be
+    /// opened, `.defer` keeps the shield on screen so the next ayah can be read straight away.
+    ///
+    /// `.defer` was briefly used for both, which is what made "add 30 more minutes" look dead —
+    /// the shield sat there after the apps beneath it had already been unblocked. Then both were
+    /// `.close`, which made "Read another ayah" look dead instead, because asking for another
+    /// ayah dismissed the only thing showing them. One each is the arrangement that matches what
+    /// the two buttons actually say.
     private func readAyah(thenContinue: Bool) -> ShieldActionResponse {
         let now = Date()
 
@@ -73,10 +80,7 @@ final class ShieldActionExtension: ShieldActionDelegate {
             store.grantAyahWindow(now: now)
             clearShield()
             scheduleReshield(at: store.unlockedUntil ?? now)
-            // Both buttons dismiss. `.defer` kept the shield on screen after the apps had
-            // already been unblocked underneath it, which reads as the button doing nothing —
-            // reopening the app is what serves the next ayah.
-            return .close
+            return thenContinue ? .close : .defer
         }
 
         let record = store.recordAyah(now: now)
@@ -105,13 +109,10 @@ final class ShieldActionExtension: ShieldActionDelegate {
             return .close
         }
 
-        // Both buttons earn the window and both dismiss. Deferring left the shield on screen
-        // after the apps had already been unblocked underneath it, which reads as the button
-        // having done nothing — reopening a shielded app is what serves the next ayah.
         store.grantAyahWindow(now: now)
         clearShield()
         scheduleReshield(at: store.unlockedUntil ?? now)
-        return .close
+        return thenContinue ? .close : .defer
     }
 
     private func clearShield() {
@@ -132,7 +133,11 @@ final class ShieldActionExtension: ShieldActionDelegate {
             intervalEnd: end,
             repeats: false
         )
-        try? DeviceActivityCenter().startMonitoring(.emergencyReshield, during: schedule)
+        let center = DeviceActivityCenter()
+        // See ScreenTimeService.scheduleReshield: restarting a live activity ends its interval,
+        // and the end handler re-applies the shield.
+        center.stopMonitoring([.emergencyReshield])
+        try? center.startMonitoring(.emergencyReshield, during: schedule)
     }
 
     private func notify(title: String, body: String) {

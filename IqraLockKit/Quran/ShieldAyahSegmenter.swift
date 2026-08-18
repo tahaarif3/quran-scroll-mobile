@@ -2,13 +2,14 @@ import Foundation
 
 /// Splits an ayah too long for the shield into pieces that pause where the mushaf pauses.
 ///
-/// Ayat al-Kursi cannot be legible whole in a 160pt square, and shrinking until it fits is the
-/// same as hiding it. So the image ends at a waqf mark — a pause the mushaf itself prints — and
-/// says so in the reference line. Nothing is cut mid-sentence and nothing is cropped.
+/// Ayat al-Kursi cannot fit the shield's title slot, and that slot truncates rather than
+/// shrinking — so the choice is to divide it or to cut it off mid-word. It ends at a waqf mark
+/// instead, a pause the mushaf itself prints, and the reference line says which piece this is.
 ///
-/// Breaks happen **only** at these marks, never at a word or character budget. If an ayah has no
-/// waqf mark it is returned whole and rendered at the Arabic floor: cramped is acceptable,
-/// arbitrary division of Qur'anic text is not.
+/// A budget decides *whether* to divide. Only a waqf mark decides *where*: breaks happen at
+/// these marks and nowhere else. An ayah carrying none is returned whole and allowed to
+/// truncate — losing the tail of a verse is bad, and inventing a pause in Qur'anic text that
+/// does not contain one is worse.
 public enum ShieldAyahSegmenter {
     /// The pause marks of the mushaf. Breaking anywhere else would invent a pause the text does
     /// not contain.
@@ -32,7 +33,8 @@ public enum ShieldAyahSegmenter {
         if fits(arabic) { return [arabic] }
 
         let boundaries = waqfBoundaries(in: arabic)
-        // No printed pause to break at — render it whole and cramped rather than inventing one.
+        // No printed pause to break at — show it whole and let it truncate rather than
+        // inventing one.
         guard !boundaries.isEmpty else { return [arabic] }
 
         for count in 2...min(boundaries.count + 1, maxSegments) {

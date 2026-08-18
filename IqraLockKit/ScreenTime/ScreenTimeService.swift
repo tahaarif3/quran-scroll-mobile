@@ -163,7 +163,14 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
             intervalEnd: calendar.dateComponents([.hour, .minute, .second], from: date),
             repeats: false
         )
-        try? DeviceActivityCenter().startMonitoring(.emergencyReshield, during: schedule)
+        let center = DeviceActivityCenter()
+        // Stopped before it is restarted. Calling `startMonitoring` on an activity already being
+        // monitored makes iOS end the running interval, and `intervalDidEnd` is what puts the
+        // shield back — so extending a window by reading a second ayah re-locked everything
+        // instead. The monitor now checks the clock too; this keeps the callback from firing at
+        // all.
+        center.stopMonitoring([.emergencyReshield])
+        try? center.startMonitoring(.emergencyReshield, during: schedule)
         #endif
     }
 
