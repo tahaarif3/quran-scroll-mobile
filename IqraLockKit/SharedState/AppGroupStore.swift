@@ -385,8 +385,11 @@ public final class AppGroupStore: @unchecked Sendable {
         public let goalMet: Bool
     }
 
-    /// Minimum gap between two ayahs that both count. The shield's read button is a single tap,
-    /// so without this the whole day's goal is a few seconds of tapping.
+    /// Gap below which an ayah is not taken on trust. The shield's read button is a single tap,
+    /// so without a brake the whole day's goal is a few seconds of tapping.
+    ///
+    /// In the app this is a question, not a refusal — the reader confirms and it counts. Only
+    /// the shield still rejects outright, because its five slots have nowhere to put a prompt.
     public static let minimumAyahInterval: TimeInterval = 5
 
     /// Records one ayah and rolls it into a page every `ayahsPerPage`.
@@ -395,11 +398,16 @@ public final class AppGroupStore: @unchecked Sendable {
     /// exactly this and cannot afford to build a coordinator — two implementations of the
     /// roll-into-a-page rule would drift, and the app and the lock screen disagreeing about how
     /// much you have read is the worst possible bug in this app.
+    /// - Parameter confirmed: the reader has answered that they did read it, so the minimum
+    ///   interval is waived. Only ever set from a prompt the user actually saw — passing it by
+    ///   default would delete the brake rather than move it.
     @discardableResult
-    public func recordAyah(now: Date = Date()) -> AyahRecord {
+    public func recordAyah(now: Date = Date(), confirmed: Bool = false) -> AyahRecord {
         ensureCurrentDay(now: now)
 
-        if let last = lastAyahReadAt, now.timeIntervalSince(last) < Self.minimumAyahInterval {
+        if !confirmed,
+           let last = lastAyahReadAt,
+           now.timeIntervalSince(last) < Self.minimumAyahInterval {
             return AyahRecord(
                 counted: false,
                 ayahsIntoPage: ayahsReadToday,

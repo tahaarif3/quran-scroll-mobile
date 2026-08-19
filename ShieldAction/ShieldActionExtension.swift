@@ -50,15 +50,19 @@ final class ShieldActionExtension: ShieldActionDelegate {
 
     /// Credits one ayah, and either spends it on access or banks it and serves another.
     ///
-    /// Both buttons read, both earn the window, and both unblock the apps — the time is real
-    /// either way. The only difference is the response: `.close` steps aside so the app can be
-    /// opened, `.defer` keeps the shield on screen so the next ayah can be read straight away.
+    /// Both buttons read and both earn the window. What separates them is whether the shield
+    /// comes down:
     ///
-    /// `.defer` was briefly used for both, which is what made "add 30 more minutes" look dead —
-    /// the shield sat there after the apps beneath it had already been unblocked. Then both were
-    /// `.close`, which made "Read another ayah" look dead instead, because asking for another
-    /// ayah dismissed the only thing showing them. One each is the arrangement that matches what
-    /// the two buttons actually say.
+    /// - **Open** clears the ManagedSettings tokens and returns `.close`, so the app can be
+    ///   opened with the time just bought.
+    /// - **Read another** leaves the tokens in place and returns `.defer`, so iOS re-presents
+    ///   the shield with the next ayah. The minutes still accrue into `unlockedUntil`; they are
+    ///   simply banked rather than spent, and the next Open — or the app's own re-evaluation on
+    ///   foreground — releases all of them at once.
+    ///
+    /// That second point is the whole fix. `.defer` alone was not enough: this used to clear the
+    /// shield for *both* buttons, and a `.defer` with nothing left to re-present just dismisses,
+    /// which is why "Read another ayah" opened the app instead of showing another ayah.
     private func readAyah(thenContinue: Bool) -> ShieldActionResponse {
         let now = Date()
 
@@ -78,9 +82,7 @@ final class ShieldActionExtension: ShieldActionDelegate {
             store.ayahRejectedAt = nil
             store.shieldSegmentIndex += 1
             store.grantAyahWindow(now: now)
-            clearShield()
-            scheduleReshield(at: store.unlockedUntil ?? now)
-            return thenContinue ? .close : .defer
+            return release(thenContinue: thenContinue, now: now)
         }
 
         let record = store.recordAyah(now: now)
@@ -110,9 +112,20 @@ final class ShieldActionExtension: ShieldActionDelegate {
         }
 
         store.grantAyahWindow(now: now)
+        return release(thenContinue: thenContinue, now: now)
+    }
+
+    /// Spends the banked window or keeps it banked, and answers accordingly.
+    ///
+    /// The re-shield is only booked when the shield actually comes down. Booking it while the
+    /// tokens are still applied would schedule a timer to restore something that was never
+    /// removed, and the interval ending would then wipe minutes the user had banked but not yet
+    /// spent.
+    private func release(thenContinue: Bool, now: Date) -> ShieldActionResponse {
+        guard thenContinue else { return .defer }
         clearShield()
         scheduleReshield(at: store.unlockedUntil ?? now)
-        return thenContinue ? .close : .defer
+        return .close
     }
 
     private func clearShield() {

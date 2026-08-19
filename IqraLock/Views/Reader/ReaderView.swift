@@ -29,6 +29,9 @@ struct ReaderView: View {
     @State private var repository: BundledQuranRepository?
     @State private var surahs: [SurahMeta] = []
     @State private var justCredited = false
+    /// Position of an ayah that arrived too quickly to count on its own. Non-nil presents the
+    /// prompt; the answer either credits it or lets it go.
+    @State private var pendingConfirmation: Int?
 
     private let bottomBarHeight: CGFloat = 118
     private var goal: Int { profiles.first?.dailyGoalPages ?? appModel.store.dailyGoalPages }
@@ -63,6 +66,24 @@ struct ReaderView: View {
         }
         .background(IQColor.bgReader.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) { bottomBar }
+        .confirmationDialog(
+            "Did you read that ayah?",
+            isPresented: Binding(
+                get: { pendingConfirmation != nil },
+                set: { if !$0 { pendingConfirmation = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Yes, count it") {
+                if let position = pendingConfirmation {
+                    pendingConfirmation = nil
+                    creditAyah(at: position, confirmed: true)
+                }
+            }
+            Button("Not yet", role: .cancel) { pendingConfirmation = nil }
+        } message: {
+            Text("That was quick, so it hasn't been counted yet.")
+        }
         .sheet(isPresented: $showSurahList) {
             SurahListView(surahs: surahs, currentSurah: surahNumber) { jump(to: $0) }
         }
@@ -254,10 +275,18 @@ struct ReaderView: View {
     }
 
     /// Credits the ayah at `position` and moves the shared cursor past it.
-    private func creditAyah(at position: Int) {
+    ///
+    /// An ayah passed faster than it could plausibly be read is no longer dropped on the floor.
+    /// Silently refusing to count it is indistinguishable from the feature being broken — and
+    /// it was wrong as often as it was right, because someone re-reading a short ayah they know
+    /// by heart is still reading. It asks instead.
+    private func creditAyah(at position: Int, confirmed: Bool = false) {
         guard let ayah = ayahs.indices.contains(position) ? ayahs[position] : nil else { return }
-        let outcome = appModel.unlock.recordAyahRead()
-        guard outcome.counted else { return }
+        let outcome = appModel.unlock.recordAyahRead(confirmed: confirmed)
+        guard outcome.counted else {
+            pendingConfirmation = position
+            return
+        }
         appModel.store.advanceKhatmCursor(toAyahID: ayah.id + 1)
         savePosition()
         justCredited = true

@@ -11,6 +11,7 @@ struct HomeView: View {
     @Query(sort: \DailyRecord.day, order: .reverse) private var records: [DailyRecord]
 
     @State private var ayah: Ayah?
+    @State private var needsReadConfirmation = false
     @State private var repository: BundledQuranRepository?
     @State private var justRead = false
     /// Drives the hero's re-render when reading changes the state underneath it.
@@ -65,6 +66,22 @@ struct HomeView: View {
             .background(IQColor.bgSand.ignoresSafeArea())
             .navigationBarHidden(true)
             .task { await load() }
+            // Re-read the App Group every time this tab comes forward. AppGroupStore is a plain
+            // wrapper over UserDefaults with no observation, so changing "one ayah unlocks N
+            // minutes" in You changed nothing here until the app was relaunched — the card went
+            // on offering the old number, which is the one piece of copy that has to be true.
+            // `revision` is the card's `.id`, so bumping it rebuilds against current values.
+            .onAppear { revision += 1 }
+            .confirmationDialog(
+                "Did you read that ayah?",
+                isPresented: $needsReadConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Yes, count it") { credit(confirmed: true) }
+                Button("Not yet", role: .cancel) {}
+            } message: {
+                Text("That was quick, so it hasn't been counted yet.")
+            }
         }
     }
 
@@ -186,9 +203,14 @@ struct HomeView: View {
         (store.unlockedUntil.map { $0 > Date() } ?? false) || store.goalMetToday
     }
 
-    private func credit() {
-        let outcome = appModel.unlock.recordAyahRead()
-        guard outcome.counted else { return }
+    /// Asks rather than silently refusing when an ayah arrives faster than the minimum gap —
+    /// a tap that does nothing and says nothing is indistinguishable from a broken button.
+    private func credit(confirmed: Bool = false) {
+        let outcome = appModel.unlock.recordAyahRead(confirmed: confirmed)
+        guard outcome.counted else {
+            needsReadConfirmation = true
+            return
+        }
         store.advanceKhatmCursor()
         justRead = true
         revision += 1

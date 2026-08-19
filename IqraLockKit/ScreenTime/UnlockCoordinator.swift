@@ -49,9 +49,9 @@ public final class UnlockCoordinator: @unchecked Sendable {
     /// extension shares it; this adds the analytics and unlock side effects the extension
     /// cannot perform.
     @discardableResult
-    public func recordAyahRead(now: Date = Date()) -> AyahOutcome {
+    public func recordAyahRead(now: Date = Date(), confirmed: Bool = false) -> AyahOutcome {
         let pagesBefore = store.pagesReadToday
-        let record = store.recordAyah(now: now)
+        let record = store.recordAyah(now: now, confirmed: confirmed)
 
         guard record.counted else {
             analytics.track("ayah_read_rejected_too_fast", properties: [:])
