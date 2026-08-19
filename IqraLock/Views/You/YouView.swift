@@ -14,6 +14,9 @@ struct YouView: View {
     @State private var showAbout = false
     @State private var showPassConfirm = false
     @State private var showScreenTimeSetup = false
+    @State private var showDisconnectConfirm = false
+    @State private var showPaywall = false
+    @State private var paywallPlan: PaywallPlan = .annual
 
     // Mirrors of App Group values. AppGroupStore is a plain class over UserDefaults with no
     // observation, so binding a control straight to it left the control frozen — the value
@@ -127,6 +130,9 @@ struct YouView: View {
                                     .foregroundStyle(IQColor.textFaint)
                             }
                         }
+                        Button("Turn off app blocking", role: .destructive) {
+                            showDisconnectConfirm = true
+                        }
                     case .unsupported:
                         LabeledContent("Locked apps", value: "Needs a device")
                     case .noAppsChosen, .notConnected, .declined:
@@ -203,6 +209,7 @@ struct YouView: View {
                         Task { try? await appModel.purchases.restore() }
                     }
                     if !appModel.purchases.hasPro {
+                        Button("See plans") { showPaywall = true }
                         Text("Pro unlocks app blocking, stats, and extra passes. The Qur'an reader stays free.")
                             .font(.footnote)
                             .foregroundStyle(IQColor.textSecondary)
@@ -262,6 +269,44 @@ struct YouView: View {
             }
             .sheet(isPresented: $showScreenTimeSetup) {
                 ScreenTimeSetupView()
+            }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView(
+                    purchases: appModel.purchases,
+                    selectedPlan: $paywallPlan,
+                    onSkip: { showPaywall = false },
+                    onPurchase: {
+                        Task {
+                            // Purchase failures are surfaced by the paywall itself; the sheet
+                            // stays up so a declined card doesn't look like a silent success.
+                            do {
+                                switch paywallPlan {
+                                case .annual: try await appModel.purchases.purchaseAnnual()
+                                case .weekly: try await appModel.purchases.purchaseWeekly()
+                                }
+                                showPaywall = false
+                            } catch {
+                                appModel.analytics.track("purchase_failed", properties: [
+                                    "plan": paywallPlan.rawValue,
+                                    "error": String(describing: error)
+                                ])
+                            }
+                        }
+                    },
+                    onRestore: { Task { try? await appModel.purchases.restore() } }
+                )
+            }
+            .confirmationDialog(
+                "Turn off app blocking?",
+                isPresented: $showDisconnectConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Turn off blocking", role: .destructive) {
+                    Task { await appModel.screenTime.disconnect() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your apps open normally again and your choice of locked apps is cleared. Your reading, streak and khatm are untouched. You can set it up again any time.")
             }
             .sheet(isPresented: $showAbout) {
                 AboutView()

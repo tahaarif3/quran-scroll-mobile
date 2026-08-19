@@ -16,6 +16,10 @@ public protocol ScreenTimeService: AnyObject, Sendable {
     var authStatus: ScreenTimeAuthStatus { get }
     var selectedAppCount: Int { get }
     func requestAuthorization() async throws
+    /// Hands Screen Time back: revokes authorization, drops the saved selection and lifts the
+    /// shield. Granting a permission the user can't withdraw from inside the app is the kind of
+    /// thing that gets an app deleted rather than reconfigured.
+    func disconnect() async
     func persistSelectionCount(_ count: Int)
     func applyShield()
     func clearShield()
@@ -103,6 +107,32 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         #else
         analytics.track("screentime_auth_result", properties: ["status": "unsupported"])
         #endif
+    }
+
+    public func disconnect() async {
+        // Order matters: the shield comes down first. Revoking authorization can fail, and a
+        // user who asked to be let go must not be left with their apps still blocked by a
+        // permission they just tried to withdraw.
+        clearShield()
+        store.selectedAppsData = nil
+        store.selectedAppsCount = 0
+        store.isLockedNow = false
+        store.unlockedUntil = nil
+
+        #if canImport(FamilyControls)
+        guard let center else { return }
+        await withCheckedContinuation { continuation in
+            center.revokeAuthorization { result in
+                if case .failure(let error) = result {
+                    self.analytics.track("screentime_revoke_failed", properties: [
+                        "error": String(describing: error)
+                    ])
+                }
+                continuation.resume()
+            }
+        }
+        #endif
+        analytics.track("screentime_disconnected", properties: [:])
     }
 
     /// Records how many apps the user picked. Deliberately does *not* touch
@@ -240,6 +270,13 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
 
     public func requestAuthorization() async throws {
         authStatus = .approved
+    }
+
+    public func disconnect() async {
+        authStatus = .notDetermined
+        selectedAppCount = 0
+        store.selectedAppsCount = 0
+        clearShield()
     }
 
     public func persistSelectionCount(_ count: Int) {

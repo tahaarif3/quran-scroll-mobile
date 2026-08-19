@@ -83,13 +83,21 @@ struct HomeView: View {
 
     // MARK: - Ayah
 
-    /// "Ayah of the day" while shielded; once the user is buying time it becomes "Next ayah" and
-    /// walks the mushaf forward from where they are, because in that state they are not browsing.
+    /// A first-time reader has not left off anywhere, and telling them to continue would be a
+    /// small lie on the very first screen.
+    private var continueLabel: String {
+        store.khatmCursor > 1 || store.totalAyahsToday > 0
+            ? "CONTINUE WHERE YOU LEFT OFF"
+            : "START HERE"
+    }
+
+    /// Where the user left off, always. The card walks the mushaf forward from the shared
+    /// cursor rather than offering a detached ayah of the day.
     private var ayahCard: some View {
         SectionCard {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text(isUnlocked ? "NEXT AYAH" : "AYAH OF THE DAY")
+                    Text(continueLabel)
                         .font(.custom("Nunito-ExtraBold", size: 11))
                         .tracking(0.8)
                         .foregroundStyle(IQColor.accentOlive)
@@ -199,10 +207,11 @@ struct HomeView: View {
 
     private func loadAyah() async {
         guard let repository else { return }
-        // Follows the shared cursor once the user is earning time, so Home and the shield agree
-        // about which ayah is next.
-        ayah = isUnlocked || store.totalAyahsToday > 0
-            ? try? repository.ayah(globalID: store.khatmCursor)
-            : try? repository.ayah(verseKey: AyahOfTheDay.key())
+        // Always the shared cursor — the next ayah in the mushaf, wherever the user actually
+        // stopped. "Ayah of the day" used to take its place until the first read of the day,
+        // which meant the card offered an ayah from somewhere else entirely, and reading it
+        // moved a cursor pointing at a different place. Home, the reader and the shield now all
+        // read from one position, so picking up is picking up.
+        ayah = try? repository.ayah(globalID: store.khatmCursor)
     }
 }
