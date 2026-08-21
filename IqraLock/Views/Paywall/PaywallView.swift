@@ -4,9 +4,11 @@ import IqraLockKit
 struct PaywallView: View {
     /// How long the paywall is shown before the way out appears.
     ///
-    /// Longer than the three seconds it was: three is short enough that the offer has not been
-    /// read yet, so the control competes with the thing it is meant to follow.
-    static let skipDelay: Duration = .seconds(8)
+    /// Short on purpose. Since nothing on this screen is gated, holding the exit back is a dark
+    /// pattern with nothing to protect — the ask is a donation, and an ask you cannot decline
+    /// for several seconds reads as a trap. One second only so the control fades in rather than
+    /// appearing mid-render.
+    static let skipDelay: Duration = .seconds(1)
 
     let purchases: PurchaseService
     @Binding var selectedPlan: PaywallPlan

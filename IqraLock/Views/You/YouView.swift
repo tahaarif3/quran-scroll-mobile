@@ -217,7 +217,6 @@ struct YouView: View {
                     // paywall that was never actually there.
                     Text("Every feature is already yours — blocking, stats, passes, all of it. Paying is a donation that keeps the app going, and unlocks nothing extra.")
                 }
-                }
 
                 Section("Legal") {
                     Button("About & attributions") { showAbout = true }
