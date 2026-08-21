@@ -68,7 +68,7 @@ struct PaywallView: View {
                         // Stated outright rather than implied. The rest of this screen reads as
                         // support already, but a screen with prices on it is taken as a paywall
                         // unless it says it is not one.
-                        Text("Every feature is already yours, free. No ads, no data selling — supporting is a donation that keeps the app going, and unlocks nothing extra.")
+                        Text("Every feature is already yours, free. No ads, no data selling — joining Pro today is a donation that keeps the app going. Pro-only features are on the way.")
                             .iqraStyle(.subtitle, color: IQColor.textMuted)
                             .multilineTextAlignment(.center)
 

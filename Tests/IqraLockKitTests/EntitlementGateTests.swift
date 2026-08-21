@@ -2,10 +2,14 @@ import XCTest
 @testable import IqraLockKit
 
 final class EntitlementGateTests: XCTestCase {
-    /// Nothing is withheld from anyone. These assertions used to say the opposite — blocking and
-    /// stats required Pro — which described the gate but not the app: `ShieldCoordinator` never
-    /// consulted `canBlockApps`, so blocking always worked for everyone and the only thing the
-    /// gate produced was copy telling free users they lacked something they had.
+    /// Pro exists as a tier but has no features of its own yet, so nothing is withheld today.
+    /// These assertions used to say the opposite — blocking and stats required Pro — which
+    /// described the gate but not the app: `ShieldCoordinator` never consulted `canBlockApps`,
+    /// so blocking always worked for everyone and the flags produced nothing but copy telling
+    /// free users they lacked what they had.
+    ///
+    /// When a real Pro feature lands, its flag returns `hasPro` and this test changes with it.
+    /// Until then these are the guard against re-introducing a paywall the app does not honour.
     func testEveryFeatureIsAvailableWithoutPro() {
         let free = EntitlementGate(hasPro: false)
         XCTAssertTrue(free.canReadQuran)
@@ -17,8 +21,8 @@ final class EntitlementGateTests: XCTestCase {
         XCTAssertEqual(free.maxEmergencyPasses, 5)
     }
 
-    /// Subscribing must not take anything away either, and must not quietly become the only way
-    /// to get something back.
+    /// Whatever ships as Pro later, subscribing must never take away something that was free —
+    /// this asserts parity for the features that exist today, not for all time.
     func testSubscribingChangesNoEntitlement() {
         let free = EntitlementGate(hasPro: false)
         let supporter = EntitlementGate(hasPro: true)

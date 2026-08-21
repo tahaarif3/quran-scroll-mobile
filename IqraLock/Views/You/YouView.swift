@@ -200,22 +200,24 @@ struct YouView: View {
 
                 Section {
                     LabeledContent(
-                        "Status",
-                        value: appModel.purchases.hasPro ? "Supporter" : "Everything unlocked"
+                        "Plan",
+                        value: appModel.purchases.hasPro ? "Pro" : "Free"
                     )
                     Button("Restore purchases") {
                         Task { try? await appModel.purchases.restore() }
                     }
                     if !appModel.purchases.hasPro {
-                        Button("Support IqraLock") { showPaywall = true }
+                        Button("Join Pro") { showPaywall = true }
                     }
                 } header: {
-                    Text("Support")
+                    Text("Pro")
                 } footer: {
-                    // Says the true thing. The old copy sold blocking, stats and extra passes as
-                    // Pro features while the app handed all three to everyone — describing a
-                    // paywall that was never actually there.
-                    Text("Every feature is already yours — blocking, stats, passes, all of it. Paying is a donation that keeps the app going, and unlocks nothing extra.")
+                    // Names the tier and tells the truth about it in the same breath. The old
+                    // copy sold blocking, stats and extra passes as Pro while the app handed all
+                    // three to everyone — a paywall that was never actually there.
+                    Text(appModel.purchases.hasPro
+                        ? "Thank you. Every feature is included for everyone today, so your subscription is support — Pro extras are coming, and you'll have them."
+                        : "Every feature is already yours — blocking, stats, passes, all of it. Joining Pro adds nothing today; it's a donation that keeps the app going, and Pro-only features are on the way.")
                 }
 
                 Section("Legal") {

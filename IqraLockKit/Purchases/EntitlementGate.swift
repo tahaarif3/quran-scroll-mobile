@@ -7,17 +7,17 @@ public struct EntitlementGate: Equatable, Sendable {
         self.hasPro = hasPro
     }
 
-    // Nothing is withheld. Every feature is available to everyone, subscribed or not, and
-    // subscribing is support rather than access.
+    // Pro exists; it just has nothing of its own yet.
     //
-    // This is not a stub — it is the product decision, and it makes the code match what the app
-    // has always actually done. `canBlockApps` claimed to gate blocking while `ShieldCoordinator`
-    // never consulted it, so blocking worked for everyone regardless; the gate's only real effect
-    // was UI copy telling free users they were missing something they already had. Charging for
-    // access the app grants anyway is the part worth not shipping.
+    // Every feature currently in the app ships to everyone, so every flag below ignores
+    // `hasPro`. That is honesty about today rather than a permanent decision — this is the one
+    // place a real Pro feature gets gated when there is one, and the only change needed is
+    // returning `hasPro` from the flag that guards it.
     //
-    // `hasPro` is kept because the subscription is real even when the entitlement is not — it
-    // still says who is supporting the app, which the You screen shows.
+    // What was here before gated blocking and stats on `hasPro` while `ShieldCoordinator` never
+    // consulted `canBlockApps` — blocking worked for everyone regardless, so the flags produced
+    // nothing but copy telling free users they lacked what they already had. A gate that lies is
+    // worse than no gate: it is the paywall users discover was never real.
     public var canReadQuran: Bool { true }
     public var canBlockApps: Bool { true }
     public var canSeeStats: Bool { true }
