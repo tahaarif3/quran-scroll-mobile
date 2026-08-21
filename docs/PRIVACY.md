@@ -1,6 +1,6 @@
 # IqraLock — Privacy Policy
 
-**Last updated: 12 August 2026**
+**Last updated: 21 August 2026**
 
 IqraLock is an iOS app that helps you build a daily Qur'an reading habit by shielding distracting
 apps until you finish today's pages.
@@ -18,8 +18,8 @@ Group shared with its Screen Time extensions:
 - Your onboarding answers — age range, gender, relationship with faith, Arabic reading ability,
   current reading frequency, preferred reading style, and your goals
 - Your display name, if you enter one
-- Reading progress: pages read, daily records, streaks, bookmarks and your last position
-- Your daily page goal and reading preferences
+- Reading progress: ayahs and pages read, daily records, streaks, bookmarks, your position in the mushaf and your khatm progress
+- Your daily reading goal and reading preferences
 - Which apps you chose to shield, and whether the shield is currently on
 - Emergency passes remaining
 
@@ -38,8 +38,10 @@ IqraLock does **not** monitor which apps you open, does not record how long you 
 and does not use the Accessibility API. It asks the system to shield a set of tokens, and the
 system does the rest.
 
-Granting Screen Time access is required for app blocking. You can revoke it at any time in
-iOS Settings, and you can change or clear your app selection in **You → Locked apps**.
+Granting Screen Time access is required for app blocking. You can withdraw it at any time from
+inside the app — **You → Turn off app blocking** revokes the permission, clears your app
+selection and lifts the shield — or from iOS Settings. You can change your selection at any time
+in **You → Locked apps**.
 
 ## The Qur'an text
 
@@ -62,6 +64,10 @@ subscription is active — nothing more.
 
 Apple's handling of that transaction is governed by
 [Apple's Privacy Policy](https://www.apple.com/legal/privacy/).
+
+Every feature of IqraLock is available without paying. A subscription supports the app's
+development; it does not unlock functionality and it does not change what data is stored or
+what leaves your device — which is nothing either way.
 
 ## Analytics
 
@@ -88,7 +94,7 @@ reading projections; this is stored on your device and never transmitted.
 
 - **Change your shielded apps:** You → Locked apps
 - **Change reading preferences:** You → Reading
-- **Revoke Screen Time access:** iOS Settings → Screen Time
+- **Revoke Screen Time access:** You → Turn off app blocking, or iOS Settings → Screen Time
 - **Delete everything:** delete the app. All local data, including your App Group data, goes with
   it. We hold nothing to delete on our side.
 
