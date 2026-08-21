@@ -21,6 +21,7 @@ public enum OnboardingStep: String, CaseIterable, Codable, Sendable, Identifiabl
     case planReady
     case paywall
     case appPicker
+    case name
 
     public var id: String { rawValue }
 
@@ -36,7 +37,11 @@ public enum OnboardingStep: String, CaseIterable, Codable, Sendable, Identifiabl
             .welcome, .howItWorks, .socialProof, .screenTime,
             .reveal, .reframe, .promise,
             .age, .gender, .faith, .arabic, .frequency, .readingStyle, .goals,
-            .permissionPrimer, .systemPrompt, .appPicker, .rating, .planReady, .paywall
+            .permissionPrimer, .systemPrompt, .appPicker, .rating, .planReady, .paywall,
+            // Last, deliberately. Asking for a name up front is the most personal question in
+            // the flow arriving before any reason to trust the app with it; asked here it is
+            // the thing that names the plan the user has just set up.
+            .name
         ]
     }
 
@@ -65,7 +70,7 @@ public enum OnboardingStep: String, CaseIterable, Codable, Sendable, Identifiabl
     public var isSkippable: Bool {
         switch self {
         case .screenTime, .age, .gender, .faith, .arabic,
-             .frequency, .readingStyle, .goals, .appPicker:
+             .frequency, .readingStyle, .goals, .appPicker, .name:
             return true
         default:
             return false
@@ -73,7 +78,11 @@ public enum OnboardingStep: String, CaseIterable, Codable, Sendable, Identifiabl
     }
 
     public var skipTitle: String {
-        self == .appPicker ? "Choose apps later" : "Decide later"
+        switch self {
+        case .appPicker: return "Choose apps later"
+        case .name: return "Skip"
+        default: return "Decide later"
+        }
     }
 }
 

@@ -135,6 +135,7 @@ struct OnboardingFlowView: View {
             case .goals: goals
             case .permissionPrimer: permissionPrimer
             case .appPicker: appPicker
+            case .name: namePrompt
             case .systemPrompt: systemPrompt
             case .rating: rating
             case .planReady: planReady
@@ -328,6 +329,43 @@ struct OnboardingFlowView: View {
                 Text("We sync with Apple Screen Time to help you swap scrolling for scripture.")
                     .iqraStyle(.subtitle, color: IQColor.textMuted)
                     .multilineTextAlignment(.center)
+            }
+        }
+    }
+
+    /// Last step in the flow. The most personal question in onboarding, asked once the user has
+    /// a plan worth putting their name on rather than before they have a reason to trust the app
+    /// with it — and skippable, because a greeting is not worth blocking anyone over.
+    private var namePrompt: some View {
+        OnboardingScaffold(
+            ctaTitle: vm.ctaTitle,
+            centersContent: true,
+            skipTitle: vm.step.skipTitle,
+            onSkip: vm.skip,
+            onCTA: vm.next
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                HighlightedText("Last thing — what should we call you?", style: .h1)
+                Text("It's only used to greet you inside the app. Nothing leaves your phone.")
+                    .iqraStyle(.subtitle, color: IQColor.textMuted)
+
+                TextField("Your name", text: $vm.answers.displayName)
+                    .iqraStyle(.option, color: IQColor.textInk)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+                    .submitLabel(.done)
+                    .onSubmit(vm.next)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 56)
+                    .background(
+                        RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
+                            .fill(IQColor.bgCard)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: IQRadius.option, style: .continuous)
+                            .strokeBorder(IQColor.borderSubtle, lineWidth: 1.6)
+                    )
+                    .padding(.top, 4)
             }
         }
     }
@@ -735,7 +773,11 @@ struct OnboardingFlowView: View {
             modelContext.insert(UserProfile(from: draft))
         }
         appModel.store.dailyGoalPages = draft.dailyGoalPages
-        appModel.store.userDisplayName = draft.displayName
+        // Only when there is one. The store's getter falls back to "Friend"; writing an empty
+        // string would defeat that and leave every greeting addressed to nobody.
+        if !draft.displayName.isEmpty {
+            appModel.store.userDisplayName = draft.displayName
+        }
         appModel.store.ensureCurrentDay()
         if appModel.purchases.gate.canBlockApps {
             appModel.screenTime.applyShield()

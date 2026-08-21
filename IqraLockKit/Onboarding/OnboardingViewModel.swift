@@ -47,6 +47,7 @@ public final class OnboardingViewModel {
         case .promise: return "Start Journey →"
         case .planReady: return "Let's Go! →"
         case .paywall: return "Start 3-day free trial →"
+        case .name: return "Start reading →"
         }
     }
 
@@ -178,7 +179,10 @@ public final class OnboardingViewModel {
 
     public func completeProfile() -> UserProfileDraft {
         let draft = UserProfileDraft(
-            displayName: answers.displayName.isEmpty ? "Yusuf" : answers.displayName,
+            // Empty rather than a stand-in. "Yusuf" was hardcoded here while nothing in the flow
+            // ever asked, so every user was greeted by someone else's name; downstream defaults
+            // to a plain "Friend", which is honest about not knowing.
+            displayName: answers.displayName.trimmingCharacters(in: .whitespacesAndNewlines),
             dailyGoalPages: derivedDailyGoal,
             readingStyle: answers.readingStyle ?? .arabicTranslation,
             gender: answers.gender,
