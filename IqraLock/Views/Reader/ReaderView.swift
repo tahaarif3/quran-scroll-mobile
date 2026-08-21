@@ -18,6 +18,7 @@ struct ReaderView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var profiles: [UserProfile]
     @Query private var positions: [ReadingPosition]
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var surahNumber: Int = 1
     @State private var ayahs: [Ayah] = []
@@ -32,6 +33,9 @@ struct ReaderView: View {
     /// Position of an ayah that arrived too quickly to count on its own. Non-nil presents the
     /// prompt; the answer either credits it or lets it go.
     @State private var pendingConfirmation: Int?
+    /// The cursor value this view last positioned itself on. Anything different means something
+    /// outside the reader — the shield, or Home — moved it.
+    @State private var lastSeenCursor: Int = 0
 
     private let bottomBarHeight: CGFloat = 118
     private var goal: Int { profiles.first?.dailyGoalPages ?? appModel.store.dailyGoalPages }
@@ -98,6 +102,12 @@ struct ReaderView: View {
             .presentationDetents([.height(180)])
         }
         .task { await load() }
+        .onAppear { syncIfCursorMovedElsewhere() }
+        .onChange(of: scenePhase) { _, phase in
+            // Reading happens on the shield while the app is backgrounded, so coming forward is
+            // the moment the cursor is most likely to have moved without this view knowing.
+            if phase == .active { syncIfCursorMovedElsewhere() }
+        }
         .navigationBarHidden(true)
     }
 
@@ -288,6 +298,7 @@ struct ReaderView: View {
             return
         }
         appModel.store.advanceKhatmCursor(toAyahID: ayah.id + 1)
+        lastSeenCursor = appModel.store.khatmCursor
         savePosition()
         justCredited = true
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -317,15 +328,38 @@ struct ReaderView: View {
         surahs = (try? repo.allSurahs()) ?? []
         textSize = profiles.first?.arabicTextSize ?? 26
 
-        // Opens where the shared cursor is, so the reader and the shield agree about where the
-        // user is in the mushaf. Previously this opened on a hardcoded Al-Mulk regardless.
+        syncToCursor()
+    }
+
+    /// Moves the reader to the shared cursor — but only when the cursor moved somewhere this
+    /// view has not already seen.
+    ///
+    /// `load()` is guarded on `repository == nil`, and the Read tab stays alive for the life of
+    /// the app, so opening at the cursor happened exactly once. Ayahs read on the lock screen
+    /// advanced the cursor afterwards and the reader never looked again — you would finish an
+    /// ayah on the shield, open the app, and be handed the one you had already read.
+    ///
+    /// Comparing against the last cursor this view acted on is what keeps that from becoming the
+    /// opposite bug: browsing to another surah without reading leaves the cursor untouched, so
+    /// returning to the tab must not drag you back to it.
+    private func syncToCursor() {
+        guard let repository else { return }
         let cursor = appModel.store.khatmCursor
-        let target = (try? repo.ayah(globalID: cursor)) ?? (try? repo.ayah(surah: 1, ayah: 1))
+        let target = (try? repository.ayah(globalID: cursor))
+            ?? (try? repository.ayah(surah: 1, ayah: 1))
         guard let target else { return }
+        lastSeenCursor = cursor
         surahNumber = target.surah
-        surah = try? repo.surah(number: target.surah)
-        ayahs = (try? repo.ayahs(forSurah: target.surah)) ?? []
+        surah = try? repository.surah(number: target.surah)
+        ayahs = (try? repository.ayahs(forSurah: target.surah)) ?? []
         index = ayahs.firstIndex(where: { $0.id == target.id }) ?? 0
+    }
+
+    /// Re-checks the cursor whenever the reader comes forward, which is when a lock-screen read
+    /// would have moved it.
+    private func syncIfCursorMovedElsewhere() {
+        guard repository != nil, appModel.store.khatmCursor != lastSeenCursor else { return }
+        syncToCursor()
     }
 
     private func savePosition() {

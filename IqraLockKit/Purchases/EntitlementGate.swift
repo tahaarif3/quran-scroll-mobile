@@ -7,14 +7,24 @@ public struct EntitlementGate: Equatable, Sendable {
         self.hasPro = hasPro
     }
 
-    // Product decision: reader stays free; pro gates blocking + stats extras.
+    // Nothing is withheld. Every feature is available to everyone, subscribed or not, and
+    // subscribing is support rather than access.
+    //
+    // This is not a stub — it is the product decision, and it makes the code match what the app
+    // has always actually done. `canBlockApps` claimed to gate blocking while `ShieldCoordinator`
+    // never consulted it, so blocking worked for everyone regardless; the gate's only real effect
+    // was UI copy telling free users they were missing something they already had. Charging for
+    // access the app grants anyway is the part worth not shipping.
+    //
+    // `hasPro` is kept because the subscription is real even when the entitlement is not — it
+    // still says who is supporting the app, which the You screen shows.
     public var canReadQuran: Bool { true }
-    public var canBlockApps: Bool { hasPro }
-    public var canSeeStats: Bool { hasPro }
-    public var maxTranslations: Int { hasPro ? 20 : 1 }
-    public var maxEmergencyPasses: Int { hasPro ? 5 : 2 }
-    public var canUseReaderThemes: Bool { hasPro }
-    public var canUseWidgets: Bool { hasPro }
+    public var canBlockApps: Bool { true }
+    public var canSeeStats: Bool { true }
+    public var maxTranslations: Int { 20 }
+    public var maxEmergencyPasses: Int { 5 }
+    public var canUseReaderThemes: Bool { true }
+    public var canUseWidgets: Bool { true }
 }
 
 public protocol PurchaseService: AnyObject, Sendable {

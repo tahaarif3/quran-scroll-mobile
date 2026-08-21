@@ -188,11 +188,6 @@ struct YouView: View {
                     Button("Use an emergency pass") { showPassConfirm = true }
                         .disabled(appModel.store.emergencyPassesRemaining == 0)
                     Button("Preview lock screen") { showShieldPreview = true }
-                    if !appModel.purchases.gate.canBlockApps {
-                        Text("Blocking requires Pro")
-                            .font(.footnote)
-                            .foregroundStyle(IQColor.textSecondary)
-                    }
                 }
 
                 Section("Reminders") {
@@ -203,17 +198,25 @@ struct YouView: View {
                     )
                 }
 
-                Section("Subscription") {
-                    LabeledContent("Status", value: appModel.purchases.hasPro ? "Pro" : "Free")
+                Section {
+                    LabeledContent(
+                        "Status",
+                        value: appModel.purchases.hasPro ? "Supporter" : "Everything unlocked"
+                    )
                     Button("Restore purchases") {
                         Task { try? await appModel.purchases.restore() }
                     }
                     if !appModel.purchases.hasPro {
-                        Button("See plans") { showPaywall = true }
-                        Text("Pro unlocks app blocking, stats, and extra passes. The Qur'an reader stays free.")
-                            .font(.footnote)
-                            .foregroundStyle(IQColor.textSecondary)
+                        Button("Support IqraLock") { showPaywall = true }
                     }
+                } header: {
+                    Text("Support")
+                } footer: {
+                    // Says the true thing. The old copy sold blocking, stats and extra passes as
+                    // Pro features while the app handed all three to everyone — describing a
+                    // paywall that was never actually there.
+                    Text("Every feature is already yours — blocking, stats, passes, all of it. Paying is a donation that keeps the app going, and unlocks nothing extra.")
+                }
                 }
 
                 Section("Legal") {

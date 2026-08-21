@@ -2,8 +2,11 @@ import SwiftUI
 import IqraLockKit
 
 struct PaywallView: View {
-    /// Seconds the paywall must be shown before the skip control becomes available.
-    static let skipDelay: Duration = .seconds(3)
+    /// How long the paywall is shown before the way out appears.
+    ///
+    /// Longer than the three seconds it was: three is short enough that the offer has not been
+    /// read yet, so the control competes with the thing it is meant to follow.
+    static let skipDelay: Duration = .seconds(8)
 
     let purchases: PurchaseService
     @Binding var selectedPlan: PaywallPlan
@@ -25,17 +28,23 @@ struct PaywallView: View {
                 HStack {
                     Spacer()
                     if canSkip {
+                        // Reads as a real control rather than fine print in the corner: a
+                        // bordered pill at full tap size, in ink rather than muted grey.
                         Button(action: onSkip) {
-                            Text("Skip")
-                                .iqraStyle(.captionStrong, color: IQColor.textMuted2)
-                                .frame(minWidth: 44, minHeight: 44)
+                            Text("Not now")
+                                .iqraStyle(.bodyStrong, color: IQColor.textInk)
+                                .padding(.horizontal, 20)
+                                .frame(minHeight: 48)
                                 .contentShape(Rectangle())
+                                .overlay(
+                                    Capsule().strokeBorder(IQColor.borderSubtle, lineWidth: 1.6)
+                                )
                         }
-                        .accessibilityLabel("Skip and continue with the free version")
+                        .accessibilityLabel("Not now — continue with the free version")
                         .transition(.opacity)
                     }
                 }
-                .frame(height: 44)
+                .frame(height: 56)
                 .padding(.horizontal, 12)
                 .animation(.easeOut(duration: 0.2), value: canSkip)
 
@@ -54,7 +63,10 @@ struct PaywallView: View {
                             .iqraStyle(.h1, color: IQColor.textInk)
                             .multilineTextAlignment(.center)
 
-                        Text("No ads, no data selling — just members funding a mission that gives back.")
+                        // Stated outright rather than implied. The rest of this screen reads as
+                        // support already, but a screen with prices on it is taken as a paywall
+                        // unless it says it is not one.
+                        Text("Every feature is already yours, free. No ads, no data selling — supporting is a donation that keeps the app going, and unlocks nothing extra.")
                             .iqraStyle(.subtitle, color: IQColor.textMuted)
                             .multilineTextAlignment(.center)
 
