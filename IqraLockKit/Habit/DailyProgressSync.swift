@@ -55,7 +55,7 @@ public enum DailyProgressSync {
         let descriptor = FetchDescriptor<DailyRecord>(
             predicate: #Predicate { $0.day == day }
         )
-        let record = (try? context.fetch(descriptor))?.first ?? {
+        _ = (try? context.fetch(descriptor))?.first ?? {
             let r = DailyRecord(day: day, goalPages: store.dailyGoalPages)
             context.insert(r)
             return r
@@ -109,7 +109,6 @@ public enum DailyProgressSync {
         formatter.calendar = calendar
         formatter.locale = Locale.current
         let symbols = formatter.veryShortWeekdaySymbols ?? ["S", "M", "T", "W", "T", "F", "S"]
-        let todayWeekday = calendar.component(.weekday, from: date)
         // weekCompletion[0] = 6 days ago … [6] = today
         return (0..<7).map { offset in
             let daysAgo = 6 - offset

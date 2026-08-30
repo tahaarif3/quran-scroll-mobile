@@ -61,7 +61,7 @@ public enum PrayerTimesCalculator {
         let tzHours = Double(timeZone.secondsFromGMT(for: day)) / 3600
 
         let fajr = timeForAngle(
-            18, decl: decl, eqt: eqt, latitude: latitude, longitude: longitude,
+            angle: 18, decl: decl, eqt: eqt, latitude: latitude, longitude: longitude,
             tzHours: tzHours, day: day, calendar: calendar, morning: true
         )
         let dhuhr = solarNoon(eqt: eqt, longitude: longitude, tzHours: tzHours, day: day, calendar: calendar)
@@ -70,11 +70,11 @@ public enum PrayerTimesCalculator {
             tzHours: tzHours, day: day, calendar: calendar
         )
         let maghrib = timeForAngle(
-            0.833, decl: decl, eqt: eqt, latitude: latitude, longitude: longitude,
+            angle: 0.833, decl: decl, eqt: eqt, latitude: latitude, longitude: longitude,
             tzHours: tzHours, day: day, calendar: calendar, morning: false
         )
         let isha = timeForAngle(
-            17, decl: decl, eqt: eqt, latitude: latitude, longitude: longitude,
+            angle: 17, decl: decl, eqt: eqt, latitude: latitude, longitude: longitude,
             tzHours: tzHours, day: day, calendar: calendar, morning: false
         )
         return PrayerTimes(date: day, fajr: fajr, dhuhr: dhuhr, asr: asr, maghrib: maghrib, isha: isha)
@@ -140,7 +140,7 @@ public enum PrayerTimesCalculator {
         let cot = 1 + tan(abs(latRad - declRad))
         let angle = atan(1 / cot) * 180 / .pi
         return timeForAngle(
-            90 - angle, decl: decl, eqt: eqt, latitude: latitude, longitude: longitude,
+            angle: 90 - angle, decl: decl, eqt: eqt, latitude: latitude, longitude: longitude,
             tzHours: tzHours, day: day, calendar: calendar, morning: false
         )
     }
