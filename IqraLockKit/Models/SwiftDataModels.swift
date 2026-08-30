@@ -15,6 +15,9 @@ public final class UserProfile {
     public var reminderMinute: Int
     public var arabicTextSize: Double
     public var translationId: Int
+    public var prayerLatitude: Double
+    public var prayerLongitude: Double
+    public var prayerNotificationsEnabled: Bool
     public var onboardingCompletedAt: Date?
     public var createdAt: Date
 
@@ -31,6 +34,9 @@ public final class UserProfile {
         self.reminderMinute = 0
         self.arabicTextSize = 26
         self.translationId = 20
+        self.prayerLatitude = 0
+        self.prayerLongitude = 0
+        self.prayerNotificationsEnabled = false
         self.onboardingCompletedAt = draft.onboardingCompletedAt
         self.createdAt = Date()
     }
@@ -52,6 +58,9 @@ public final class UserProfile {
         self.reminderMinute = 0
         self.arabicTextSize = 26
         self.translationId = 20
+        self.prayerLatitude = 0
+        self.prayerLongitude = 0
+        self.prayerNotificationsEnabled = false
         self.onboardingCompletedAt = nil
         self.createdAt = Date()
     }
@@ -107,6 +116,18 @@ public final class ReadingSession {
         self.pagesMarked = pagesMarked
         self.surahNumber = surahNumber
         self.startAyah = startAyah
+    }
+}
+
+@Model
+public final class PrayerLog {
+    public var day: Date
+    /// PrayerName raw values completed today, e.g. "fajr", "dhuhr".
+    public var completed: [String]
+
+    public init(day: Date = Date(), completed: [String] = []) {
+        self.day = Calendar.current.startOfDay(for: day)
+        self.completed = completed
     }
 }
 

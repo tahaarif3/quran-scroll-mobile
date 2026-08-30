@@ -50,6 +50,17 @@ public final class UnlockCoordinator: @unchecked Sendable {
     /// cannot perform.
     @discardableResult
     public func recordAyahRead(now: Date = Date(), confirmed: Bool = false) -> AyahOutcome {
+        // Casual mode: position-only reading — no counters, no unlock windows.
+        if store.casualReadingMode {
+            return AyahOutcome(
+                counted: true,
+                ayahsIntoPage: store.ayahsReadToday,
+                ayahsPerPage: store.ayahsPerPage,
+                pagesToday: store.pagesReadToday,
+                goalMet: store.goalMetToday
+            )
+        }
+
         let pagesBefore = store.pagesReadToday
         let record = store.recordAyah(now: now, confirmed: confirmed)
 

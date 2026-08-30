@@ -27,6 +27,8 @@ public protocol ScreenTimeService: AnyObject, Sendable {
     /// Re-applies the shield when a timed unlock window expires. ManagedSettings has no expiry
     /// of its own, so without this a window lasts until something else puts the shield back.
     func scheduleReshield(at date: Date)
+    func consumeBathroomBreak(durationMinutes: Int) -> Bool
+    /// @deprecated Use consumeBathroomBreak
     func consumeEmergencyPass(durationMinutes: Int) -> Bool
 }
 
@@ -219,16 +221,23 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
     }
     #endif
 
-    public func consumeEmergencyPass(durationMinutes: Int = 15) -> Bool {
-        store.resetEmergencyPassesIfNeeded()
-        guard store.emergencyPassesRemaining > 0 else { return false }
-        store.emergencyPassesRemaining -= 1
+    public func consumeBathroomBreak(durationMinutes: Int = 5) -> Bool {
+        store.resetBathroomBreaksIfNeeded()
+        guard store.bathroomBreaksRemaining > 0 else { return false }
+        store.bathroomBreaksRemaining -= 1
         clearShield()
-        store.unlockedUntil = Date().addingTimeInterval(TimeInterval(durationMinutes * 60))
-        analytics.track("emergency_pass_used", properties: [
-            "remaining": store.emergencyPassesRemaining
+        let until = Date().addingTimeInterval(TimeInterval(durationMinutes * 60))
+        store.unlockedUntil = until
+        scheduleReshield(at: until)
+        analytics.track("bathroom_break_used", properties: [
+            "remaining": store.bathroomBreaksRemaining,
+            "minutes": durationMinutes
         ])
         return true
+    }
+
+    public func consumeEmergencyPass(durationMinutes: Int = 5) -> Bool {
+        consumeBathroomBreak(durationMinutes: durationMinutes)
     }
 }
 
@@ -265,7 +274,7 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
 
     public init(store: AppGroupStore = AppGroupStore(suiteName: "mock.iqralock")) {
         self.store = store
-        store.emergencyPassesRemaining = 3
+        store.bathroomBreaksRemaining = 5
     }
 
     public func requestAuthorization() async throws {
@@ -297,10 +306,15 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
     public func scheduleMidnightReset() {}
     public func scheduleReshield(at date: Date) {}
 
-    public func consumeEmergencyPass(durationMinutes: Int = 15) -> Bool {
-        guard store.emergencyPassesRemaining > 0 else { return false }
-        store.emergencyPassesRemaining -= 1
+    public func consumeBathroomBreak(durationMinutes: Int = 5) -> Bool {
+        guard store.bathroomBreaksRemaining > 0 else { return false }
+        store.bathroomBreaksRemaining -= 1
         clearShield()
+        store.unlockedUntil = Date().addingTimeInterval(TimeInterval(durationMinutes * 60))
         return true
+    }
+
+    public func consumeEmergencyPass(durationMinutes: Int = 5) -> Bool {
+        consumeBathroomBreak(durationMinutes: durationMinutes)
     }
 }
