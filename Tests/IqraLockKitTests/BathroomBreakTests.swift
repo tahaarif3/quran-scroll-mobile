@@ -25,8 +25,9 @@ final class BathroomBreakTests: XCTestCase {
 
     func testCannotConsumeWhenExhausted() {
         let store = makeStore()
-        store.bathroomBreaksRemaining = 0
+        store.resetBathroomBreaksIfNeeded(monthlyAllowance: 5)
         let screenTime = MockScreenTimeService(store: store)
+        store.bathroomBreaksRemaining = 0
 
         XCTAssertFalse(screenTime.consumeBathroomBreak())
         XCTAssertEqual(store.bathroomBreaksRemaining, 0)

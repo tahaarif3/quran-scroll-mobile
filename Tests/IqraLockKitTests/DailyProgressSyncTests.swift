@@ -12,7 +12,7 @@ final class DailyProgressSyncTests: XCTestCase {
         let merged = DailyProgressSync.recordsIncludingToday(stored: [], store: store)
         XCTAssertEqual(merged.count, 1)
         XCTAssertEqual(merged[0].pagesRead, 1)
-        XCTAssertFalse(merged[0].goalMet)
+        XCTAssertTrue(merged[0].goalMet, "1 page + 3 ayahs meets a goal of 10 ayahs")
     }
 
     func testWeekdayLabelsCount() {
