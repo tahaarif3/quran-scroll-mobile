@@ -43,7 +43,7 @@ final class ScreenTimeServiceFactoryTests: XCTestCase {
         let unlock = UnlockCoordinator(
             store: store,
             shield: ShieldCoordinator(store: store),
-            notifications: SilentNotifications()
+            notifications: NotificationTestDouble()
         )
         XCTAssertNotNil(unlock)
     }
@@ -59,13 +59,5 @@ final class ScreenTimeServiceFactoryTests: XCTestCase {
         coordinator.unlockForRestOfDay()
         XCTAssertFalse(store.isLockedNow)
     }
-}
-
-private final class SilentNotifications: NotificationScheduling, @unchecked Sendable {
-    func requestPermission() async -> Bool { true }
-    func scheduleDailyReminder(hour: Int, minute: Int) {}
-    func scheduleStreakAtRiskIfNeeded(goalMet: Bool) {}
-    func scheduleAppsUnlocked() {}
-    func scheduleReadPromptFromShield() {}
 }
 

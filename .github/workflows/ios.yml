@@ -10,7 +10,7 @@ name: iOS Build & Test
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'cursor/**']
   pull_request:
   workflow_dispatch:
 
@@ -19,7 +19,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 Scripts/verify_font_names.py
+      - run: python3 Scripts/validate_project.py
+
   build-and-test:
+    needs: static-checks
     runs-on: macos-15
     timeout-minutes: 30
 
@@ -31,12 +40,11 @@ jobs:
           xcodebuild -version
           swift --version
 
-      # Before anything is built, because the failure this catches is invisible at runtime:
-      # a font whose internal PostScript name doesn't match the name the code asks for makes
-      # SwiftUI fall back to San Francisco silently. Six Nunito weights once shipped all
-      # declaring "Nunito-ExtraLight", which is why no text in the app rendered bold.
       - name: Verify font names
         run: python3 Scripts/verify_font_names.py
+
+      - name: Validate project resources
+        run: python3 Scripts/validate_project.py
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -44,9 +52,6 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      # Signing is disabled throughout: Simulator builds don't need it, and it keeps
-      # this workflow secret-free. Device/TestFlight builds are a separate job that
-      # needs an App Store Connect API key.
       - name: Resolve a Simulator destination
         id: sim
         run: |
@@ -74,7 +79,22 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             -quiet
 
+      - name: Build extension targets
+        run: |
+          set -o pipefail
+          for TARGET in ShieldConfiguration ShieldAction DeviceActivityMonitor; do
+            echo "Building ${TARGET}…"
+            xcodebuild build \
+              -project IqraLock.xcodeproj \
+              -target "${TARGET}" \
+              -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              -quiet
+          done
+
       - name: Run unit tests
+        id: tests
         run: |
           set -o pipefail
           xcodebuild test \
@@ -85,11 +105,22 @@ jobs:
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            -quiet
+            2>&1 | tee xcodebuild-test.log
+          # Extract pass/fail summary for the job summary
+          if command -v xcrun >/dev/null && [ -d TestResults.xcresult ]; then
+            xcrun xcresulttool get test-results summary --path TestResults.xcresult \
+              > test-summary.json 2>/dev/null || true
+          fi
 
-      # Snapshot tests fail the first time by design — SnapshotTesting records a
-      # reference image and reports failure. Kept non-blocking until references are
-      # committed from a Mac, so it never masks a real unit-test regression.
+      - name: Print test summary
+        if: always()
+        run: |
+          if [ -f test-summary.json ]; then
+            echo "Test results:"
+            cat test-summary.json
+          fi
+          grep -E "Test (Suite|Case).*passed|failed" xcodebuild-test.log | tail -40 || true
+
       - name: Run snapshot tests (non-blocking)
         continue-on-error: true
         run: |
@@ -105,13 +136,36 @@ jobs:
 
       - name: Upload test results
         if: always()
-        # Diagnostics only. GitHub's artifact service has timed out here and failed an otherwise
-        # green run — build and tests had both passed — which makes the signal untrustworthy in
-        # the direction that matters. An upload flake must never mark the code broken.
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
-          path: TestResults.xcresult
+          name: test-results-${{ github.run_number }}
+          path: |
+            TestResults.xcresult
+            xcodebuild-test.log
+            test-summary.json
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: Job summary
+        if: success()
+        run: |
+          {
+            echo "### iOS build & tests passed"
+            echo ""
+            echo "| Check | Status |"
+            echo "|---|---|"
+            echo "| Compile app + extensions | ✅ |"
+            echo "| IqraLockKitTests (unit) | ✅ |"
+            echo "| Snapshot tests | non-blocking |"
+            echo ""
+            echo "**Feature areas covered by unit tests:**"
+            echo "- Progress sync & streak pipeline"
+            echo "- Bathroom breaks (5 min / month)"
+            echo "- Casual reading mode (no Screen Time)"
+            echo "- Prayer time calculation"
+            echo "- Parent PIN (Keychain)"
+            echo "- Unlock coordinator & Screen Time factory"
+            echo ""
+            echo "Screen Time blocking, notifications, and Keychain UI still need **device TestFlight** verification."
+          } >> "$GITHUB_STEP_SUMMARY"
