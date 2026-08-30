@@ -117,36 +117,12 @@ struct YouView: View {
                     Text("Reading")
                 }
 
-                Section("Prayer times") {
-                    Toggle("Prayer notifications", isOn: $prayerNotifications)
-                        .onChange(of: prayerNotifications) { _, enabled in
-                            profile?.prayerNotificationsEnabled = enabled
-                            try? modelContext.save()
-                            if enabled {
-                                appModel.schedulePrayerNotificationsIfEnabled(context: modelContext)
-                            } else {
-                                appModel.notifications.cancelPrayerNotifications()
-                            }
-                        }
-                    HStack {
-                        Text("Latitude")
-                        Spacer()
-                        TextField("e.g. 33.95", value: $prayerLat, format: .number)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                            .frame(maxWidth: 120)
-                    }
-                    HStack {
-                        Text("Longitude")
-                        Spacer()
-                        TextField("e.g. -83.37", value: $prayerLon, format: .number)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                            .frame(maxWidth: 120)
-                    }
-                } footer: {
-                    Text("Set your coordinates for local salah times. Find them in your phone's Maps app.")
-                }
+                YouPrayerSettingsSection(
+                    prayerNotifications: $prayerNotifications,
+                    prayerLat: $prayerLat,
+                    prayerLon: $prayerLon,
+                    profile: profile
+                )
 
                 Section("Focus") {
                     // Setup can be half-finished in two different ways, and the row has to say
@@ -229,16 +205,7 @@ struct YouView: View {
                     Button("Preview lock screen") { showShieldPreview = true }
                 }
 
-                Section("Family") {
-                    if PINStore.isConfigured {
-                        LabeledContent("Parent PIN", value: "On")
-                        Button("Change PIN") { showPINSetup = true }
-                    } else {
-                        Button("Set up parent PIN") { showPINSetup = true }
-                    }
-                } footer: {
-                    Text("Child mode: settings, bathroom breaks, and turning off blocking require the parent PIN.")
-                }
+                YouFamilySection(showPINSetup: $showPINSetup)
 
                 Section("Reminders") {
                     DatePicker(
