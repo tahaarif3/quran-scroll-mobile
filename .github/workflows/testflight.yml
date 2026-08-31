@@ -239,5 +239,8 @@ jobs:
             echo ""
             echo "Build number: **${{ github.run_number }}**"
             echo ""
+            echo "Before installing, confirm the **iOS Build & Test** workflow passed on this commit."
+            echo "See [docs/CI_TESTING.md](docs/CI_TESTING.md) for what CI covers vs what needs device testing."
+            echo ""
             echo "Processing takes 5-15 minutes. It appears in TestFlight on your device once App Store Connect finishes."
           } >> "$GITHUB_STEP_SUMMARY"

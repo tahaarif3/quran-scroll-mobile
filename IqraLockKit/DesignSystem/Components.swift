@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - App Icon (اقرأ + crescent)
 
@@ -276,7 +277,15 @@ public struct StreakPill: View {
 
     public var body: some View {
         HStack(spacing: 6) {
-            IQIconView(.flame, size: 18)
+            Group {
+                if UIImage(named: IQIcon.flame.rawValue, in: .iqraLockKit, with: nil) != nil {
+                    IQIconView(.flame, size: 18)
+                } else {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(IQColor.brandGold)
+                }
+            }
             Text("\(days)")
                 .font(.custom("Nunito-ExtraBold", size: 16))
                 .foregroundStyle(IQColor.brandGold)

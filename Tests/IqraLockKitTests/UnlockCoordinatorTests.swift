@@ -14,7 +14,7 @@ final class UnlockCoordinatorTests: XCTestCase {
         let screenTime = MockScreenTimeService(store: store)
         screenTime.applyShield()
         let shield = ShieldCoordinator(store: store, screenTime: screenTime)
-        let unlock = UnlockCoordinator(store: store, shield: shield, notifications: NoopNotifications())
+        let unlock = UnlockCoordinator(store: store, shield: shield, notifications: NotificationTestDouble())
 
         store.pagesReadToday = 3
         let met = unlock.evaluateAfterPageMarked()
@@ -35,7 +35,7 @@ final class UnlockCoordinatorTests: XCTestCase {
         let unlock = UnlockCoordinator(
             store: store,
             shield: ShieldCoordinator(store: store, screenTime: screenTime),
-            notifications: NoopNotifications()
+            notifications: NotificationTestDouble()
         )
         XCTAssertFalse(unlock.evaluateAfterPageMarked())
         XCTAssertTrue(store.isLockedNow)
@@ -54,7 +54,7 @@ final class UnlockCoordinatorTests: XCTestCase {
         let unlock = UnlockCoordinator(
             store: store,
             shield: ShieldCoordinator(store: store, screenTime: screenTime),
-            notifications: NoopNotifications()
+            notifications: NotificationTestDouble()
         )
 
         let first = unlock.recordPageRead()
@@ -84,7 +84,7 @@ final class UnlockCoordinatorTests: XCTestCase {
         let unlock = UnlockCoordinator(
             store: store,
             shield: ShieldCoordinator(store: store, screenTime: screenTime),
-            notifications: NoopNotifications()
+            notifications: NotificationTestDouble()
         )
 
         // Now it is "today": the day rolls, yesterday's 2 pages are cleared, and this page
@@ -93,12 +93,4 @@ final class UnlockCoordinatorTests: XCTestCase {
         XCTAssertEqual(outcome.pagesToday, 1, "the page is credited, not swallowed by the rollover")
         XCTAssertFalse(outcome.goalMet)
     }
-}
-
-private final class NoopNotifications: NotificationScheduling, @unchecked Sendable {
-    func requestPermission() async -> Bool { true }
-    func scheduleDailyReminder(hour: Int, minute: Int) {}
-    func scheduleStreakAtRiskIfNeeded(goalMet: Bool) {}
-    func scheduleAppsUnlocked() {}
-    func scheduleReadPromptFromShield() {}
 }

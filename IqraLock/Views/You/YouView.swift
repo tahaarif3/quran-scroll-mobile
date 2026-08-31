@@ -13,6 +13,9 @@ struct YouView: View {
     @State private var showShieldPreview = false
     @State private var showAbout = false
     @State private var showPassConfirm = false
+    @State private var showPINEntry = false
+    @State private var showPINSetup = false
+    @State private var pendingProtectedAction: (() -> Void)?
     @State private var showScreenTimeSetup = false
     @State private var showDisconnectConfirm = false
     @State private var showPaywall = false
@@ -26,6 +29,9 @@ struct YouView: View {
     @State private var ayahMinutes: Int = 30
     @State private var perPage: Int = 10
     @State private var arabicSize: Double = 26
+    @State private var prayerLat: Double = 0
+    @State private var prayerLon: Double = 0
+    @State private var prayerNotifications = false
     #if canImport(FamilyControls)
     @State private var activitySelection = FamilyActivitySelection()
     @State private var showActivityPicker = false
@@ -111,6 +117,13 @@ struct YouView: View {
                     Text("Reading")
                 }
 
+                YouPrayerSettingsSection(
+                    prayerNotifications: $prayerNotifications,
+                    prayerLat: $prayerLat,
+                    prayerLon: $prayerLon,
+                    profile: profile
+                )
+
                 Section("Focus") {
                     // Setup can be half-finished in two different ways, and the row has to say
                     // which — "0 selected" gave the same answer whether the user skipped the
@@ -131,7 +144,7 @@ struct YouView: View {
                             }
                         }
                         Button("Turn off app blocking", role: .destructive) {
-                            showDisconnectConfirm = true
+                            requirePIN { showDisconnectConfirm = true }
                         }
                     case .unsupported:
                         LabeledContent("Locked apps", value: "Needs a device")
@@ -184,11 +197,15 @@ struct YouView: View {
                     // Moved off the shield deliberately: a pass one tap away from the thing you
                     // are trying not to open is not much of a brake. Coming into the app for it
                     // is the friction.
-                    LabeledContent("Emergency passes", value: "\(appModel.store.emergencyPassesRemaining) left")
-                    Button("Use an emergency pass") { showPassConfirm = true }
-                        .disabled(appModel.store.emergencyPassesRemaining == 0)
+                    LabeledContent("Bathroom breaks", value: "\(appModel.store.bathroomBreaksRemaining) left")
+                    Button("Use a bathroom break (5 min)") {
+                        requirePIN { showPassConfirm = true }
+                    }
+                    .disabled(appModel.store.bathroomBreaksRemaining == 0)
                     Button("Preview lock screen") { showShieldPreview = true }
                 }
+
+                YouFamilySection(showPINSetup: $showPINSetup)
 
                 Section("Reminders") {
                     DatePicker(
@@ -238,6 +255,8 @@ struct YouView: View {
             }
             .navigationTitle("You")
             .onAppear { syncFromStore() }
+            .onChange(of: prayerLat) { _, _ in savePrayerLocation() }
+            .onChange(of: prayerLon) { _, _ in savePrayerLocation() }
             #if canImport(FamilyControls)
             .familyActivityPicker(isPresented: $showActivityPicker, selection: $activitySelection)
             .onChange(of: activitySelection) { _, newValue in
@@ -257,16 +276,34 @@ struct YouView: View {
             }
             #endif
             .confirmationDialog(
-                "Use an emergency pass?",
+                "Use a bathroom break?",
                 isPresented: $showPassConfirm,
                 titleVisibility: .visible
             ) {
-                Button("Unlock for 15 minutes", role: .destructive) {
-                    _ = appModel.screenTime.consumeEmergencyPass(durationMinutes: 15)
+                Button("Open apps for 5 minutes", role: .destructive) {
+                    _ = appModel.screenTime.consumeBathroomBreak(durationMinutes: 5)
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Your apps open for 15 minutes. You have \(appModel.store.emergencyPassesRemaining) left this month.")
+                Text("Your apps open for 5 minutes. You have \(appModel.store.bathroomBreaksRemaining) left this month.")
+            }
+            .sheet(isPresented: $showPINSetup) {
+                ParentPINSetupView()
+            }
+            .sheet(isPresented: $showPINEntry) {
+                PINEntryView(
+                    title: "Parent PIN",
+                    subtitle: "Enter your PIN to continue.",
+                    onSuccess: {
+                        showPINEntry = false
+                        pendingProtectedAction?()
+                        pendingProtectedAction = nil
+                    },
+                    onCancel: {
+                        showPINEntry = false
+                        pendingProtectedAction = nil
+                    }
+                )
             }
             .sheet(isPresented: $showShieldPreview) {
                 ShieldPreviewView()
@@ -393,6 +430,27 @@ struct YouView: View {
         ayahMinutes = appModel.store.ayahUnlockMinutes
         perPage = appModel.store.ayahsPerPage
         arabicSize = profile?.arabicTextSize ?? 26
+        prayerLat = profile?.prayerLatitude ?? 0
+        prayerLon = profile?.prayerLongitude ?? 0
+        prayerNotifications = profile?.prayerNotificationsEnabled ?? false
+    }
+
+    private func savePrayerLocation() {
+        profile?.prayerLatitude = prayerLat
+        profile?.prayerLongitude = prayerLon
+        try? modelContext.save()
+        if prayerNotifications {
+            appModel.schedulePrayerNotificationsIfEnabled(context: modelContext)
+        }
+    }
+
+    private func requirePIN(_ action: @escaping () -> Void) {
+        if PINStore.isConfigured {
+            pendingProtectedAction = action
+            showPINEntry = true
+        } else {
+            action()
+        }
     }
 
     private var readingStyleBinding: Binding<ReadingStyleAnswer> {

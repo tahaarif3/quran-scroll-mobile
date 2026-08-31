@@ -3,14 +3,7 @@ import SwiftData
 import IqraLockKit
 import UIKit
 
-/// One ayah at a time, swiped through the surah.
-///
-/// Reading and the shield now share a model: an ayah is the unit, the shared khatm cursor is the
-/// position, and every ayah passed through counts the same wherever it was read. The previous
-/// page-scrolling reader made those two different mechanics that had to be reconciled.
 struct ReaderView: View {
-    /// False when the reader *is* a tab root. `dismiss()` has nothing to dismiss there, so the
-    /// chevron did nothing at all — it only means something for the pushed instance from Home.
     var showsBack: Bool = true
 
     @Environment(AppModel.self) private var appModel
@@ -25,27 +18,26 @@ struct ReaderView: View {
     @State private var index: Int = 0
     @State private var surah: SurahMeta?
     @State private var textSize: CGFloat = 26
-    @State private var showSize = false
+    @State private var readingStyle: ReadingStyleAnswer = .arabicTranslation
+    @State private var showSettings = false
     @State private var showSurahList = false
     @State private var repository: BundledQuranRepository?
     @State private var surahs: [SurahMeta] = []
     @State private var justCredited = false
-    /// Position of an ayah that arrived too quickly to count on its own. Non-nil presents the
-    /// prompt; the answer either credits it or lets it go.
     @State private var pendingConfirmation: Int?
-    /// The cursor value this view last positioned itself on. Anything different means something
-    /// outside the reader — the shield, or Home — moved it.
     @State private var lastSeenCursor: Int = 0
+    @State private var casualMode: Bool = false
 
     private let bottomBarHeight: CGFloat = 118
-    private var goal: Int { profiles.first?.dailyGoalPages ?? appModel.store.dailyGoalPages }
-    private var style: ReadingStyleAnswer { profiles.first?.readingStyle ?? .arabicTranslation }
+    private var profile: UserProfile? { profiles.first }
+    private var goal: Int { profile?.dailyGoalPages ?? appModel.store.dailyGoalPages }
     private var pagesToday: Int { appModel.store.pagesReadToday }
     private var current: Ayah? { ayahs.indices.contains(index) ? ayahs[index] : nil }
 
     var body: some View {
         VStack(spacing: 0) {
             topBar
+            modeBanner
             dailyProgressBar
 
             if ayahs.isEmpty {
@@ -60,9 +52,6 @@ struct ReaderView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                // Credit the ayah being left rather than the one arriving, so an ayah is only
-                // counted once it has actually been sat with. recordAyah's minimum interval
-                // then rejects anything swiped through faster than it could be read.
                 .onChange(of: index) { previous, _ in
                     creditAyah(at: previous)
                 }
@@ -70,48 +59,53 @@ struct ReaderView: View {
         }
         .background(IQColor.bgReader.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) { bottomBar }
-        .confirmationDialog(
-            "Did you read that ayah?",
-            isPresented: Binding(
-                get: { pendingConfirmation != nil },
-                set: { if !$0 { pendingConfirmation = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("Yes, count it") {
-                if let position = pendingConfirmation {
-                    pendingConfirmation = nil
-                    creditAyah(at: position, confirmed: true)
-                }
-            }
-            Button("Not yet", role: .cancel) { pendingConfirmation = nil }
-        } message: {
-            Text("That was quick, so it hasn't been counted yet.")
+        .sheet(isPresented: Binding(
+            get: { pendingConfirmation != nil },
+            set: { if !$0 { pendingConfirmation = nil } }
+        )) {
+            AyahReadConfirmationSheet(
+                onConfirm: {
+                    if let position = pendingConfirmation {
+                        pendingConfirmation = nil
+                        creditAyah(at: position, confirmed: true)
+                    }
+                },
+                onCancel: { pendingConfirmation = nil }
+            )
+            .presentationDetents([.height(340)])
+            .presentationDragIndicator(.hidden)
         }
         .sheet(isPresented: $showSurahList) {
             SurahListView(surahs: surahs, currentSurah: surahNumber) { jump(to: $0) }
         }
-        .sheet(isPresented: $showSize) {
-            VStack(spacing: 16) {
-                Text("Arabic text size").iqraStyle(.h3)
-                Slider(value: $textSize, in: 20...40, step: 1)
-                    .tint(IQColor.accentOlive)
-                    .padding(.horizontal)
-            }
-            .padding()
-            .presentationDetents([.height(180)])
+        .sheet(isPresented: $showSettings) {
+            ReaderSettingsSheet(
+                textSize: $textSize,
+                readingStyle: $readingStyle,
+                onDismiss: { showSettings = false }
+            )
         }
         .task { await load() }
-        .onAppear { syncIfCursorMovedElsewhere() }
+        .onAppear {
+            syncIfCursorMovedElsewhere()
+            syncFromProfile()
+        }
         .onChange(of: scenePhase) { _, phase in
-            // Reading happens on the shield while the app is backgrounded, so coming forward is
-            // the moment the cursor is most likely to have moved without this view knowing.
             if phase == .active { syncIfCursorMovedElsewhere() }
+        }
+        .onChange(of: textSize) { _, new in
+            profile?.arabicTextSize = Double(new)
+            try? modelContext.save()
+        }
+        .onChange(of: readingStyle) { _, new in
+            profile?.readingStyleRaw = new.rawValue
+            try? modelContext.save()
+        }
+        .onChange(of: casualMode) { _, new in
+            appModel.store.casualReadingMode = new
         }
         .navigationBarHidden(true)
     }
-
-    // MARK: - Chrome
 
     private var topBar: some View {
         HStack {
@@ -142,33 +136,45 @@ struct ReaderView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Choose surah")
 
-            Button { showSize = true } label: {
+            Button { showSettings = true } label: {
                 Text("Aa")
                     .font(.custom("Nunito-Bold", size: 17))
                     .foregroundStyle(IQColor.brandGold)
                     .frame(width: 44, height: 44)
             }
-            .accessibilityLabel("Text size")
+            .accessibilityLabel("Reader settings")
         }
         .padding(.horizontal, 4)
         .background(IQColor.bgReader)
+    }
+
+    private var modeBanner: some View {
+        HStack {
+            Toggle(isOn: $casualMode) {
+                Text(casualMode ? "Free read — won't affect Screen Time" : "Focus mode — reading unlocks apps")
+                    .iqraStyle(.caption, color: casualMode ? IQColor.textMuted : IQColor.accentOlive)
+            }
+            .tint(IQColor.accentOlive)
+        }
+        .padding(.horizontal, IQSpace.gutter)
+        .padding(.vertical, 8)
+        .background(IQColor.savePill.opacity(0.5))
     }
 
     private var dailyProgressBar: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Rectangle().fill(IQColor.trackReader)
-                Rectangle()
-                    .fill(IQColor.accentOlive)
-                    .frame(width: geo.size.width * min(1, Double(pagesToday) / Double(max(goal, 1))))
+                if !casualMode {
+                    Rectangle()
+                        .fill(IQColor.accentOlive)
+                        .frame(width: geo.size.width * min(1, Double(pagesToday) / Double(max(goal, 1))))
+                }
             }
         }
         .frame(height: 4)
     }
-
-    // MARK: - The ayah
 
     private func ayahPage(_ ayah: Ayah) -> some View {
         ScrollView(showsIndicators: false) {
@@ -187,12 +193,12 @@ struct ReaderView: View {
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(IQColor.accentOlive))
 
-                if style == .translationFirst {
+                if readingStyle == .translationFirst {
                     translation(ayah)
                     arabic(ayah)
                 } else {
                     arabic(ayah)
-                    if style != .arabicOnly { translation(ayah) }
+                    if readingStyle != .arabicOnly { translation(ayah) }
                 }
             }
             .frame(maxWidth: .infinity)
@@ -217,8 +223,6 @@ struct ReaderView: View {
             .multilineTextAlignment(.center)
     }
 
-    // MARK: - Bottom bar
-
     private var bottomBar: some View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
@@ -228,11 +232,12 @@ struct ReaderView: View {
                         .iqraStyle(.caption, color: IQColor.textMuted)
                     Text(justCredited
                          ? "Counted · \(appModel.store.ayahsReadToday)/\(appModel.store.ayahsPerPage) to the next page"
-                         : "\(pagesToday)/\(goal) pages today · p.\(current?.page ?? 1)")
+                         : casualMode
+                            ? "Free read — position only"
+                            : "\(pagesToday)/\(goal) pages today · p.\(current?.page ?? 1)")
                         .iqraStyle(.finePrint, color: justCredited ? IQColor.accentOlive : IQColor.textFaint)
                 }
                 .frame(maxWidth: .infinity)
-                .animation(.easeOut(duration: 0.2), value: justCredited)
                 stepButton("chevron.right", enabled: index < ayahs.count - 1) { move(by: 1) }
             }
 
@@ -273,10 +278,7 @@ struct ReaderView: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-        .accessibilityLabel(systemName == "chevron.left" ? "Previous ayah" : "Next ayah")
     }
-
-    // MARK: - Behaviour
 
     private func move(by delta: Int) {
         let target = index + delta
@@ -284,14 +286,16 @@ struct ReaderView: View {
         withAnimation { index = target }
     }
 
-    /// Credits the ayah at `position` and moves the shared cursor past it.
-    ///
-    /// An ayah passed faster than it could plausibly be read is no longer dropped on the floor.
-    /// Silently refusing to count it is indistinguishable from the feature being broken — and
-    /// it was wrong as often as it was right, because someone re-reading a short ayah they know
-    /// by heart is still reading. It asks instead.
     private func creditAyah(at position: Int, confirmed: Bool = false) {
         guard let ayah = ayahs.indices.contains(position) ? ayahs[position] : nil else { return }
+
+        if casualMode {
+            appModel.store.advanceKhatmCursor(toAyahID: ayah.id + 1)
+            lastSeenCursor = appModel.store.khatmCursor
+            savePosition()
+            return
+        }
+
         let outcome = appModel.unlock.recordAyahRead(confirmed: confirmed)
         guard outcome.counted else {
             pendingConfirmation = position
@@ -301,6 +305,10 @@ struct ReaderView: View {
         lastSeenCursor = appModel.store.khatmCursor
         savePosition()
         justCredited = true
+        appModel.syncDailyProgress(
+            context: modelContext,
+            minutesDelta: appModel.store.ayahUnlockMinutes / 3
+        )
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         Task {
             try? await Task.sleep(for: .seconds(2))
@@ -308,9 +316,7 @@ struct ReaderView: View {
         }
     }
 
-    private func jump(to target: SurahMeta) {
-        jumpToSurah(target.number)
-    }
+    private func jump(to target: SurahMeta) { jumpToSurah(target.number) }
 
     private func jumpToSurah(_ number: Int) {
         guard let repository, (1...114).contains(number) else { return }
@@ -326,22 +332,16 @@ struct ReaderView: View {
         guard let repo = try? BundledQuranRepository() else { return }
         repository = repo
         surahs = (try? repo.allSurahs()) ?? []
-        textSize = profiles.first?.arabicTextSize ?? 26
-
+        syncFromProfile()
+        casualMode = appModel.store.casualReadingMode
         syncToCursor()
     }
 
-    /// Moves the reader to the shared cursor — but only when the cursor moved somewhere this
-    /// view has not already seen.
-    ///
-    /// `load()` is guarded on `repository == nil`, and the Read tab stays alive for the life of
-    /// the app, so opening at the cursor happened exactly once. Ayahs read on the lock screen
-    /// advanced the cursor afterwards and the reader never looked again — you would finish an
-    /// ayah on the shield, open the app, and be handed the one you had already read.
-    ///
-    /// Comparing against the last cursor this view acted on is what keeps that from becoming the
-    /// opposite bug: browsing to another surah without reading leaves the cursor untouched, so
-    /// returning to the tab must not drag you back to it.
+    private func syncFromProfile() {
+        textSize = CGFloat(profile?.arabicTextSize ?? 26)
+        readingStyle = profile?.readingStyle ?? .arabicTranslation
+    }
+
     private func syncToCursor() {
         guard let repository else { return }
         let cursor = appModel.store.khatmCursor
@@ -355,8 +355,6 @@ struct ReaderView: View {
         index = ayahs.firstIndex(where: { $0.id == target.id }) ?? 0
     }
 
-    /// Re-checks the cursor whenever the reader comes forward, which is when a lock-screen read
-    /// would have moved it.
     private func syncIfCursorMovedElsewhere() {
         guard repository != nil, appModel.store.khatmCursor != lastSeenCursor else { return }
         syncToCursor()
@@ -365,11 +363,7 @@ struct ReaderView: View {
     private func savePosition() {
         guard let ayah = current else { return }
         let pos = positions.first ?? {
-            let p = ReadingPosition(
-                surahNumber: ayah.surah,
-                ayahNumber: ayah.ayah,
-                pageNumber: ayah.page
-            )
+            let p = ReadingPosition(surahNumber: ayah.surah, ayahNumber: ayah.ayah, pageNumber: ayah.page)
             modelContext.insert(p)
             return p
         }()

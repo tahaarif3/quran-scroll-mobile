@@ -4,19 +4,28 @@ import IqraLockKit
 
 struct ProgressViewScreen: View {
     @Environment(AppModel.self) private var appModel
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \DailyRecord.day, order: .reverse) private var records: [DailyRecord]
 
     private var stats: HabitStats {
         HabitStatsCalculator.compute(
-            records: records.map {
-                .init(day: $0.day, pagesRead: $0.pagesRead, minutesRead: $0.minutesRead, goalMet: $0.goalMet)
-            }
+            records: DailyProgressSync.recordsIncludingToday(
+                stored: records,
+                store: appModel.store
+            )
         )
+    }
+
+    private var weekdayLabels: [String] {
+        DailyProgressSync.weekdayLabels()
     }
 
     var body: some View {
         NavigationStack {
             content
+        }
+        .onAppear {
+            appModel.syncDailyProgress(context: modelContext)
         }
     }
 
@@ -33,7 +42,15 @@ struct ProgressViewScreen: View {
                 HStack(spacing: 12) {
                     statCard(value: "\(stats.pagesReadTotal)", label: "pages read")
                     statCard(value: stats.hoursReclaimedLabel, label: "reclaimed")
-                    statCard(value: "\(stats.surahsCompleted)", label: "surahs")
+                    statCard(value: "\(appModel.store.khatmCount)", label: "khatms")
+                }
+
+                SectionCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("Prayer tracker")
+                            .iqraStyle(.bodyStrong, color: IQColor.textInk)
+                        PrayerTrackerView()
+                    }
                 }
 
                 SectionCard {
@@ -50,8 +67,6 @@ struct ProgressViewScreen: View {
         .background(IQColor.bgSand.ignoresSafeArea())
     }
 
-    /// Above the streak on purpose. A streak measures consistency; a khatm measures the thing
-    /// the consistency is for.
     private var khatmLink: some View {
         NavigationLink {
             KhatmView()
@@ -86,9 +101,8 @@ struct ProgressViewScreen: View {
 
             HStack(spacing: 10) {
                 ForEach(0..<7, id: \.self) { i in
-                    let labels = ["M", "T", "W", "T", "F", "S", "S"]
                     VStack(spacing: 6) {
-                        Text(labels[i])
+                        Text(weekdayLabels[i])
                             .font(.custom("Nunito-SemiBold", size: 11))
                             .foregroundStyle(IQColor.accentGoldOnDark.opacity(0.8))
                         ZStack {
@@ -103,7 +117,6 @@ struct ProgressViewScreen: View {
                                     .foregroundStyle(IQColor.bgDark)
                             }
                         }
-                        .accessibilityLabel(stats.weekCompletion[i] ? "\(labels[i]) complete" : "\(labels[i]) incomplete")
                     }
                 }
             }
@@ -137,12 +150,11 @@ struct ProgressViewScreen: View {
                 let value = stats.minutesLast7Days[i]
                 let height = max(8, CGFloat(value) / CGFloat(maxM) * 100)
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(value > 0 && (i == 3 || i == 6 || stats.weekCompletion[i])
+                    .fill(value > 0 && stats.weekCompletion[i]
                           ? IQColor.accentOlive
                           : IQColor.chartNeutral)
                     .frame(height: height)
                     .frame(maxWidth: .infinity)
-                    .accessibilityLabel("Day \(i + 1): \(value) minutes")
             }
         }
         .frame(height: 120, alignment: .bottom)

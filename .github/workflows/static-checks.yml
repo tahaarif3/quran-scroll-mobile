@@ -1,0 +1,50 @@
+name: Static Checks
+
+# Fast Linux validation — runs before the macOS build on every push and PR.
+# Catches missing resources, broken protocol conformances, and absent tests
+# in ~30 seconds without waiting for an Xcode runner.
+
+on:
+  push:
+    branches: [main, 'cursor/**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: static-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify font PostScript names
+        run: python3 Scripts/verify_font_names.py
+
+      - name: Validate project resources and wiring
+        run: python3 Scripts/validate_project.py
+
+      - name: Check XcodeGen project definition
+        run: |
+          for target in IqraLock IqraLockKit IqraLockKitTests IqraLockSnapshotTests; do
+            grep -q "^  ${target}:" project.yml || { echo "Missing target ${target} in project.yml"; exit 1; }
+          done
+          echo "project.yml OK — required targets present"
+
+      - name: Summary
+        if: success()
+        run: |
+          {
+            echo "### Static checks passed"
+            echo ""
+            echo "- Font PostScript names verified"
+            echo "- Icon assets, Qur'an DB, and App Group keys validated"
+            echo "- Feature test files present"
+            echo "- project.yml structure OK"
+            echo ""
+            echo "macOS build + unit tests run in the **iOS Build & Test** workflow."
+          } >> "$GITHUB_STEP_SUMMARY"

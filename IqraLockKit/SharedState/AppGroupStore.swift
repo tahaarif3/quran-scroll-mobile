@@ -18,8 +18,12 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let dailyGoalPages = "dailyGoalPages"
         public static let isLockedNow = "isLockedNow"
         public static let unlockedUntil = "unlockedUntil"
+        public static let bathroomBreaksRemaining = "bathroomBreaksRemaining"
+        public static let bathroomBreaksMonthKey = "bathroomBreaksMonthKey"
+        /// Legacy keys — migrated on read.
         public static let emergencyPassesRemaining = "emergencyPassesRemaining"
         public static let emergencyPassesMonthKey = "emergencyPassesMonthKey"
+        public static let casualReadingMode = "casualReadingMode"
         public static let selectedAppsData = "selectedAppsData"
         public static let selectedAppsCount = "selectedAppsCount"
         public static let userDisplayName = "userDisplayName"
@@ -286,9 +290,37 @@ public final class AppGroupStore: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Key.unlockedUntil) }
     }
 
+    /// When true, reading advances the khatm cursor but does not earn unlock time or affect the shield.
+    public var casualReadingMode: Bool {
+        get { defaults.bool(forKey: Key.casualReadingMode) }
+        set { defaults.set(newValue, forKey: Key.casualReadingMode) }
+    }
+
+    public var bathroomBreaksRemaining: Int {
+        get {
+            migrateEmergencyPassesIfNeeded()
+            return defaults.integer(forKey: Key.bathroomBreaksRemaining)
+        }
+        set { defaults.set(newValue, forKey: Key.bathroomBreaksRemaining) }
+    }
+
+    /// @deprecated Use bathroomBreaksRemaining
     public var emergencyPassesRemaining: Int {
-        get { defaults.integer(forKey: Key.emergencyPassesRemaining) }
-        set { defaults.set(newValue, forKey: Key.emergencyPassesRemaining) }
+        get { bathroomBreaksRemaining }
+        set { bathroomBreaksRemaining = newValue }
+    }
+
+    private func migrateEmergencyPassesIfNeeded() {
+        if defaults.object(forKey: Key.bathroomBreaksRemaining) == nil,
+           defaults.object(forKey: Key.emergencyPassesRemaining) != nil {
+            defaults.set(
+                defaults.integer(forKey: Key.emergencyPassesRemaining),
+                forKey: Key.bathroomBreaksRemaining
+            )
+            if let month = defaults.string(forKey: Key.emergencyPassesMonthKey) {
+                defaults.set(month, forKey: Key.bathroomBreaksMonthKey)
+            }
+        }
     }
 
     public var userDisplayName: String {
@@ -350,17 +382,31 @@ public final class AppGroupStore: @unchecked Sendable {
             isLockedNow = true
             unlockedUntil = nil
         }
-        resetEmergencyPassesIfNeeded(now: now, calendar: calendar)
+        resetBathroomBreaksIfNeeded(now: now, calendar: calendar)
     }
 
-    public func resetEmergencyPassesIfNeeded(now: Date = Date(), calendar: Calendar = .current, monthlyAllowance: Int = 3) {
+    public func resetBathroomBreaksIfNeeded(
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        monthlyAllowance: Int = 5
+    ) {
+        migrateEmergencyPassesIfNeeded()
         let comps = calendar.dateComponents([.year, .month], from: now)
         let monthKey = "\(comps.year ?? 0)-\(comps.month ?? 0)"
-        let stored = defaults.string(forKey: Key.emergencyPassesMonthKey) ?? ""
+        let stored = defaults.string(forKey: Key.bathroomBreaksMonthKey) ?? ""
         if stored != monthKey {
-            defaults.set(monthKey, forKey: Key.emergencyPassesMonthKey)
-            emergencyPassesRemaining = monthlyAllowance
+            defaults.set(monthKey, forKey: Key.bathroomBreaksMonthKey)
+            bathroomBreaksRemaining = monthlyAllowance
         }
+    }
+
+    /// @deprecated Use resetBathroomBreaksIfNeeded
+    public func resetEmergencyPassesIfNeeded(
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        monthlyAllowance: Int = 5
+    ) {
+        resetBathroomBreaksIfNeeded(now: now, calendar: calendar, monthlyAllowance: monthlyAllowance)
     }
 
     public func shieldSubtitle() -> String {
@@ -445,7 +491,9 @@ public final class AppGroupStore: @unchecked Sendable {
     public func resetAllForDebug() {
         for key in [
             Key.pagesReadToday, Key.dailyGoalPages, Key.isLockedNow, Key.unlockedUntil,
-            Key.emergencyPassesRemaining, Key.emergencyPassesMonthKey, Key.selectedAppsData,
+            Key.bathroomBreaksRemaining, Key.bathroomBreaksMonthKey,
+            Key.emergencyPassesRemaining, Key.emergencyPassesMonthKey,
+            Key.casualReadingMode, Key.selectedAppsData,
             Key.selectedAppsCount, Key.userDisplayName, Key.dayKey, Key.pendingDeepLink,
             Key.launchInProgress, Key.consecutiveLaunchFailures,
             Key.ayahsReadToday, Key.ayahsPerPage, Key.lastAyahReadAt,

@@ -41,7 +41,8 @@ struct IqraLockApp: App {
             DailyRecord.self,
             ReadingSession.self,
             Bookmark.self,
-            ReadingPosition.self
+            ReadingPosition.self,
+            PrayerLog.self
         ])
     }
 }
@@ -154,8 +155,9 @@ final class AppModel {
             ShieldAyahProvider.refreshCache(store: store)
         }
         store.ensureCurrentDay()
-        store.resetEmergencyPassesIfNeeded()
+        store.resetBathroomBreaksIfNeeded()
         shield.reevaluate()
+        notifications.scheduleStreakAtRiskIfNeeded(goalMet: store.goalMetToday)
         if let pending = store.pendingDeepLink, let url = URL(string: pending) {
             store.pendingDeepLink = nil
             handle(url: url)
@@ -190,6 +192,7 @@ final class AppModel {
         try? modelContext.delete(model: ReadingSession.self)
         try? modelContext.delete(model: Bookmark.self)
         try? modelContext.delete(model: ReadingPosition.self)
+        try? modelContext.delete(model: PrayerLog.self)
         try? modelContext.save()
 
         showReader = false
@@ -203,6 +206,29 @@ final class AppModel {
         if url.host == "read" || url.path.contains("read") {
             showReader = true
         }
+    }
+
+    func syncDailyProgress(context: ModelContext, minutesDelta: Int = 0) {
+        DailyProgressSync.upsertToday(
+            context: context,
+            store: store,
+            minutesDelta: minutesDelta
+        )
+        notifications.scheduleStreakAtRiskIfNeeded(goalMet: store.goalMetToday)
+    }
+
+    func schedulePrayerNotificationsIfEnabled(context: ModelContext) {
+        let descriptor = FetchDescriptor<UserProfile>()
+        guard let profile = try? context.fetch(descriptor).first,
+              profile.prayerNotificationsEnabled,
+              profile.prayerLatitude != 0 || profile.prayerLongitude != 0 else {
+            notifications.cancelPrayerNotifications()
+            return
+        }
+        notifications.schedulePrayerNotifications(
+            latitude: profile.prayerLatitude,
+            longitude: profile.prayerLongitude
+        )
     }
 }
 
