@@ -1,47 +1,134 @@
 import SwiftUI
-import SwiftData
 import IqraLockKit
+
+struct PrayerCityPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var selectedCityID: String
+    @State private var query = ""
+
+    private var results: [PrayerCity] {
+        PrayerCityCatalog.search(query)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List(results) { city in
+                Button {
+                    selectedCityID = city.id
+                    dismiss()
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(city.name)
+                                .iqraStyle(.bodyStrong, color: IQColor.textInk)
+                            Text(city.region)
+                                .iqraStyle(.caption, color: IQColor.textMuted)
+                        }
+                        Spacer()
+                        if city.id == selectedCityID {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(IQColor.accentOlive)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .searchable(text: $query, prompt: "Search your city")
+            .navigationTitle("Nearby city")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
 
 struct YouPrayerSettingsSection: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.modelContext) private var modelContext
     @Binding var prayerNotifications: Bool
-    @Binding var prayerLat: Double
-    @Binding var prayerLon: Double
+    @Binding var prayerCityID: String
     var profile: UserProfile?
+
+    @State private var showCityPicker = false
+
+    private var selectedCity: PrayerCity? {
+        PrayerCityCatalog.city(id: prayerCityID) ?? profile?.selectedPrayerCity
+    }
 
     var body: some View {
         Section {
+            Button {
+                showCityPicker = true
+            } label: {
+                HStack {
+                    Text("City")
+                        .foregroundStyle(IQColor.textPrimary)
+                    Spacer()
+                    Text(selectedCity?.label ?? "Choose a city")
+                        .foregroundStyle(IQColor.textSecondary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(IQColor.textFaint)
+                }
+            }
+
             Toggle("Prayer notifications", isOn: $prayerNotifications)
                 .onChange(of: prayerNotifications) { _, enabled in
                     profile?.prayerNotificationsEnabled = enabled
                     try? modelContext.save()
-                    if enabled {
-                        appModel.schedulePrayerNotificationsIfEnabled(context: modelContext)
-                    } else {
-                        appModel.notifications.cancelPrayerNotifications()
-                    }
+                    reschedulePrayerNotificationsIfNeeded()
                 }
-            HStack {
-                Text("Latitude")
-                Spacer()
-                TextField("e.g. 33.95", value: $prayerLat, format: .number)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 120)
-            }
-            HStack {
-                Text("Longitude")
-                Spacer()
-                TextField("e.g. -83.37", value: $prayerLon, format: .number)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 120)
-            }
+
+            DatePicker(
+                "Reading reminder",
+                selection: reminderBinding,
+                displayedComponents: .hourAndMinute
+            )
         } header: {
-            Text("Prayer times")
+            Text("Prayer & reminders")
         } footer: {
-            Text("Set your coordinates for local salah times. Find them in your phone's Maps app.")
+            Text("Salah times are calculated for your city. No coordinates needed.")
+        }
+        .sheet(isPresented: $showCityPicker) {
+            PrayerCityPickerSheet(selectedCityID: $prayerCityID)
+        }
+        .onChange(of: prayerCityID) { _, newID in
+            guard let city = PrayerCityCatalog.city(id: newID) else { return }
+            profile?.applyPrayerCity(city)
+            try? modelContext.save()
+            reschedulePrayerNotificationsIfNeeded()
+        }
+    }
+
+    private var reminderBinding: Binding<Date> {
+        Binding(
+            get: {
+                var components = DateComponents()
+                components.hour = profile?.reminderHour ?? 21
+                components.minute = profile?.reminderMinute ?? 0
+                return Calendar.current.date(from: components) ?? Date()
+            },
+            set: { newValue in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                profile?.reminderHour = components.hour ?? 21
+                profile?.reminderMinute = components.minute ?? 0
+                try? modelContext.save()
+                appModel.notifications.scheduleDailyReminder(
+                    hour: profile?.reminderHour ?? 21,
+                    minute: profile?.reminderMinute ?? 0
+                )
+            }
+        )
+    }
+
+    private func reschedulePrayerNotificationsIfNeeded() {
+        if prayerNotifications {
+            appModel.schedulePrayerNotificationsIfEnabled(context: modelContext)
+        } else {
+            appModel.notifications.cancelPrayerNotifications()
         }
     }
 }
@@ -60,7 +147,7 @@ struct YouFamilySection: View {
         } header: {
             Text("Family")
         } footer: {
-            Text("Child mode: settings, bathroom breaks, and turning off blocking require the parent PIN.")
+            Text("Bathroom breaks and turning off blocking require the parent PIN when set.")
         }
     }
 }

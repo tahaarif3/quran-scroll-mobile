@@ -21,7 +21,7 @@ struct PrayerTrackerView: View {
                     prayerRow(prayer, time: times.time(for: prayer))
                 }
             } else {
-                Text("Set your location in You → Prayer times to see salah times.")
+                Text("Choose your city in You → Prayer & reminders to see salah times.")
                     .iqraStyle(.body, color: IQColor.textMuted)
             }
         }
@@ -58,13 +58,13 @@ struct PrayerTrackerView: View {
     }
 
     private func refreshTimes() {
-        guard let profile, profile.prayerLatitude != 0 || profile.prayerLongitude != 0 else {
+        guard let profile, let coords = profile.prayerCoordinates else {
             times = nil
             return
         }
         times = PrayerTimesCalculator.compute(
-            latitude: profile.prayerLatitude,
-            longitude: profile.prayerLongitude
+            latitude: coords.latitude,
+            longitude: coords.longitude
         )
     }
 

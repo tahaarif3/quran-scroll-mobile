@@ -17,6 +17,7 @@ public final class UserProfile {
     public var translationId: Int
     public var prayerLatitude: Double
     public var prayerLongitude: Double
+    public var prayerCityId: String
     public var prayerNotificationsEnabled: Bool
     public var onboardingCompletedAt: Date?
     public var createdAt: Date
@@ -36,6 +37,7 @@ public final class UserProfile {
         self.translationId = 20
         self.prayerLatitude = 0
         self.prayerLongitude = 0
+        self.prayerCityId = ""
         self.prayerNotificationsEnabled = false
         self.onboardingCompletedAt = draft.onboardingCompletedAt
         self.createdAt = Date()
@@ -60,6 +62,7 @@ public final class UserProfile {
         self.translationId = 20
         self.prayerLatitude = 0
         self.prayerLongitude = 0
+        self.prayerCityId = ""
         self.prayerNotificationsEnabled = false
         self.onboardingCompletedAt = nil
         self.createdAt = Date()
