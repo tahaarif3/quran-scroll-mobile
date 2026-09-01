@@ -14,7 +14,11 @@ final class NotificationTestDouble: NotificationScheduling, @unchecked Sendable 
     }
     func scheduleAppsUnlocked() {}
     func scheduleReadPromptFromShield() {}
-    func schedulePrayerNotifications(latitude: Double, longitude: Double) {
+    func schedulePrayerNotifications(
+        latitude: Double,
+        longitude: Double,
+        adjustments: PrayerTimeAdjustments
+    ) {
         prayerNotificationsScheduled = true
     }
     func cancelPrayerNotifications() {
