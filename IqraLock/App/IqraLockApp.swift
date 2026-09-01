@@ -221,13 +221,13 @@ final class AppModel {
         let descriptor = FetchDescriptor<UserProfile>()
         guard let profile = try? context.fetch(descriptor).first,
               profile.prayerNotificationsEnabled,
-              profile.prayerLatitude != 0 || profile.prayerLongitude != 0 else {
+              let coords = profile.prayerCoordinates else {
             notifications.cancelPrayerNotifications()
             return
         }
         notifications.schedulePrayerNotifications(
-            latitude: profile.prayerLatitude,
-            longitude: profile.prayerLongitude
+            latitude: coords.latitude,
+            longitude: coords.longitude
         )
     }
 }

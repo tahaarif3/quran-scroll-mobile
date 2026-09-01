@@ -45,6 +45,18 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let khatmStartedAt = "khatmStartedAt"
         public static let cachedAyahs = "cachedAyahs"
         public static let dailyGoalAyahs = "dailyGoalAyahs"
+        public static let shieldLayoutMode = "shieldLayoutMode"
+    }
+
+    public var shieldLayoutMode: ShieldLayoutMode {
+        get {
+            guard let raw = defaults.string(forKey: Key.shieldLayoutMode),
+                  let mode = ShieldLayoutMode(rawValue: raw) else {
+                return .arabicAndTranslation
+            }
+            return mode
+        }
+        set { defaults.set(newValue.rawValue, forKey: Key.shieldLayoutMode) }
     }
 
     public struct CachedAyah: Codable, Equatable, Sendable {
@@ -499,7 +511,7 @@ public final class AppGroupStore: @unchecked Sendable {
             Key.ayahsReadToday, Key.ayahsPerPage, Key.lastAyahReadAt,
             Key.ayahUnlockMinutes, Key.ayahRejectedAt, Key.totalPagesRead,
             Key.khatmCount, Key.khatmCursor, Key.shieldSegmentIndex,
-            Key.cachedAyahs, Key.dailyGoalAyahs
+            Key.cachedAyahs, Key.dailyGoalAyahs, Key.shieldLayoutMode
         ] {
             defaults.removeObject(forKey: key)
         }
