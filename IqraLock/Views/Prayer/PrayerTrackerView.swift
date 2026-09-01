@@ -11,14 +11,20 @@ struct PrayerTrackerView: View {
     private var profile: UserProfile? { profiles.first }
 
     private var times: PrayerTimes? {
-        _ = appModel.prayerCityVersion
+        _ = appModel.prayerScheduleVersion
         guard let coords = PrayerCitySelection.coordinates(profile: profile, store: appModel.store) else {
             return nil
         }
-        return PrayerTimesCalculator.compute(
+        let adjustments = PrayerTimeSettings.load(profile: profile, store: appModel.store)
+        return PrayerTimesResolver.resolve(
             latitude: coords.latitude,
-            longitude: coords.longitude
+            longitude: coords.longitude,
+            adjustments: adjustments
         )
+    }
+
+    private var adjustments: PrayerTimeAdjustments {
+        PrayerTimeSettings.load(profile: profile, store: appModel.store)
     }
 
     private var todayLog: PrayerLog? {
@@ -101,8 +107,13 @@ struct PrayerTrackerView: View {
                     Text(prayer.displayName)
                         .iqraStyle(.bodyStrong, color: IQColor.textInk)
                     if let time {
-                        Text(time, format: .dateTime.hour().minute())
-                            .iqraStyle(.caption, color: IQColor.textMuted)
+                        HStack(spacing: 4) {
+                            Text(time, format: .dateTime.hour().minute())
+                            if adjustments.isAdjusted(prayer) {
+                                Text("(\(offsetLabel(for: prayer)))")
+                            }
+                        }
+                        .iqraStyle(.caption, color: IQColor.textMuted)
                     } else {
                         Text("Tap to log")
                             .iqraStyle(.caption, color: IQColor.textMuted)
@@ -147,5 +158,12 @@ struct PrayerTrackerView: View {
         }
         try? modelContext.save()
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func offsetLabel(for prayer: PrayerName) -> String {
+        let offset = adjustments.offset(for: prayer)
+        if offset == 0 { return "calculated" }
+        let sign = offset > 0 ? "+" : ""
+        return "\(sign)\(offset) min"
     }
 }

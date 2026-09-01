@@ -74,6 +74,7 @@ struct YouPrayerSettingsSection: View {
     var profile: UserProfile?
 
     @State private var showCityPicker = false
+    @State private var showTimeAdjustments = false
 
     private var selectedCity: PrayerCity? {
         PrayerCityCatalog.city(id: prayerCityID) ?? profile?.selectedPrayerCity
@@ -103,6 +104,24 @@ struct YouPrayerSettingsSection: View {
                     reschedulePrayerNotificationsIfNeeded()
                 }
 
+            Button {
+                showTimeAdjustments = true
+            } label: {
+                HStack {
+                    Text("Adjust prayer times")
+                        .foregroundStyle(IQColor.textPrimary)
+                    Spacer()
+                    if PrayerTimeSettings.load(profile: profile, store: appModel.store).hasAny {
+                        Text("Custom")
+                            .foregroundStyle(IQColor.accentOlive)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(IQColor.textFaint)
+                }
+            }
+            .disabled(selectedCity == nil)
+
             DatePicker(
                 "Reading reminder",
                 selection: reminderBinding,
@@ -111,7 +130,7 @@ struct YouPrayerSettingsSection: View {
         } header: {
             Text("Prayer & reminders")
         } footer: {
-            Text("Salah times are calculated for your city. No coordinates needed.")
+            Text("Salah times are calculated for your city. Adjust them to match your local masjid.")
         }
         .sheet(isPresented: $showCityPicker) {
             PrayerCityPickerSheet(
@@ -119,6 +138,9 @@ struct YouPrayerSettingsSection: View {
                 profile: profile,
                 onCitySelected: reschedulePrayerNotificationsIfNeeded
             )
+        }
+        .sheet(isPresented: $showTimeAdjustments) {
+            PrayerTimeAdjustmentsSheet(profile: profile)
         }
         .onChange(of: prayerCityID) { _, newID in
             guard let city = PrayerCityCatalog.city(id: newID) else { return }
@@ -154,6 +176,159 @@ struct YouPrayerSettingsSection: View {
         } else {
             appModel.notifications.cancelPrayerNotifications()
         }
+    }
+}
+
+struct PrayerTimeAdjustmentsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var appModel
+    @Environment(\.modelContext) private var modelContext
+    var profile: UserProfile?
+
+    @State private var adjustments = PrayerTimeAdjustments.none
+    @State private var pickedTimes: [PrayerName: Date] = [:]
+
+    private var coordinates: (latitude: Double, longitude: Double)? {
+        PrayerCitySelection.coordinates(profile: profile, store: appModel.store)
+    }
+
+    private var calculatedTimes: PrayerTimes? {
+        guard let coords = coordinates else { return nil }
+        return PrayerTimesCalculator.compute(
+            latitude: coords.latitude,
+            longitude: coords.longitude
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if calculatedTimes == nil {
+                    Text("Choose your city first to see calculated salah times.")
+                        .foregroundStyle(IQColor.textMuted)
+                } else {
+                    ForEach(PrayerName.allCases) { prayer in
+                        adjustmentRow(for: prayer)
+                    }
+
+                    if adjustments.hasAny {
+                        Button("Reset all to calculated times", role: .destructive) {
+                            resetAll()
+                        }
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(IQColor.bgSand.ignoresSafeArea())
+            .navigationTitle("Prayer times")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        saveAndDismiss()
+                    }
+                    .foregroundStyle(IQColor.brandPrimary)
+                }
+            }
+            .toolbarBackground(IQColor.bgSand, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+        }
+        .preferredColorScheme(.light)
+        .onAppear(perform: loadState)
+    }
+
+    @ViewBuilder
+    private func adjustmentRow(for prayer: PrayerName) -> some View {
+        if let calculated = calculatedTimes?.time(for: prayer) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(prayer.displayName)
+                        .font(.custom("Nunito-Bold", size: 17))
+                        .foregroundStyle(IQColor.textInk)
+                    Spacer()
+                    if adjustments.isAdjusted(prayer) {
+                        Text(offsetLabel(for: prayer))
+                            .font(.custom("Nunito-Regular", size: 13))
+                            .foregroundStyle(IQColor.accentOlive)
+                    }
+                }
+
+                Text("Calculated: \(calculated, format: .dateTime.hour().minute())")
+                    .font(.custom("Nunito-Regular", size: 13))
+                    .foregroundStyle(IQColor.textMuted2)
+
+                DatePicker(
+                    "Your time",
+                    selection: binding(for: prayer, calculated: calculated),
+                    displayedComponents: .hourAndMinute
+                )
+                .font(.custom("Nunito-Regular", size: 16))
+                .foregroundStyle(IQColor.textInk)
+
+                if adjustments.isAdjusted(prayer) {
+                    Button("Use calculated time") {
+                        setOffset(0, for: prayer, calculated: calculated)
+                    }
+                    .font(.custom("Nunito-Bold", size: 14))
+                    .foregroundStyle(IQColor.brandPrimary)
+                }
+            }
+            .padding(.vertical, 4)
+            .listRowBackground(IQColor.bgCard)
+        }
+    }
+
+    private func binding(for prayer: PrayerName, calculated: Date) -> Binding<Date> {
+        Binding(
+            get: {
+                pickedTimes[prayer]
+                    ?? PrayerTimeOffsetMath.adjustedTime(
+                        calculated: calculated,
+                        offsetMinutes: adjustments.offset(for: prayer)
+                    )
+            },
+            set: { newValue in
+                pickedTimes[prayer] = newValue
+                let offset = PrayerTimeOffsetMath.offsetMinutes(from: calculated, to: newValue)
+                setOffset(offset, for: prayer, calculated: calculated)
+            }
+        )
+    }
+
+    private func loadState() {
+        adjustments = PrayerTimeSettings.load(profile: profile, store: appModel.store)
+        pickedTimes = [:]
+    }
+
+    private func setOffset(_ offset: Int, for prayer: PrayerName, calculated: Date) {
+        adjustments.setOffset(offset, for: prayer)
+        pickedTimes[prayer] = PrayerTimeOffsetMath.adjustedTime(
+            calculated: calculated,
+            offsetMinutes: offset
+        )
+        persistAdjustments()
+    }
+
+    private func resetAll() {
+        adjustments.resetAll()
+        pickedTimes = [:]
+        persistAdjustments()
+    }
+
+    private func persistAdjustments() {
+        appModel.applyPrayerTimeAdjustments(adjustments, profile: profile, context: modelContext)
+    }
+
+    private func saveAndDismiss() {
+        persistAdjustments()
+        dismiss()
+    }
+
+    private func offsetLabel(for prayer: PrayerName) -> String {
+        let offset = adjustments.offset(for: prayer)
+        let sign = offset > 0 ? "+" : ""
+        return "\(sign)\(offset) min"
     }
 }
 

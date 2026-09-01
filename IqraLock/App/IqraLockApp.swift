@@ -52,8 +52,8 @@ final class AppModel {
     var hasCompletedOnboarding: Bool
     var showReader: Bool = false
     var pendingDeepLink: URL?
-    /// Bumped whenever the prayer city changes so views that read App Group coords refresh.
-    var prayerCityVersion = 0
+    /// Bumped whenever the prayer city or time adjustments change so views refresh.
+    var prayerScheduleVersion = 0
 
     let analytics: AnalyticsService
     let purchases: PurchaseService
@@ -229,14 +229,26 @@ final class AppModel {
         }
         notifications.schedulePrayerNotifications(
             latitude: coords.latitude,
-            longitude: coords.longitude
+            longitude: coords.longitude,
+            adjustments: PrayerTimeSettings.load(profile: profile, store: store)
         )
     }
 
     func applyPrayerCity(_ city: PrayerCity, profile: UserProfile?, context: ModelContext) {
         PrayerCitySelection.save(city, profile: profile, store: store)
         try? context.save()
-        prayerCityVersion += 1
+        prayerScheduleVersion += 1
+    }
+
+    func applyPrayerTimeAdjustments(
+        _ adjustments: PrayerTimeAdjustments,
+        profile: UserProfile?,
+        context: ModelContext
+    ) {
+        PrayerTimeSettings.save(adjustments, profile: profile, store: store)
+        try? context.save()
+        prayerScheduleVersion += 1
+        schedulePrayerNotificationsIfEnabled(context: context)
     }
 }
 

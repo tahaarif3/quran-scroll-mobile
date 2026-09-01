@@ -7,7 +7,11 @@ public protocol NotificationScheduling: AnyObject, Sendable {
     func scheduleStreakAtRiskIfNeeded(goalMet: Bool)
     func scheduleAppsUnlocked()
     func scheduleReadPromptFromShield()
-    func schedulePrayerNotifications(latitude: Double, longitude: Double)
+    func schedulePrayerNotifications(
+        latitude: Double,
+        longitude: Double,
+        adjustments: PrayerTimeAdjustments
+    )
     func cancelPrayerNotifications()
 }
 
@@ -64,9 +68,17 @@ public final class LocalNotificationScheduler: NotificationScheduling, @unchecke
         AppGroupStore.shared.pendingDeepLink = "iqralock://read"
     }
 
-    public func schedulePrayerNotifications(latitude: Double, longitude: Double) {
+    public func schedulePrayerNotifications(
+        latitude: Double,
+        longitude: Double,
+        adjustments: PrayerTimeAdjustments = .none
+    ) {
         cancelPrayerNotifications()
-        let times = PrayerTimesCalculator.compute(latitude: latitude, longitude: longitude)
+        let times = PrayerTimesResolver.resolve(
+            latitude: latitude,
+            longitude: longitude,
+            adjustments: adjustments
+        )
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
         for (prayer, date) in times.ordered {

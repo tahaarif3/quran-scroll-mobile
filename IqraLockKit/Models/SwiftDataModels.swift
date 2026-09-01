@@ -19,6 +19,8 @@ public final class UserProfile {
     public var prayerLongitude: Double
     public var prayerCityId: String
     public var prayerNotificationsEnabled: Bool
+    /// JSON-encoded `PrayerTimeAdjustments` — minute offsets per prayer.
+    public var prayerTimeOffsetsJSON: String
     public var shieldLayoutModeRaw: String
     public var onboardingCompletedAt: Date?
     public var createdAt: Date
@@ -40,6 +42,7 @@ public final class UserProfile {
         self.prayerLongitude = 0
         self.prayerCityId = ""
         self.prayerNotificationsEnabled = false
+        self.prayerTimeOffsetsJSON = ""
         self.shieldLayoutModeRaw = ShieldLayoutMode.arabicAndTranslation.rawValue
         self.onboardingCompletedAt = draft.onboardingCompletedAt
         self.createdAt = Date()
@@ -66,6 +69,7 @@ public final class UserProfile {
         self.prayerLongitude = 0
         self.prayerCityId = ""
         self.prayerNotificationsEnabled = false
+        self.prayerTimeOffsetsJSON = ""
         self.shieldLayoutModeRaw = ShieldLayoutMode.arabicAndTranslation.rawValue
         self.onboardingCompletedAt = nil
         self.createdAt = Date()
