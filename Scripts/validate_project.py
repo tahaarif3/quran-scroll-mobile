@@ -6,16 +6,48 @@ Catches resource and wiring problems before the expensive macOS build:
 - App Group keys included in debug reset
 - NotificationScheduling conformers implement every protocol method
 - test files exist for new feature areas
+- risky source files changed in a PR must touch paired test files (--pr-diff)
 """
 
 from __future__ import annotations
 
+import argparse
 import re
 import sqlite3
+import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# When a risky source file changes, at least one paired test file must change too.
+RISKY_SOURCE_TO_TESTS: dict[str, list[str]] = {
+    "IqraLockKit/Prayer/PrayerTimesCalculator.swift": [
+        "Tests/IqraLockKitTests/PrayerTimesCalculatorTests.swift",
+    ],
+    "IqraLockKit/Prayer/PrayerTimeAdjustments.swift": [
+        "Tests/IqraLockKitTests/PrayerTimeAdjustmentsTests.swift",
+    ],
+    "IqraLockKit/Prayer/PrayerCityCatalog.swift": [
+        "Tests/IqraLockKitTests/PrayerCityCatalogTests.swift",
+    ],
+    "IqraLockKit/SharedState/AppGroupStore.swift": [
+        "Tests/IqraLockKitTests/ShieldLayoutPresentationTests.swift",
+        "Tests/IqraLockKitTests/PrayerTimeAdjustmentsTests.swift",
+        "Tests/IqraLockKitTests/PrayerCityCatalogTests.swift",
+        "Tests/IqraLockKitTests/DailyProgressSyncTests.swift",
+    ],
+    "IqraLockKit/Notifications/NotificationScheduling.swift": [
+        "Tests/IqraLockKitTests/PrayerNotificationSchedulingTests.swift",
+    ],
+    "IqraLockKit/Quran/ShieldLayoutPresentation.swift": [
+        "Tests/IqraLockKitTests/ShieldLayoutPresentationTests.swift",
+    ],
+    "IqraLockKit/ScreenTime/ShieldLayoutMode.swift": [
+        "Tests/IqraLockKitTests/ShieldLayoutPresentationTests.swift",
+    ],
+}
 
 
 def fail(msg: str) -> None:
@@ -24,6 +56,57 @@ def fail(msg: str) -> None:
 
 def ok(msg: str) -> None:
     print(f"  ok   {msg}")
+
+
+def git_changed_files(base: str) -> set[str]:
+    """Return repo-relative paths changed between base and HEAD."""
+    for merge_base in (base, f"origin/{base}"):
+        result = subprocess.run(
+            ["git", "merge-base", merge_base, "HEAD"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            diff_base = result.stdout.strip()
+            break
+    else:
+        diff_base = base
+
+    result = subprocess.run(
+        ["git", "diff", "--name-only", f"{diff_base}...HEAD"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        fail(f"git diff failed: {result.stderr.strip()}")
+        return set()
+    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
+
+
+def check_pr_test_pairs(base: str) -> list[str]:
+    errors: list[str] = []
+    changed = git_changed_files(base)
+    if not changed:
+        ok("no changed files (skipping risky-pair check)")
+        return errors
+
+    print(f"  diff base: {base} ({len(changed)} changed file(s))")
+    for source, required_tests in RISKY_SOURCE_TO_TESTS.items():
+        if source not in changed:
+            continue
+        if any(test in changed for test in required_tests):
+            ok(f"{source} → test updated")
+        else:
+            tests_list = ", ".join(required_tests)
+            errors.append(
+                f"{source} changed but no paired test file changed "
+                f"(expected one of: {tests_list})"
+            )
+    if not errors and not any(s in changed for s in RISKY_SOURCE_TO_TESTS):
+        ok("no risky source files in diff")
+    return errors
 
 
 def check_fonts() -> list[str]:
@@ -142,8 +225,21 @@ def check_feature_tests() -> list[str]:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Validate IqraLock project wiring and tests.")
+    parser.add_argument(
+        "--pr-diff",
+        action="store_true",
+        help="Fail if risky source files changed without paired test file updates.",
+    )
+    parser.add_argument(
+        "--base",
+        default="main",
+        help="Git base ref for --pr-diff (default: main).",
+    )
+    args = parser.parse_args()
+
     print("Validating IqraLock project…\n")
-    sections = [
+    sections: list[tuple[str, Callable[[], list[str]]]] = [
         ("Fonts", check_fonts),
         ("Icons", check_icons),
         ("Qur'an database", check_quran_db),
@@ -151,6 +247,9 @@ def main() -> int:
         ("Notification protocol", check_notification_conformers),
         ("Feature tests", check_feature_tests),
     ]
+    if args.pr_diff:
+        sections.append(("PR risky-pair diff", lambda: check_pr_test_pairs(args.base)))
+
     all_errors: list[str] = []
     for title, fn in sections:
         print(f"[{title}]")

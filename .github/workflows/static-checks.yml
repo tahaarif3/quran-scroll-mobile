@@ -21,12 +21,20 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Verify font PostScript names
         run: python3 Scripts/verify_font_names.py
 
       - name: Validate project resources and wiring
         run: python3 Scripts/validate_project.py
+
+      - name: Require tests when risky source files change
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$BASE" ]; then BASE="origin/main"; fi
+          python3 Scripts/validate_project.py --pr-diff --base "$BASE"
 
       - name: Check XcodeGen project definition
         run: |
@@ -44,6 +52,7 @@ jobs:
             echo "- Font PostScript names verified"
             echo "- Icon assets, Qur'an DB, and App Group keys validated"
             echo "- Feature test files present"
+            echo "- Risky source/test diff pairs OK"
             echo "- project.yml structure OK"
             echo ""
             echo "macOS build + unit tests run in the **iOS Build & Test** workflow."

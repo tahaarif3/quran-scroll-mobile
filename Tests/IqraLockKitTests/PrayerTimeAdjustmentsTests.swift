@@ -41,6 +41,41 @@ final class PrayerTimeAdjustmentsTests: XCTestCase {
         XCTAssertFalse(loaded.isAdjusted(.dhuhr))
     }
 
+    func testSettingsRoundTripThroughProfile() {
+        let profile = UserProfile()
+        var adjustments = PrayerTimeAdjustments.none
+        adjustments.setOffset(4, for: .maghrib)
+
+        PrayerTimeSettings.save(adjustments, profile: profile, store: AppGroupStore(suiteName: "test.profile.\(UUID().uuidString)"))
+        let loaded = PrayerTimeSettings.load(profile: profile, store: AppGroupStore(suiteName: "test.profile.other.\(UUID().uuidString)"))
+
+        XCTAssertEqual(loaded.offset(for: .maghrib), 4)
+    }
+
+    func testReasonableOffsetsKeepPrayerOrder() {
+        let tz = TimeZone(identifier: "America/New_York")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = tz
+        let day = calendar.date(from: DateComponents(year: 2026, month: 9, day: 1))!
+
+        var adjustments = PrayerTimeAdjustments.none
+        adjustments.setOffset(5, for: .dhuhr)
+        adjustments.setOffset(-2, for: .asr)
+
+        let times = PrayerTimesResolver.resolve(
+            date: day,
+            latitude: 33.749,
+            longitude: -84.388,
+            adjustments: adjustments,
+            timeZone: tz
+        )
+
+        let ordered = times.ordered.map(\.1)
+        for index in 1..<ordered.count {
+            XCTAssertLessThan(ordered[index - 1], ordered[index])
+        }
+    }
+
     func testResetClearsOffsets() {
         var adjustments = PrayerTimeAdjustments.none
         adjustments.setOffset(5, for: .asr)
