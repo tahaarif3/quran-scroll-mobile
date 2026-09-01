@@ -128,6 +128,7 @@ def check_feature_tests() -> list[str]:
         "PrayerCityCatalogTests.swift",
         "ShieldLayoutPresentationTests.swift",
         "PrayerNotificationSchedulingTests.swift",
+        "PrayerLogTests.swift",
         "PINStoreTests.swift",
         "ProgressIntegrationTests.swift",
     ]

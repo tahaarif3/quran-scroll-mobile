@@ -21,15 +21,28 @@ struct PrayerTrackerView: View {
         )
     }
 
+    private var todayLog: PrayerLog? {
+        let today = Calendar.current.startOfDay(for: Date())
+        return logs.first { Calendar.current.isDate($0.day, inSameDayAs: today) }
+    }
+
+    private var completedToday: Set<String> {
+        Set(todayLog?.completed ?? [])
+    }
+
+    private var completedCount: Int {
+        PrayerName.allCases.filter { completedToday.contains($0.rawValue) }.count
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if let times {
-                if let next = times.nextPrayer() {
-                    Text("Next: \(next.0.displayName) at \(next.1, format: .dateTime.hour().minute())")
-                        .iqraStyle(.captionStrong, color: IQColor.accentOlive)
-                }
+        VStack(alignment: .leading, spacing: 14) {
+            if times != nil || !PrayerName.allCases.isEmpty {
+                header
                 ForEach(PrayerName.allCases) { prayer in
-                    prayerRow(prayer, time: times.time(for: prayer))
+                    prayerRow(
+                        prayer,
+                        time: times?.time(for: prayer)
+                    )
                 }
             } else {
                 Text("Choose your city in You → Prayer & reminders to see salah times.")
@@ -38,8 +51,33 @@ struct PrayerTrackerView: View {
         }
     }
 
-    private func prayerRow(_ prayer: PrayerName, time: Date) -> some View {
-        let done = isLogged(prayer)
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("\(completedCount) of \(PrayerName.allCases.count) prayed today")
+                    .iqraStyle(.captionStrong, color: IQColor.textInk)
+                Spacer()
+                if completedCount == PrayerName.allCases.count {
+                    Text("Alhamdulillah")
+                        .iqraStyle(.captionStrong, color: IQColor.accentOlive)
+                }
+            }
+
+            if let times, let next = times.nextPrayer() {
+                Text("Next: \(next.0.displayName) at \(next.1, format: .dateTime.hour().minute())")
+                    .iqraStyle(.caption, color: IQColor.textMuted)
+            } else if times == nil {
+                Text("Set your city in You for accurate salah times.")
+                    .iqraStyle(.caption, color: IQColor.textMuted)
+            }
+
+            Text("Tap each prayer when you've prayed it.")
+                .iqraStyle(.caption, color: IQColor.textFaint)
+        }
+    }
+
+    private func prayerRow(_ prayer: PrayerName, time: Date?) -> some View {
+        let done = completedToday.contains(prayer.rawValue)
         return Button {
             toggle(prayer)
         } label: {
@@ -47,47 +85,67 @@ struct PrayerTrackerView: View {
                 ZStack {
                     Circle()
                         .fill(done ? IQColor.accentOlive : IQColor.track)
-                        .frame(width: 28, height: 28)
+                        .frame(width: 32, height: 32)
                     if done {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(.white)
+                    } else {
+                        Image(systemName: "circle")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(IQColor.textFaint)
                     }
                 }
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(prayer.displayName)
                         .iqraStyle(.bodyStrong, color: IQColor.textInk)
-                    Text(time, format: .dateTime.hour().minute())
-                        .iqraStyle(.caption, color: IQColor.textMuted)
+                    if let time {
+                        Text(time, format: .dateTime.hour().minute())
+                            .iqraStyle(.caption, color: IQColor.textMuted)
+                    } else {
+                        Text("Tap to log")
+                            .iqraStyle(.caption, color: IQColor.textMuted)
+                    }
                 }
+
                 Spacer()
+
+                Text(done ? "Logged" : "Log")
+                    .iqraStyle(.captionStrong, color: done ? IQColor.accentOlive : IQColor.brandPrimary)
             }
-            .padding(.vertical, 6)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: IQRadius.md, style: .continuous)
+                    .fill(done ? IQColor.oliveTint : IQColor.bgCard)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: IQRadius.md, style: .continuous)
+                    .stroke(done ? IQColor.accentOlive.opacity(0.35) : IQColor.hairline, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
+        .contentShape(RoundedRectangle(cornerRadius: IQRadius.md, style: .continuous))
+        .accessibilityLabel("\(prayer.displayName), \(done ? "logged" : "not logged")")
+        .accessibilityHint("Double tap to \(done ? "remove" : "log") this prayer")
     }
 
-    private func todayLog() -> PrayerLog {
-        let today = Calendar.current.startOfDay(for: Date())
-        if let existing = logs.first(where: { Calendar.current.isDate($0.day, inSameDayAs: today) }) {
-            return existing
-        }
-        let log = PrayerLog(day: today)
+    private func ensureTodayLog() -> PrayerLog {
+        if let existing = todayLog { return existing }
+        let log = PrayerLog(day: Date())
         modelContext.insert(log)
         return log
     }
 
-    private func isLogged(_ prayer: PrayerName) -> Bool {
-        todayLog().completed.contains(prayer.rawValue)
-    }
-
     private func toggle(_ prayer: PrayerName) {
-        let log = todayLog()
+        let log = ensureTodayLog()
         if log.completed.contains(prayer.rawValue) {
             log.completed.removeAll { $0 == prayer.rawValue }
         } else {
             log.completed.append(prayer.rawValue)
         }
         try? modelContext.save()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 }
