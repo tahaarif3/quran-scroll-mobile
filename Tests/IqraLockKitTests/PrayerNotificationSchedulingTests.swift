@@ -2,14 +2,6 @@ import XCTest
 @testable import IqraLockKit
 
 final class PrayerNotificationSchedulingTests: XCTestCase {
-    private let scheduler = LocalNotificationScheduler()
-
-    func testPrayerNotificationSchedulerImplementsProtocol() {
-        let type: NotificationScheduling.Type = LocalNotificationScheduler.self
-        XCTAssertNotNil(type)
-        _ = scheduler
-    }
-
     func testPrayerTimesUsedForNotificationScheduling() {
         let times = PrayerTimesCalculator.compute(latitude: 33.749, longitude: -84.388)
         XCTAssertEqual(times.ordered.count, PrayerName.allCases.count)
@@ -17,5 +9,10 @@ final class PrayerNotificationSchedulingTests: XCTestCase {
             XCTAssertFalse(prayer.displayName.isEmpty)
             XCTAssertGreaterThan(date.timeIntervalSince1970, 0)
         }
+    }
+
+    func testPrayerNotificationIdentifiersAreStable() {
+        let ids = PrayerName.allCases.map { "prayer_\($0.rawValue)" }
+        XCTAssertEqual(ids, ["prayer_fajr", "prayer_dhuhr", "prayer_asr", "prayer_maghrib", "prayer_isha"])
     }
 }

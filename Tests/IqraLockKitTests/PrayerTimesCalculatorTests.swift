@@ -81,7 +81,7 @@ final class PrayerTimesCalculatorTests: XCTestCase {
     XCTAssertTrue(hour(times.isha, calendar: calendar, in: 18...22))
   }
 
-    private func hour(_ date: Date, calendar: Calendar, in range: ClosedRange<Int>) -> Bool {
+  private func hour(_ date: Date, calendar: Calendar, in range: ClosedRange<Int>) -> Bool {
     let hour = calendar.component(.hour, from: date)
     return range.contains(hour)
   }
