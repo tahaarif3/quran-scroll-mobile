@@ -7,8 +7,15 @@ struct PrayerTrackerView: View {
     @Query private var profiles: [UserProfile]
     @Query(sort: \PrayerLog.day, order: .reverse) private var logs: [PrayerLog]
 
-    @State private var times: PrayerTimes?
     private var profile: UserProfile? { profiles.first }
+
+    private var times: PrayerTimes? {
+        guard let profile, let coords = profile.prayerCoordinates else { return nil }
+        return PrayerTimesCalculator.compute(
+            latitude: coords.latitude,
+            longitude: coords.longitude
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -25,7 +32,6 @@ struct PrayerTrackerView: View {
                     .iqraStyle(.body, color: IQColor.textMuted)
             }
         }
-        .onAppear { refreshTimes() }
     }
 
     private func prayerRow(_ prayer: PrayerName, time: Date) -> some View {
@@ -55,17 +61,6 @@ struct PrayerTrackerView: View {
             .padding(.vertical, 6)
         }
         .buttonStyle(.plain)
-    }
-
-    private func refreshTimes() {
-        guard let profile, let coords = profile.prayerCoordinates else {
-            times = nil
-            return
-        }
-        times = PrayerTimesCalculator.compute(
-            latitude: coords.latitude,
-            longitude: coords.longitude
-        )
     }
 
     private func todayLog() -> PrayerLog {

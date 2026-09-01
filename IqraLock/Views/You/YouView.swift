@@ -247,8 +247,10 @@ struct YouView: View {
                 prayerCityID = nearest.id
                 profile.applyPrayerCity(nearest)
                 try? modelContext.save()
-            } else if prayerCityID.isEmpty {
-                prayerCityID = PrayerCityCatalog.defaultCityID
+            } else if prayerCityID.isEmpty, let defaultCity = PrayerCityCatalog.city(id: PrayerCityCatalog.defaultCityID) {
+                prayerCityID = defaultCity.id
+                profile.applyPrayerCity(defaultCity)
+                try? modelContext.save()
             }
         }
     }
