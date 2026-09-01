@@ -108,7 +108,11 @@ public enum PrayerTimesCalculator {
         let l = q + 0.0172 * sin(g) + 0.0033 * sin(2 * g)
         let e = (23.439 - 0.00000036 * d) * .pi / 180
         let ra = atan2(cos(e) * sin(l), cos(l)) * 180 / .pi
-        return (q * 180 / .pi - ra).truncatingRemainder(dividingBy: 360) / 15 * 60
+        // Normalize to (-180, 180]. Using % 360 on a small negative delta wrongly jumps to ~360°.
+        var diff = q * 180 / .pi - ra
+        while diff > 180 { diff -= 360 }
+        while diff <= -180 { diff += 360 }
+        return diff / 15 * 60
     }
 
     private static func solarNoon(
@@ -135,14 +139,13 @@ public enum PrayerTimesCalculator {
         decl: Double, eqt: Double, latitude: Double, longitude: Double,
         tzHours: Double, day: Date, calendar: Calendar
     ) -> Date {
+        // Standard Shafi'i / MWL shadow factor (1): time = noon + arccot(1 + tan|φ − δ|) / 15
+        let factor = 1.0
         let latRad = latitude * .pi / 180
         let declRad = decl * .pi / 180
-        let cot = 1 + tan(abs(latRad - declRad))
-        let angle = atan(1 / cot) * 180 / .pi
-        return timeForAngle(
-            angle: 90 - angle, decl: decl, eqt: eqt, latitude: latitude, longitude: longitude,
-            tzHours: tzHours, day: day, calendar: calendar, morning: false
-        )
+        let noon = 720 - 4 * longitude - eqt + tzHours * 60
+        let hourOffset = atan(1 / (factor + tan(abs(latRad - declRad)))) * 180 / .pi / 15
+        return timeOnDay(day, minutes: noon + hourOffset * 60, calendar: calendar)
     }
 
     private static func timeOnDay(_ day: Date, minutes: Double, calendar: Calendar) -> Date {
