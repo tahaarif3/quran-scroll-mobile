@@ -1,9 +1,13 @@
 import SwiftUI
+import SwiftData
 import IqraLockKit
 
 struct PrayerCityPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @Binding var selectedCityID: String
+    var profile: UserProfile?
+    var onCitySelected: (() -> Void)?
     @State private var query = ""
 
     private var results: [PrayerCity] {
@@ -14,15 +18,16 @@ struct PrayerCityPickerSheet: View {
         NavigationStack {
             List(results) { city in
                 Button {
-                    selectedCityID = city.id
-                    dismiss()
+                    select(city)
                 } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(city.name)
-                                .iqraStyle(.bodyStrong, color: IQColor.textInk)
+                                .font(.custom("Nunito-Bold", size: 17))
+                                .foregroundStyle(IQColor.textInk)
                             Text(city.region)
-                                .iqraStyle(.caption, color: IQColor.textMuted)
+                                .font(.custom("Nunito-Regular", size: 14))
+                                .foregroundStyle(IQColor.textMuted2)
                         }
                         Spacer()
                         if city.id == selectedCityID {
@@ -32,16 +37,32 @@ struct PrayerCityPickerSheet: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .listRowBackground(IQColor.bgCard)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(IQColor.bgSand.ignoresSafeArea())
             .searchable(text: $query, prompt: "Search your city")
             .navigationTitle("Nearby city")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
+                        .foregroundStyle(IQColor.brandPrimary)
                 }
             }
+            .toolbarBackground(IQColor.bgSand, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
         }
+        .preferredColorScheme(.light)
+    }
+
+    private func select(_ city: PrayerCity) {
+        selectedCityID = city.id
+        profile?.applyPrayerCity(city)
+        try? modelContext.save()
+        onCitySelected?()
+        dismiss()
     }
 }
 
@@ -93,7 +114,11 @@ struct YouPrayerSettingsSection: View {
             Text("Salah times are calculated for your city. No coordinates needed.")
         }
         .sheet(isPresented: $showCityPicker) {
-            PrayerCityPickerSheet(selectedCityID: $prayerCityID)
+            PrayerCityPickerSheet(
+                selectedCityID: $prayerCityID,
+                profile: profile,
+                onCitySelected: reschedulePrayerNotificationsIfNeeded
+            )
         }
         .onChange(of: prayerCityID) { _, newID in
             guard let city = PrayerCityCatalog.city(id: newID) else { return }
