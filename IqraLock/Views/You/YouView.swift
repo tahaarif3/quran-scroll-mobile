@@ -22,6 +22,8 @@ struct YouView: View {
     @State private var ayahMinutes: Int = 30
     @State private var prayerCityID: String = ""
     @State private var prayerNotifications = false
+    @State private var shieldLayoutMode: ShieldLayoutMode = .arabicAndTranslation
+    @State private var showShieldPreview = false
     #if canImport(FamilyControls)
     @State private var activitySelection = FamilyActivitySelection()
     @State private var showActivityPicker = false
@@ -42,6 +44,11 @@ struct YouView: View {
                     prayerCityID: $prayerCityID,
                     profile: profile
                 )
+                YouShieldLayoutSection(
+                    shieldLayoutMode: $shieldLayoutMode,
+                    showShieldPreview: $showShieldPreview,
+                    profile: profile
+                )
                 focusSection
                 YouFamilySection(showPINSetup: $showPINSetup)
                 legalSection
@@ -58,6 +65,7 @@ struct YouView: View {
                 showScreenTimeSetup: $showScreenTimeSetup,
                 showDisconnectConfirm: $showDisconnectConfirm,
                 showAbout: $showAbout,
+                showShieldPreview: $showShieldPreview,
                 pendingProtectedAction: $pendingProtectedAction,
                 appModel: appModel,
                 modelContext: modelContext
@@ -229,6 +237,8 @@ struct YouView: View {
         goalAyahs = appModel.store.dailyGoalAyahs
         ayahMinutes = appModel.store.ayahUnlockMinutes
         prayerNotifications = profile?.prayerNotificationsEnabled ?? false
+        shieldLayoutMode = profile?.shieldLayoutMode ?? appModel.store.shieldLayoutMode
+        appModel.store.shieldLayoutMode = shieldLayoutMode
 
         if let profile {
             if !profile.prayerCityId.isEmpty {
@@ -261,6 +271,7 @@ private struct YouViewSheets: ViewModifier {
     @Binding var showScreenTimeSetup: Bool
     @Binding var showDisconnectConfirm: Bool
     @Binding var showAbout: Bool
+    @Binding var showShieldPreview: Bool
     @Binding var pendingProtectedAction: (() -> Void)?
     let appModel: AppModel
     let modelContext: ModelContext
@@ -293,6 +304,7 @@ private struct YouViewSheets: ViewModifier {
             }
             .sheet(isPresented: $showScreenTimeSetup) { ScreenTimeSetupView() }
             .sheet(isPresented: $showAbout) { AboutView() }
+            .sheet(isPresented: $showShieldPreview) { ShieldPreviewView() }
             .confirmationDialog("Turn off app blocking?", isPresented: $showDisconnectConfirm, titleVisibility: .visible) {
                 Button("Turn off blocking", role: .destructive) {
                     Task { await appModel.screenTime.disconnect() }

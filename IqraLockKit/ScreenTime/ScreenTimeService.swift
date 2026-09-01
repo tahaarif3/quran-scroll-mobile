@@ -23,6 +23,8 @@ public protocol ScreenTimeService: AnyObject, Sendable {
     func persistSelectionCount(_ count: Int)
     func applyShield()
     func clearShield()
+    /// Clears and re-applies the shield so configuration extensions reload immediately.
+    func refreshShieldAppearance()
     func scheduleMidnightReset()
     /// Re-applies the shield when a timed unlock window expires. ManagedSettings has no expiry
     /// of its own, so without this a window lasts until something else puts the shield back.
@@ -173,6 +175,21 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         #endif
     }
 
+    public func refreshShieldAppearance() {
+        #if canImport(FamilyControls)
+        guard let managedSettings,
+              let selection = FamilyActivitySelectionStore.load(from: store) else { return }
+        managedSettings.shield.applications = nil
+        managedSettings.shield.applicationCategories = nil
+        managedSettings.shield.applications = selection.applicationTokens.isEmpty
+            ? nil
+            : selection.applicationTokens
+        managedSettings.shield.applicationCategories = selection.categoryTokens.isEmpty
+            ? nil
+            : .specific(selection.categoryTokens)
+        #endif
+    }
+
     public func scheduleMidnightReset() {
         #if canImport(FamilyControls)
         guard ScreenTimeAvailability.isSupported, authStatus == .approved else { return }
@@ -301,6 +318,13 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
     public func clearShield() {
         isShielded = false
         store.isLockedNow = false
+    }
+
+    public func refreshShieldAppearance() {
+        if isShielded {
+            isShielded = false
+            isShielded = true
+        }
     }
 
     public func scheduleMidnightReset() {}

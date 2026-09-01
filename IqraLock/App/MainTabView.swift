@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import IqraLockKit
 import UIKit
 
@@ -8,6 +9,7 @@ enum MainTab: Hashable {
 
 struct MainTabView: View {
     @Environment(AppModel.self) private var appModel
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: MainTab = .today
     @State private var showScreenTimeSetup = false
@@ -35,10 +37,12 @@ struct MainTabView: View {
         .onAppear {
             configureTabBar()
             promptForScreenTimeIfNeeded()
+            appModel.schedulePrayerNotificationsIfEnabled(context: modelContext)
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             promptForScreenTimeIfNeeded()
+            appModel.schedulePrayerNotificationsIfEnabled(context: modelContext)
         }
         .sheet(isPresented: $showScreenTimeSetup) {
             ScreenTimeSetupView(isReminder: true)

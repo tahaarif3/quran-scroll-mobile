@@ -133,6 +133,51 @@ struct YouPrayerSettingsSection: View {
     }
 }
 
+struct YouShieldLayoutSection: View {
+    @Environment(AppModel.self) private var appModel
+    @Environment(\.modelContext) private var modelContext
+    @Binding var shieldLayoutMode: ShieldLayoutMode
+    @Binding var showShieldPreview: Bool
+    var profile: UserProfile?
+
+    var body: some View {
+        Section {
+            Picker("Lock screen layout", selection: $shieldLayoutMode) {
+                ForEach(ShieldLayoutMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .onChange(of: shieldLayoutMode) { _, newMode in
+                applyLayout(newMode)
+            }
+
+            Button {
+                showShieldPreview = true
+            } label: {
+                HStack {
+                    Text("Preview lock screens")
+                        .foregroundStyle(IQColor.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(IQColor.textFaint)
+                }
+            }
+        } header: {
+            Text("Lock screen")
+        } footer: {
+            Text(shieldLayoutMode.detail)
+        }
+    }
+
+    private func applyLayout(_ mode: ShieldLayoutMode) {
+        appModel.store.shieldLayoutMode = mode
+        profile?.shieldLayoutMode = mode
+        try? modelContext.save()
+        appModel.shield.refreshShieldAppearance()
+    }
+}
+
 struct YouFamilySection: View {
     @Binding var showPINSetup: Bool
 

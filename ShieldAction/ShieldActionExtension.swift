@@ -38,14 +38,35 @@ final class ShieldActionExtension: ShieldActionDelegate {
     ) {
         switch action {
         case .primaryButtonPressed:
-            // "Open <app>" — credit the ayah, then spend it and get out of the way.
-            completionHandler(readAyah(thenContinue: true))
+            if store.shieldLayoutMode == .none {
+                completionHandler(openAppToRead())
+            } else {
+                completionHandler(readAyah(thenContinue: true))
+            }
         case .secondaryButtonPressed:
-            // "Read another ayah" — credit it and stay put, so the next one is served.
-            completionHandler(readAyah(thenContinue: false))
+            if store.shieldLayoutMode == .none {
+                completionHandler(.close)
+            } else {
+                completionHandler(readAyah(thenContinue: false))
+            }
         @unknown default:
             completionHandler(.close)
         }
+    }
+
+    /// Opens IqraLock via a deep-link notification — the shield cannot launch the host app directly.
+    private func openAppToRead() -> ShieldActionResponse {
+        store.pendingDeepLink = "iqralock://read"
+        let content = UNMutableNotificationContent()
+        content.title = "Ready to read?"
+        content.body = "Tap to open IqraLock and read today's ayah."
+        content.userInfo = ["deepLink": "iqralock://read"]
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.4, repeats: false)
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: "shield_read_prompt", content: content, trigger: trigger)
+        )
+        return .close
     }
 
     /// Credits one ayah, and either spends it on access or banks it and serves another.

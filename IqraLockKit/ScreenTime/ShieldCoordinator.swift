@@ -51,6 +51,11 @@ public final class ShieldCoordinator: @unchecked Sendable {
         }
     }
 
+    public func refreshShieldAppearance() {
+        guard store.isLockedNow, store.selectedAppsCount > 0 else { return }
+        screenTime.refreshShieldAppearance()
+    }
+
     public func lockSelectedApps() {
         store.isLockedNow = true
         screenTime.applyShield()
