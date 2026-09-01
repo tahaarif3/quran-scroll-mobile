@@ -52,6 +52,8 @@ final class AppModel {
     var hasCompletedOnboarding: Bool
     var showReader: Bool = false
     var pendingDeepLink: URL?
+    /// Bumped whenever the prayer city changes so views that read App Group coords refresh.
+    var prayerCityVersion = 0
 
     let analytics: AnalyticsService
     let purchases: PurchaseService
@@ -219,9 +221,9 @@ final class AppModel {
 
     func schedulePrayerNotificationsIfEnabled(context: ModelContext) {
         let descriptor = FetchDescriptor<UserProfile>()
-        guard let profile = try? context.fetch(descriptor).first,
-              profile.prayerNotificationsEnabled,
-              let coords = profile.prayerCoordinates else {
+        let profile = try? context.fetch(descriptor).first
+        guard profile?.prayerNotificationsEnabled == true,
+              let coords = PrayerCitySelection.coordinates(profile: profile, store: store) else {
             notifications.cancelPrayerNotifications()
             return
         }
@@ -229,6 +231,12 @@ final class AppModel {
             latitude: coords.latitude,
             longitude: coords.longitude
         )
+    }
+
+    func applyPrayerCity(_ city: PrayerCity, profile: UserProfile?, context: ModelContext) {
+        PrayerCitySelection.save(city, profile: profile, store: store)
+        try? context.save()
+        prayerCityVersion += 1
     }
 }
 

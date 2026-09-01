@@ -115,3 +115,32 @@ public extension UserProfile {
         prayerLongitude = city.longitude
     }
 }
+
+/// Saves and reads the selected prayer city across SwiftData and the App Group.
+public enum PrayerCitySelection {
+    public static func save(
+        _ city: PrayerCity,
+        profile: UserProfile?,
+        store: AppGroupStore = .shared
+    ) {
+        store.prayerCityId = city.id
+        profile?.applyPrayerCity(city)
+    }
+
+    public static func coordinates(
+        profile: UserProfile?,
+        store: AppGroupStore = .shared
+    ) -> (latitude: Double, longitude: Double)? {
+        profile?.prayerCoordinates ?? store.prayerCoordinates
+    }
+
+    public static func selectedCity(
+        profile: UserProfile?,
+        store: AppGroupStore = .shared
+    ) -> PrayerCity? {
+        if let profile, let city = profile.selectedPrayerCity {
+            return city
+        }
+        return PrayerCityCatalog.city(id: store.prayerCityId)
+    }
+}

@@ -3,6 +3,7 @@ import SwiftData
 import IqraLockKit
 
 struct PrayerTrackerView: View {
+    @Environment(AppModel.self) private var appModel
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [UserProfile]
     @Query(sort: \PrayerLog.day, order: .reverse) private var logs: [PrayerLog]
@@ -10,7 +11,10 @@ struct PrayerTrackerView: View {
     private var profile: UserProfile? { profiles.first }
 
     private var times: PrayerTimes? {
-        guard let profile, let coords = profile.prayerCoordinates else { return nil }
+        _ = appModel.prayerCityVersion
+        guard let coords = PrayerCitySelection.coordinates(profile: profile, store: appModel.store) else {
+            return nil
+        }
         return PrayerTimesCalculator.compute(
             latitude: coords.latitude,
             longitude: coords.longitude

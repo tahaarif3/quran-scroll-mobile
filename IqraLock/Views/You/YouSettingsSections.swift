@@ -4,6 +4,7 @@ import IqraLockKit
 
 struct PrayerCityPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var appModel
     @Environment(\.modelContext) private var modelContext
     @Binding var selectedCityID: String
     var profile: UserProfile?
@@ -59,8 +60,7 @@ struct PrayerCityPickerSheet: View {
 
     private func select(_ city: PrayerCity) {
         selectedCityID = city.id
-        profile?.applyPrayerCity(city)
-        try? modelContext.save()
+        appModel.applyPrayerCity(city, profile: profile, context: modelContext)
         onCitySelected?()
         dismiss()
     }
@@ -122,8 +122,7 @@ struct YouPrayerSettingsSection: View {
         }
         .onChange(of: prayerCityID) { _, newID in
             guard let city = PrayerCityCatalog.city(id: newID) else { return }
-            profile?.applyPrayerCity(city)
-            try? modelContext.save()
+            appModel.applyPrayerCity(city, profile: profile, context: modelContext)
             reschedulePrayerNotificationsIfNeeded()
         }
     }

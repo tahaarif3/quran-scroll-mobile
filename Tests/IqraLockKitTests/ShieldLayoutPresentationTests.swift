@@ -78,4 +78,11 @@ final class ShieldLayoutPresentationTests: XCTestCase {
         store.shieldLayoutMode = .translationOnly
         XCTAssertEqual(store.shieldLayoutMode, .translationOnly)
     }
+
+    func testAppGroupPrayerCityProvidesCoordinates() {
+        let store = AppGroupStore(suiteName: "test.prayer.city.\(UUID().uuidString)")
+        store.prayerCityId = "atlanta-ga"
+        XCTAssertNotNil(store.prayerCoordinates)
+        XCTAssertNotNil(PrayerCitySelection.coordinates(profile: nil, store: store))
+    }
 }

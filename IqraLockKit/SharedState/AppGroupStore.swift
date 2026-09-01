@@ -46,6 +46,20 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let cachedAyahs = "cachedAyahs"
         public static let dailyGoalAyahs = "dailyGoalAyahs"
         public static let shieldLayoutMode = "shieldLayoutMode"
+        public static let prayerCityId = "prayerCityId"
+    }
+
+    /// Selected city for prayer times — App Group so Progress tab and extensions see it immediately.
+    public var prayerCityId: String {
+        get { defaults.string(forKey: Key.prayerCityId) ?? "" }
+        set { defaults.set(newValue, forKey: Key.prayerCityId) }
+    }
+
+    public var prayerCoordinates: (latitude: Double, longitude: Double)? {
+        if let city = PrayerCityCatalog.city(id: prayerCityId) {
+            return (city.latitude, city.longitude)
+        }
+        return nil
     }
 
     public var shieldLayoutMode: ShieldLayoutMode {
@@ -511,7 +525,7 @@ public final class AppGroupStore: @unchecked Sendable {
             Key.ayahsReadToday, Key.ayahsPerPage, Key.lastAyahReadAt,
             Key.ayahUnlockMinutes, Key.ayahRejectedAt, Key.totalPagesRead,
             Key.khatmCount, Key.khatmCursor, Key.shieldSegmentIndex,
-            Key.cachedAyahs, Key.dailyGoalAyahs, Key.shieldLayoutMode
+            Key.cachedAyahs, Key.dailyGoalAyahs, Key.shieldLayoutMode, Key.prayerCityId
         ] {
             defaults.removeObject(forKey: key)
         }
