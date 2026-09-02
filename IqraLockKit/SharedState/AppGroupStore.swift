@@ -39,6 +39,7 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let totalPagesRead = "totalPagesRead"
         public static let khatmCount = "khatmCount"
         public static let khatmCursor = "khatmCursor"
+        public static let readerResumeGlobalID = "readerResumeGlobalID"
         public static let shieldSegmentIndex = "shieldSegmentIndex"
         public static let sittingsToday = "sittingsToday"
         public static let khatmRecords = "khatmRecords"
@@ -187,6 +188,17 @@ public final class AppGroupStore: @unchecked Sendable {
         advanceKhatmCursor(by: id - khatmCursor)
     }
 
+    /// Reader/Home resume point — independent of khatm cursor so browsing does not snap back.
+    public var readerResumeGlobalID: Int {
+        get { defaults.integer(forKey: Key.readerResumeGlobalID) }
+        set {
+            defaults.set(
+                min(max(0, newValue), Self.ayahsInMushaf),
+                forKey: Key.readerResumeGlobalID
+            )
+        }
+    }
+
     /// Which piece of a segmented ayah the shield is currently showing. Resets to zero when the
     /// final segment is read and the cursor moves on.
     public var shieldSegmentIndex: Int {
@@ -297,7 +309,7 @@ public final class AppGroupStore: @unchecked Sendable {
     public var dailyGoalAyahs: Int {
         get {
             let v = defaults.integer(forKey: Key.dailyGoalAyahs)
-            return v > 0 ? v : 3 * ayahsPerPage
+            return v > 0 ? v : 1
         }
         set { defaults.set(max(1, newValue), forKey: Key.dailyGoalAyahs) }
     }
@@ -533,7 +545,7 @@ public final class AppGroupStore: @unchecked Sendable {
             Key.launchInProgress, Key.consecutiveLaunchFailures,
             Key.ayahsReadToday, Key.ayahsPerPage, Key.lastAyahReadAt,
             Key.ayahUnlockMinutes, Key.ayahRejectedAt, Key.totalPagesRead,
-            Key.khatmCount, Key.khatmCursor, Key.shieldSegmentIndex,
+            Key.khatmCount, Key.khatmCursor, Key.readerResumeGlobalID, Key.shieldSegmentIndex,
             Key.cachedAyahs, Key.dailyGoalAyahs, Key.shieldLayoutMode, Key.prayerCityId,
             Key.prayerTimeAdjustments
         ] {

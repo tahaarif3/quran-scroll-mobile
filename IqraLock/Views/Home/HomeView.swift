@@ -10,6 +10,7 @@ struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [UserProfile]
     @Query(sort: \DailyRecord.day, order: .reverse) private var records: [DailyRecord]
+    @Query(sort: \PrayerLog.day, order: .reverse) private var prayerLogs: [PrayerLog]
 
     @State private var ayah: Ayah?
     @State private var needsReadConfirmation = false
@@ -25,7 +26,11 @@ struct HomeView: View {
 
     private var stats: HabitStats {
         HabitStatsCalculator.compute(
-            records: DailyProgressSync.recordsIncludingToday(stored: records, store: store)
+            records: DailyProgressSync.recordsIncludingToday(
+                stored: records,
+                store: store,
+                prayerLogs: prayerLogs
+            )
         )
     }
 
@@ -66,6 +71,7 @@ struct HomeView: View {
             .onAppear {
                 revision += 1
                 appModel.syncDailyProgress(context: modelContext)
+                Task { await loadAyah() }
             }
             .sheet(isPresented: $needsReadConfirmation) {
                 AyahReadConfirmationSheet(
@@ -95,7 +101,7 @@ struct HomeView: View {
     }
 
     private var continueLabel: String {
-        store.khatmCursor > 1 || store.totalAyahsToday > 0
+        ReaderResume.resumeGlobalID(store: store) > 1 || store.totalAyahsToday > 0
             ? "CONTINUE WHERE YOU LEFT OFF"
             : "START HERE"
     }
@@ -196,6 +202,7 @@ struct HomeView: View {
             return
         }
         store.advanceKhatmCursor()
+        ReaderResume.save(globalID: store.khatmCursor, store: store)
         justRead = true
         revision += 1
         appModel.syncDailyProgress(
@@ -217,6 +224,7 @@ struct HomeView: View {
 
     private func loadAyah() async {
         guard let repository else { return }
-        ayah = try? repository.ayah(globalID: store.khatmCursor)
+        let resumeID = ReaderResume.resumeGlobalID(store: store)
+        ayah = try? repository.ayah(globalID: resumeID)
     }
 }

@@ -37,4 +37,18 @@ final class PrayerNotificationSchedulingTests: XCTestCase {
         let ids = PrayerName.allCases.map { "prayer_\($0.rawValue)" }
         XCTAssertEqual(ids, ["prayer_fajr", "prayer_dhuhr", "prayer_asr", "prayer_maghrib", "prayer_isha"])
     }
+
+    func testStreakAtRiskOnlyNeededWhenGoalUnmet() {
+        // Mirrors scheduleStreakAtRiskIfNeeded(goalMet:) without touching UNUserNotificationCenter,
+        // which crashes xctest bundles with bundleProxyForCurrentProcess nil in CI.
+        XCTAssertFalse(
+            PrayerProgressSync.contributesToStreak(readingGoalMet: false, prayersLogged: false)
+        )
+        XCTAssertTrue(
+            PrayerProgressSync.contributesToStreak(readingGoalMet: true, prayersLogged: false)
+        )
+        XCTAssertTrue(
+            PrayerProgressSync.contributesToStreak(readingGoalMet: false, prayersLogged: true)
+        )
+    }
 }

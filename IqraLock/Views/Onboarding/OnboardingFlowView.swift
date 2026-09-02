@@ -769,10 +769,13 @@ struct OnboardingFlowView: View {
             for duplicate in (existing ?? []).dropFirst() {
                 modelContext.delete(duplicate)
             }
+            profile.dailyGoalPages = 1
         } else {
-            modelContext.insert(UserProfile(from: draft))
+            let profile = UserProfile(from: draft)
+            profile.dailyGoalPages = 1
+            modelContext.insert(profile)
         }
-        appModel.store.dailyGoalPages = draft.dailyGoalPages
+        appModel.store.dailyGoalAyahs = 1
         // Only when there is one. The store's getter falls back to "Friend"; writing an empty
         // string would defeat that and leave every greeting addressed to nobody.
         if !draft.displayName.isEmpty {

@@ -29,6 +29,17 @@ RISKY_SOURCE_TO_TESTS: dict[str, list[str]] = {
     "IqraLockKit/Prayer/PrayerTimeAdjustments.swift": [
         "Tests/IqraLockKitTests/PrayerTimeAdjustmentsTests.swift",
     ],
+    "IqraLockKit/Habit/DailyProgressSync.swift": [
+        "Tests/IqraLockKitTests/DailyProgressSyncTests.swift",
+        "Tests/IqraLockKitTests/PrayerProgressSyncTests.swift",
+        "Tests/IqraLockKitTests/ProgressIntegrationTests.swift",
+    ],
+    "IqraLockKit/Habit/PrayerProgressSync.swift": [
+        "Tests/IqraLockKitTests/PrayerProgressSyncTests.swift",
+    ],
+    "IqraLockKit/Quran/ReaderResume.swift": [
+        "Tests/IqraLockKitTests/ReaderResumeTests.swift",
+    ],
     "IqraLockKit/Prayer/PrayerCityCatalog.swift": [
         "Tests/IqraLockKitTests/PrayerCityCatalogTests.swift",
     ],
@@ -37,6 +48,8 @@ RISKY_SOURCE_TO_TESTS: dict[str, list[str]] = {
         "Tests/IqraLockKitTests/PrayerTimeAdjustmentsTests.swift",
         "Tests/IqraLockKitTests/PrayerCityCatalogTests.swift",
         "Tests/IqraLockKitTests/DailyProgressSyncTests.swift",
+        "Tests/IqraLockKitTests/ReaderResumeTests.swift",
+        "Tests/IqraLockKitTests/PrayerProgressSyncTests.swift",
     ],
     "IqraLockKit/Notifications/NotificationScheduling.swift": [
         "Tests/IqraLockKitTests/PrayerNotificationSchedulingTests.swift",
@@ -209,6 +222,8 @@ def check_feature_tests() -> list[str]:
         "CasualReadingModeTests.swift",
         "PrayerTimesCalculatorTests.swift",
         "PrayerTimeAdjustmentsTests.swift",
+        "PrayerProgressSyncTests.swift",
+        "ReaderResumeTests.swift",
         "PrayerCityCatalogTests.swift",
         "ShieldLayoutPresentationTests.swift",
         "PrayerNotificationSchedulingTests.swift",

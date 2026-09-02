@@ -211,12 +211,20 @@ final class AppModel {
     }
 
     func syncDailyProgress(context: ModelContext, minutesDelta: Int = 0) {
+        let logs = (try? context.fetch(FetchDescriptor<PrayerLog>())) ?? []
+        let prayersLogged = PrayerProgressSync.hasPrayersLogged(on: Date(), logs: logs)
         DailyProgressSync.upsertToday(
             context: context,
             store: store,
-            minutesDelta: minutesDelta
+            minutesDelta: minutesDelta,
+            prayersContributeToGoal: prayersLogged
         )
-        notifications.scheduleStreakAtRiskIfNeeded(goalMet: store.goalMetToday)
+        notifications.scheduleStreakAtRiskIfNeeded(
+            goalMet: PrayerProgressSync.contributesToStreak(
+                readingGoalMet: store.goalMetToday,
+                prayersLogged: prayersLogged
+            )
+        )
     }
 
     func schedulePrayerNotificationsIfEnabled(context: ModelContext) {
