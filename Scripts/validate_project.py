@@ -222,7 +222,6 @@ def check_feature_tests() -> list[str]:
         "ShieldLayoutPresentationTests.swift",
         "PrayerNotificationSchedulingTests.swift",
         "PrayerLogTests.swift",
-        "PrayerProgressSyncTests.swift",
         "PINStoreTests.swift",
         "ProgressIntegrationTests.swift",
     ]

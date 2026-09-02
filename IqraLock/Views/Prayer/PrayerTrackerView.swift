@@ -232,4 +232,11 @@ private struct PrayerLogButtonStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.92 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
+
+    private func offsetLabel(for prayer: PrayerName) -> String {
+        let offset = adjustments.offset(for: prayer)
+        if offset == 0 { return "calculated" }
+        let sign = offset > 0 ? "+" : ""
+        return "\(sign)\(offset) min"
+    }
 }
