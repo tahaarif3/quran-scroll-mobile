@@ -6,12 +6,14 @@ struct ProgressViewScreen: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \DailyRecord.day, order: .reverse) private var records: [DailyRecord]
+    @Query(sort: \PrayerLog.day, order: .reverse) private var prayerLogs: [PrayerLog]
 
     private var stats: HabitStats {
         HabitStatsCalculator.compute(
             records: DailyProgressSync.recordsIncludingToday(
                 stored: records,
-                store: appModel.store
+                store: appModel.store,
+                prayerLogs: prayerLogs
             )
         )
     }

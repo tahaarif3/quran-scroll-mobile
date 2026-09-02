@@ -41,7 +41,7 @@ public final class LocalNotificationScheduler: NotificationScheduling, @unchecke
         guard !goalMet else { return }
         let content = UNMutableNotificationContent()
         content.title = "Streak at risk"
-        content.body = "Finish today's pages before midnight to keep your streak."
+        content.body = "Read one ayah or log a prayer before midnight to keep your streak."
         content.userInfo = ["deepLink": "iqralock://read"]
         var comps = DateComponents()
         comps.hour = 20

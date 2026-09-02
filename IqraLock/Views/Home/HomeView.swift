@@ -10,6 +10,7 @@ struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [UserProfile]
     @Query(sort: \DailyRecord.day, order: .reverse) private var records: [DailyRecord]
+    @Query(sort: \PrayerLog.day, order: .reverse) private var prayerLogs: [PrayerLog]
 
     @State private var ayah: Ayah?
     @State private var needsReadConfirmation = false
@@ -25,7 +26,11 @@ struct HomeView: View {
 
     private var stats: HabitStats {
         HabitStatsCalculator.compute(
-            records: DailyProgressSync.recordsIncludingToday(stored: records, store: store)
+            records: DailyProgressSync.recordsIncludingToday(
+                stored: records,
+                store: store,
+                prayerLogs: prayerLogs
+            )
         )
     }
 

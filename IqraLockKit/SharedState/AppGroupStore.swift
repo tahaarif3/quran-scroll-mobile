@@ -297,7 +297,7 @@ public final class AppGroupStore: @unchecked Sendable {
     public var dailyGoalAyahs: Int {
         get {
             let v = defaults.integer(forKey: Key.dailyGoalAyahs)
-            return v > 0 ? v : 3 * ayahsPerPage
+            return v > 0 ? v : 1
         }
         set { defaults.set(max(1, newValue), forKey: Key.dailyGoalAyahs) }
     }

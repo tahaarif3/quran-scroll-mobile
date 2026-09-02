@@ -45,6 +45,7 @@ This document is the repo-specific playbook for humans and cloud agents. It desc
 |----------------|-----------|
 | `PrayerTimesCalculator.swift` | Update `PrayerTimesCalculatorTests.swift` with domain assertions (hour ranges, ordering, same day) |
 | `PrayerTimeAdjustments.swift` | Update `PrayerTimeAdjustmentsTests.swift` (offsets, round-trip, resolver) |
+| `PrayerProgressSync.swift` / streak changes | Update `PrayerProgressSyncTests.swift` |
 | `PrayerCityCatalog.swift` / `PrayerCitySelection` | Update `PrayerCityCatalogTests.swift` |
 | `AppGroupStore.swift` | Update a contract test that round-trips the changed key |
 | `NotificationScheduling.swift` | Update `PrayerNotificationSchedulingTests.swift` |

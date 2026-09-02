@@ -29,6 +29,14 @@ RISKY_SOURCE_TO_TESTS: dict[str, list[str]] = {
     "IqraLockKit/Prayer/PrayerTimeAdjustments.swift": [
         "Tests/IqraLockKitTests/PrayerTimeAdjustmentsTests.swift",
     ],
+    "IqraLockKit/Habit/DailyProgressSync.swift": [
+        "Tests/IqraLockKitTests/DailyProgressSyncTests.swift",
+        "Tests/IqraLockKitTests/PrayerProgressSyncTests.swift",
+        "Tests/IqraLockKitTests/ProgressIntegrationTests.swift",
+    ],
+    "IqraLockKit/Habit/PrayerProgressSync.swift": [
+        "Tests/IqraLockKitTests/PrayerProgressSyncTests.swift",
+    ],
     "IqraLockKit/Prayer/PrayerCityCatalog.swift": [
         "Tests/IqraLockKitTests/PrayerCityCatalogTests.swift",
     ],
@@ -209,10 +217,12 @@ def check_feature_tests() -> list[str]:
         "CasualReadingModeTests.swift",
         "PrayerTimesCalculatorTests.swift",
         "PrayerTimeAdjustmentsTests.swift",
+        "PrayerProgressSyncTests.swift",
         "PrayerCityCatalogTests.swift",
         "ShieldLayoutPresentationTests.swift",
         "PrayerNotificationSchedulingTests.swift",
         "PrayerLogTests.swift",
+        "PrayerProgressSyncTests.swift",
         "PINStoreTests.swift",
         "ProgressIntegrationTests.swift",
     ]

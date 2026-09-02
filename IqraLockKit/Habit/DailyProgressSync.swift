@@ -11,6 +11,7 @@ public enum DailyProgressSync {
         context: ModelContext,
         store: AppGroupStore,
         minutesDelta: Int = 0,
+        prayersContributeToGoal: Bool = false,
         calendar: Calendar = .current
     ) {
         let day = calendar.startOfDay(for: Date())
@@ -27,7 +28,10 @@ public enum DailyProgressSync {
             return r
         }()
         record.pagesRead = store.pagesReadToday
-        record.goalMet = store.goalMetToday
+        record.goalMet = PrayerProgressSync.contributesToStreak(
+            readingGoalMet: store.goalMetToday,
+            prayersLogged: prayersContributeToGoal
+        )
         record.goalPages = store.dailyGoalPages
         if minutesDelta > 0 {
             record.minutesRead += minutesDelta
@@ -68,30 +72,43 @@ public enum DailyProgressSync {
     public static func recordsIncludingToday(
         stored: [DailyRecord],
         store: AppGroupStore,
+        prayerLogs: [PrayerLog] = [],
         calendar: Calendar = .current
     ) -> [HabitStatsCalculator.DayInput] {
         let today = calendar.startOfDay(for: Date())
         var inputs = stored.map {
-            HabitStatsCalculator.DayInput(
+            let prayersLogged = PrayerProgressSync.hasPrayersLogged(
+                on: $0.day,
+                logs: prayerLogs,
+                calendar: calendar
+            )
+            return HabitStatsCalculator.DayInput(
                 day: $0.day,
                 pagesRead: $0.pagesRead,
                 minutesRead: $0.minutesRead,
-                goalMet: $0.goalMet
+                goalMet: $0.goalMet || prayersLogged
             )
         }
+        let todayPrayers = PrayerProgressSync.hasPrayersLogged(on: today, logs: prayerLogs, calendar: calendar)
         if let index = inputs.firstIndex(where: { calendar.isDate($0.day, inSameDayAs: today) }) {
             inputs[index] = HabitStatsCalculator.DayInput(
                 day: today,
                 pagesRead: store.pagesReadToday,
                 minutesRead: max(inputs[index].minutesRead, estimatedMinutes(store: store)),
-                goalMet: store.goalMetToday
+                goalMet: PrayerProgressSync.contributesToStreak(
+                    readingGoalMet: store.goalMetToday,
+                    prayersLogged: todayPrayers
+                )
             )
-        } else if store.totalAyahsToday > 0 || store.pagesReadToday > 0 {
+        } else if store.totalAyahsToday > 0 || store.pagesReadToday > 0 || todayPrayers {
             inputs.append(HabitStatsCalculator.DayInput(
                 day: today,
                 pagesRead: store.pagesReadToday,
                 minutesRead: estimatedMinutes(store: store),
-                goalMet: store.goalMetToday
+                goalMet: PrayerProgressSync.contributesToStreak(
+                    readingGoalMet: store.goalMetToday,
+                    prayersLogged: todayPrayers
+                )
             ))
         }
         return inputs
