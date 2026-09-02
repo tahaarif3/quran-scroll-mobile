@@ -38,4 +38,11 @@ final class ReaderResumeTests: XCTestCase {
         ReaderResume.save(globalID: 42, store: store)
         XCTAssertEqual(store.readerResumeGlobalID, 42)
     }
+
+    func testReaderResumeGlobalIDPersistsInAppGroup() {
+        let store = AppGroupStore(suiteName: "test.resume.key.\(UUID().uuidString)")
+        store.readerResumeGlobalID = 250
+        XCTAssertEqual(store.readerResumeGlobalID, 250)
+        XCTAssertEqual(ReaderResume.resumeGlobalID(store: store), 250)
+    }
 }

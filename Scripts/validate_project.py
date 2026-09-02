@@ -48,6 +48,8 @@ RISKY_SOURCE_TO_TESTS: dict[str, list[str]] = {
         "Tests/IqraLockKitTests/PrayerTimeAdjustmentsTests.swift",
         "Tests/IqraLockKitTests/PrayerCityCatalogTests.swift",
         "Tests/IqraLockKitTests/DailyProgressSyncTests.swift",
+        "Tests/IqraLockKitTests/ReaderResumeTests.swift",
+        "Tests/IqraLockKitTests/PrayerProgressSyncTests.swift",
     ],
     "IqraLockKit/Notifications/NotificationScheduling.swift": [
         "Tests/IqraLockKitTests/PrayerNotificationSchedulingTests.swift",
