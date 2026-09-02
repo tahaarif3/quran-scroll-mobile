@@ -11,6 +11,7 @@ struct ReaderView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var profiles: [UserProfile]
     @Query private var positions: [ReadingPosition]
+    @Query(sort: \Bookmark.createdAt, order: .reverse) private var bookmarks: [Bookmark]
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var surahNumber: Int = 1
@@ -25,14 +26,22 @@ struct ReaderView: View {
     @State private var surahs: [SurahMeta] = []
     @State private var justCredited = false
     @State private var pendingConfirmation: Int?
-    @State private var lastSeenCursor: Int = 0
+    @State private var lastSeenResumeID: Int = 0
     @State private var casualMode: Bool = false
+    @State private var showBookmarkToast = false
+    @State private var bookmarkToastLabel = ""
 
     private let bottomBarHeight: CGFloat = 118
     private var profile: UserProfile? { profiles.first }
     private var goal: Int { profile?.dailyGoalPages ?? appModel.store.dailyGoalPages }
     private var pagesToday: Int { appModel.store.pagesReadToday }
     private var current: Ayah? { ayahs.indices.contains(index) ? ayahs[index] : nil }
+    private var isBookmarkedHere: Bool {
+        guard let current else { return false }
+        return bookmarks.first.map {
+            $0.surahNumber == current.surah && $0.ayahNumber == current.ayah
+        } ?? false
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,13 +61,29 @@ struct ReaderView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .onChange(of: index) { previous, _ in
-                    creditAyah(at: previous)
+                .onChange(of: index) { previous, newIndex in
+                    handleIndexChange(from: previous, to: newIndex)
                 }
             }
         }
         .background(IQColor.bgReader.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) { bottomBar }
+        .overlay(alignment: .top) {
+            if showBookmarkToast {
+                Text(bookmarkToastLabel)
+                    .iqraStyle(.captionStrong, color: IQColor.textInk)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(IQColor.oliveTint)
+                            .overlay(Capsule().stroke(IQColor.accentOlive.opacity(0.35), lineWidth: 1))
+                    )
+                    .padding(.top, 56)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showBookmarkToast)
         .sheet(isPresented: Binding(
             get: { pendingConfirmation != nil },
             set: { if !$0 { pendingConfirmation = nil } }
@@ -87,11 +112,11 @@ struct ReaderView: View {
         }
         .task { await load() }
         .onAppear {
-            syncIfCursorMovedElsewhere()
+            syncIfResumeMovedElsewhere()
             syncFromProfile()
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { syncIfCursorMovedElsewhere() }
+            if phase == .active { syncIfResumeMovedElsewhere() }
         }
         .onChange(of: textSize) { _, new in
             profile?.arabicTextSize = Double(new)
@@ -136,6 +161,14 @@ struct ReaderView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+
+            Button { setBookmarkHere() } label: {
+                Image(systemName: isBookmarkedHere ? "bookmark.fill" : "bookmark")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(isBookmarkedHere ? IQColor.accentOlive : IQColor.brandGold)
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel(isBookmarkedHere ? "Bookmarked here" : "Bookmark this ayah")
 
             Button { showSettings = true } label: {
                 Text("Aa")
@@ -245,7 +278,9 @@ struct ReaderView: View {
                 if index < ayahs.count - 1 {
                     move(by: 1)
                 } else {
-                    creditAyah(at: index)
+                    if index < ayahs.count {
+                        creditAyah(at: index)
+                    }
                     jumpToSurah(surahNumber + 1)
                 }
             }
@@ -280,6 +315,14 @@ struct ReaderView: View {
         .disabled(!enabled)
     }
 
+    private func handleIndexChange(from previous: Int, to newIndex: Int) {
+        if newIndex > previous {
+            creditAyah(at: previous)
+        } else {
+            savePosition()
+        }
+    }
+
     private func move(by delta: Int) {
         let target = index + delta
         guard ayahs.indices.contains(target) else { return }
@@ -288,11 +331,9 @@ struct ReaderView: View {
 
     private func creditAyah(at position: Int, confirmed: Bool = false) {
         guard let ayah = ayahs.indices.contains(position) ? ayahs[position] : nil else { return }
+        savePosition(for: ayah)
 
         if casualMode {
-            appModel.store.advanceKhatmCursor(toAyahID: ayah.id + 1)
-            lastSeenCursor = appModel.store.khatmCursor
-            savePosition()
             return
         }
 
@@ -302,8 +343,8 @@ struct ReaderView: View {
             return
         }
         appModel.store.advanceKhatmCursor(toAyahID: ayah.id + 1)
-        lastSeenCursor = appModel.store.khatmCursor
-        savePosition()
+        ReaderResume.syncResumeFromKhatmIfNeeded(store: appModel.store)
+        lastSeenResumeID = ReaderResume.resumeGlobalID(store: appModel.store)
         justCredited = true
         appModel.syncDailyProgress(
             context: modelContext,
@@ -313,6 +354,25 @@ struct ReaderView: View {
         Task {
             try? await Task.sleep(for: .seconds(2))
             justCredited = false
+        }
+    }
+
+    private func setBookmarkHere() {
+        guard let ayah = current else { return }
+        ReaderResume.setBookmark(
+            ayah: ayah,
+            bookmarks: bookmarks,
+            positions: positions,
+            context: modelContext,
+            store: appModel.store
+        )
+        lastSeenResumeID = ayah.id
+        bookmarkToastLabel = "Bookmarked · \(ayah.verseKey)"
+        showBookmarkToast = true
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Task {
+            try? await Task.sleep(for: .seconds(1.6))
+            showBookmarkToast = false
         }
     }
 
@@ -334,7 +394,8 @@ struct ReaderView: View {
         surahs = (try? repo.allSurahs()) ?? []
         syncFromProfile()
         casualMode = appModel.store.casualReadingMode
-        syncToCursor()
+        ReaderResume.syncResumeFromKhatmIfNeeded(store: appModel.store)
+        syncToResumePosition()
     }
 
     private func syncFromProfile() {
@@ -342,36 +403,35 @@ struct ReaderView: View {
         readingStyle = profile?.readingStyle ?? .arabicTranslation
     }
 
-    private func syncToCursor() {
+    private func syncToResumePosition() {
         guard let repository else { return }
-        let cursor = appModel.store.khatmCursor
-        let target = (try? repository.ayah(globalID: cursor))
+        let resumeID = ReaderResume.resumeGlobalID(store: appModel.store)
+        let target = (try? repository.ayah(globalID: resumeID))
             ?? (try? repository.ayah(surah: 1, ayah: 1))
         guard let target else { return }
-        lastSeenCursor = cursor
+        lastSeenResumeID = resumeID
         surahNumber = target.surah
         surah = try? repository.surah(number: target.surah)
         ayahs = (try? repository.ayahs(forSurah: target.surah)) ?? []
         index = ayahs.firstIndex(where: { $0.id == target.id }) ?? 0
     }
 
-    private func syncIfCursorMovedElsewhere() {
-        guard repository != nil, appModel.store.khatmCursor != lastSeenCursor else { return }
-        syncToCursor()
+    private func syncIfResumeMovedElsewhere() {
+        ReaderResume.syncResumeFromKhatmIfNeeded(store: appModel.store)
+        let resumeID = ReaderResume.resumeGlobalID(store: appModel.store)
+        guard repository != nil, resumeID != lastSeenResumeID else { return }
+        syncToResumePosition()
     }
 
     private func savePosition() {
         guard let ayah = current else { return }
-        let pos = positions.first ?? {
-            let p = ReadingPosition(surahNumber: ayah.surah, ayahNumber: ayah.ayah, pageNumber: ayah.page)
-            modelContext.insert(p)
-            return p
-        }()
-        pos.surahNumber = ayah.surah
-        pos.ayahNumber = ayah.ayah
-        pos.pageNumber = ayah.page
-        pos.updatedAt = Date()
-        try? modelContext.save()
+        savePosition(for: ayah)
+    }
+
+    private func savePosition(for ayah: Ayah) {
+        ReaderResume.save(ayah: ayah, store: appModel.store)
+        ReaderResume.upsertReadingPosition(ayah: ayah, positions: positions, context: modelContext)
+        lastSeenResumeID = ayah.id
     }
 
     private func arabicIndic(_ n: Int) -> String {
