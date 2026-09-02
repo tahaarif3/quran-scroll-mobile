@@ -37,4 +37,10 @@ final class PrayerNotificationSchedulingTests: XCTestCase {
         let ids = PrayerName.allCases.map { "prayer_\($0.rawValue)" }
         XCTAssertEqual(ids, ["prayer_fajr", "prayer_dhuhr", "prayer_asr", "prayer_maghrib", "prayer_isha"])
     }
+
+    func testStreakAtRiskSchedulerRunsWhenGoalUnmet() {
+        let scheduler = LocalNotificationScheduler()
+        scheduler.scheduleStreakAtRiskIfNeeded(goalMet: false)
+        scheduler.cancelPrayerNotifications()
+    }
 }
