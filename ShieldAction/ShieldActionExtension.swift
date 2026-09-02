@@ -118,6 +118,7 @@ final class ShieldActionExtension: ShieldActionDelegate {
         // The ayah just shown was the one at the cursor, so move past it. This is what makes the
         // khatm number honest: it counts ayahs actually passed through, in order.
         store.advanceKhatmCursor()
+        ReaderResume.syncResumeFromKhatmIfNeeded(store: store)
         store.shieldSegmentIndex = 0
 
         // Finishing the day's goal is worth more than a single window.
