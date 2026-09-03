@@ -24,6 +24,20 @@ public enum ReaderResume {
         save(globalID: ayah.id, store: store)
     }
 
+    /// The shield follows the user's in-app reading cursor, not the independent khatm cursor.
+    public static func shieldGlobalID(store: AppGroupStore) -> Int {
+        let stored = store.readerResumeGlobalID
+        return stored > 0 ? stored : store.khatmCursor
+    }
+
+    /// Move both progress streams after the shield finishes the ayah it actually displayed.
+    public static func advanceAfterShieldRead(globalID: Int, store: AppGroupStore) {
+        guard (1...AppGroupStore.ayahsInMushaf).contains(globalID) else { return }
+        let nextID = globalID == AppGroupStore.ayahsInMushaf ? 1 : globalID + 1
+        store.advanceKhatmCursor(toAyahID: globalID + 1)
+        store.readerResumeGlobalID = nextID
+    }
+
     /// One policy for every reader entry point: an explicit bookmark is a pin; otherwise use
     /// the last in-app position, then finally the khatm cursor.
     public static func openTarget(
@@ -33,14 +47,12 @@ public enum ReaderResume {
         if let bookmark = bookmarks
             .filter({ $0.surahNumber > 0 && $0.ayahNumber > 0 })
             .max(by: { $0.createdAt < $1.createdAt }) {
-            store.readerResumePinnedByBookmark = true
             return .bookmark(
                 surahNumber: bookmark.surahNumber,
                 ayahNumber: bookmark.ayahNumber
             )
         }
 
-        store.readerResumePinnedByBookmark = false
         let stored = store.readerResumeGlobalID
         return .globalID(stored > 0 ? stored : store.khatmCursor)
     }
@@ -52,18 +64,11 @@ public enum ReaderResume {
     ) throws -> Ayah {
         switch openTarget(bookmarks: bookmarks, store: store) {
         case let .bookmark(surahNumber, ayahNumber):
-            return try repository.ayah(surah: surahNumber, ayah: ayahNumber)
+            let ayah = try repository.ayah(surah: surahNumber, ayah: ayahNumber)
+            save(ayah: ayah, store: store)
+            return ayah
         case let .globalID(globalID):
             return try repository.ayah(globalID: globalID)
-        }
-    }
-
-    /// If the shield advanced the khatm cursor while the app was closed, pull resume forward.
-    public static func syncResumeFromKhatmIfNeeded(store: AppGroupStore) {
-        guard !store.readerResumePinnedByBookmark else { return }
-        let resume = resumeGlobalID(store: store)
-        if store.khatmCursor > resume {
-            store.readerResumeGlobalID = store.khatmCursor
         }
     }
 
@@ -96,7 +101,6 @@ public enum ReaderResume {
         store: AppGroupStore
     ) {
         save(ayah: ayah, store: store)
-        store.readerResumePinnedByBookmark = true
         upsertReadingPosition(ayah: ayah, positions: positions, context: context)
 
         if let existing = bookmarks.first {

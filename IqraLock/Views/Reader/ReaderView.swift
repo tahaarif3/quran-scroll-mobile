@@ -371,6 +371,7 @@ struct ReaderView: View {
             context: modelContext,
             store: appModel.store
         )
+        refreshShieldCacheIfNeeded()
         lastSeenResumeID = ayah.id
         bookmarkToastLabel = "Bookmarked · \(ayah.verseKey)"
         showBookmarkToast = true
@@ -445,8 +446,15 @@ struct ReaderView: View {
 
     private func savePosition(for ayah: Ayah) {
         ReaderResume.save(ayah: ayah, store: appModel.store)
+        refreshShieldCacheIfNeeded()
         ReaderResume.upsertReadingPosition(ayah: ayah, positions: positions, context: modelContext)
         lastSeenResumeID = ayah.id
+    }
+
+    private func refreshShieldCacheIfNeeded() {
+        Task.detached(priority: .utility) { [store = appModel.store] in
+            ShieldAyahProvider.refreshCacheIfNeeded(store: store)
+        }
     }
 
     private func arabicIndic(_ n: Int) -> String {
