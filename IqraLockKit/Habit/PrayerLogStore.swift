@@ -4,6 +4,19 @@ import SwiftData
 /// Calendar-day-safe persistence for prayer logs. All callers fetch broadly and compare with
 /// Calendar so store precision and timezone normalization cannot create duplicate "today" rows.
 public enum PrayerLogStore {
+    public static func completed(
+        on day: Date = Date(),
+        context: ModelContext,
+        calendar: Calendar = .current
+    ) throws -> Set<String> {
+        let logs = try context.fetch(FetchDescriptor<PrayerLog>())
+        return Set(
+            logs
+                .filter { calendar.isDate($0.day, inSameDayAs: day) }
+                .flatMap(\.completed)
+        )
+    }
+
     public static func log(
         on day: Date,
         context: ModelContext,

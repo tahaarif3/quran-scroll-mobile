@@ -34,6 +34,10 @@ final class PrayerLogTests: XCTestCase {
         XCTAssertEqual(logs.count, 1)
         XCTAssertEqual(logs[0].completed, [PrayerName.fajr.rawValue])
         XCTAssertEqual(logs[0].completedRaw, PrayerName.fajr.rawValue)
+        XCTAssertEqual(
+            try PrayerLogStore.completed(on: today, context: verificationContext),
+            Set([PrayerName.fajr.rawValue])
+        )
     }
 
     func testSecondToggleReusesSameCalendarDayRow() throws {

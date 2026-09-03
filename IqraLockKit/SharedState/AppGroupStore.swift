@@ -40,7 +40,6 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let khatmCount = "khatmCount"
         public static let khatmCursor = "khatmCursor"
         public static let readerResumeGlobalID = "readerResumeGlobalID"
-        public static let readerResumePinnedByBookmark = "readerResumePinnedByBookmark"
         public static let shieldSegmentIndex = "shieldSegmentIndex"
         public static let sittingsToday = "sittingsToday"
         public static let khatmRecords = "khatmRecords"
@@ -113,9 +112,9 @@ public final class AppGroupStore: @unchecked Sendable {
         set { defaults.set(try? encoder.encode(newValue), forKey: Key.cachedAyahs) }
     }
 
-    /// The cached ayah for the current cursor, if the window still covers it.
-    public var cachedAyahAtCursor: CachedAyah? {
-        cachedAyahs.first { $0.id == khatmCursor }
+    /// A cached ayah for an explicit reader/shield cursor, if the window covers it.
+    public func cachedAyah(globalID: Int) -> CachedAyah? {
+        cachedAyahs.first { $0.id == globalID }
     }
 
     /// Minutes of access a single ayah buys. Adjustable — it is the exchange rate between
@@ -198,13 +197,6 @@ public final class AppGroupStore: @unchecked Sendable {
                 forKey: Key.readerResumeGlobalID
             )
         }
-    }
-
-    /// Shared with the shield extension so a shield-driven khatm advance cannot overwrite an
-    /// explicit in-app bookmark. The bookmark itself remains authoritative in SwiftData.
-    public var readerResumePinnedByBookmark: Bool {
-        get { defaults.bool(forKey: Key.readerResumePinnedByBookmark) }
-        set { defaults.set(newValue, forKey: Key.readerResumePinnedByBookmark) }
     }
 
     /// Which piece of a segmented ayah the shield is currently showing. Resets to zero when the
@@ -553,8 +545,7 @@ public final class AppGroupStore: @unchecked Sendable {
             Key.launchInProgress, Key.consecutiveLaunchFailures,
             Key.ayahsReadToday, Key.ayahsPerPage, Key.lastAyahReadAt,
             Key.ayahUnlockMinutes, Key.ayahRejectedAt, Key.totalPagesRead,
-            Key.khatmCount, Key.khatmCursor, Key.readerResumeGlobalID,
-            Key.readerResumePinnedByBookmark, Key.shieldSegmentIndex,
+            Key.khatmCount, Key.khatmCursor, Key.readerResumeGlobalID, Key.shieldSegmentIndex,
             Key.cachedAyahs, Key.dailyGoalAyahs, Key.shieldLayoutMode, Key.prayerCityId,
             Key.prayerTimeAdjustments
         ] {
