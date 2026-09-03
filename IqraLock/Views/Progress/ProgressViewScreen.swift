@@ -9,7 +9,8 @@ struct ProgressViewScreen: View {
     @Query(sort: \PrayerLog.day, order: .reverse) private var prayerLogs: [PrayerLog]
 
     private var stats: HabitStats {
-        HabitStatsCalculator.compute(
+        _ = appModel.prayerLogVersion
+        return HabitStatsCalculator.compute(
             records: DailyProgressSync.recordsIncludingToday(
                 stored: records,
                 store: appModel.store,

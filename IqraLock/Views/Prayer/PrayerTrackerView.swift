@@ -10,6 +10,7 @@ struct PrayerTrackerView: View {
 
     @State private var lastLoggedPrayer: PrayerName?
     @State private var showLoggedToast = false
+    @State private var completedToday: Set<String> = []
 
     private var profile: UserProfile? { profiles.first }
 
@@ -30,13 +31,13 @@ struct PrayerTrackerView: View {
         PrayerTimeSettings.load(profile: profile, store: appModel.store)
     }
 
-    private var todayLog: PrayerLog? {
+    private var persistedCompletedToday: Set<String> {
         let today = Calendar.current.startOfDay(for: Date())
-        return logs.first { Calendar.current.isDate($0.day, inSameDayAs: today) }
-    }
-
-    private var completedToday: Set<String> {
-        Set(todayLog?.completed ?? [])
+        return Set(
+            logs
+                .filter { Calendar.current.isDate($0.day, inSameDayAs: today) }
+                .flatMap(\.completed)
+        )
     }
 
     private var completedCount: Int {
@@ -76,6 +77,7 @@ struct PrayerTrackerView: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: completedToday)
+        .onAppear { refreshCompletedToday() }
     }
 
     private var header: some View {
@@ -170,39 +172,28 @@ struct PrayerTrackerView: View {
         .accessibilityHint("Double tap to \(done ? "remove" : "log") this prayer")
     }
 
-    private func ensureTodayLog() -> PrayerLog {
-        if let existing = todayLog { return existing }
-
-        let today = Calendar.current.startOfDay(for: Date())
-        let descriptor = FetchDescriptor<PrayerLog>(
-            predicate: #Predicate { $0.day == today }
-        )
-        if let existing = try? modelContext.fetch(descriptor).first {
-            return existing
-        }
-
-        let log = PrayerLog(day: today)
-        modelContext.insert(log)
-        try? modelContext.save()
-        return log
-    }
-
     private func toggle(_ prayer: PrayerName) {
-        let log = ensureTodayLog()
-        var completed = log.completed
-        let wasLogged = completed.contains(prayer.rawValue)
+        let previous = completedToday
+        let wasLogged = previous.contains(prayer.rawValue)
+        var updated = previous
 
         if wasLogged {
-            completed.removeAll { $0 == prayer.rawValue }
+            updated.remove(prayer.rawValue)
         } else {
-            completed.append(prayer.rawValue)
+            updated.insert(prayer.rawValue)
         }
-        log.completed = completed
+        // Update the controls immediately; SwiftData persistence follows below.
+        completedToday = updated
 
         do {
-            try modelContext.save()
+            try PrayerLogStore.setCompleted(updated, context: modelContext)
             appModel.syncDailyProgress(context: modelContext)
+            appModel.prayerLogVersion += 1
         } catch {
+            completedToday = previous
+            #if DEBUG
+            print("Prayer log save failed: \(error)")
+            #endif
             return
         }
 
@@ -215,6 +206,10 @@ struct PrayerTrackerView: View {
                 showLoggedToast = false
             }
         }
+    }
+
+    private func refreshCompletedToday() {
+        completedToday = persistedCompletedToday
     }
 
     private func offsetLabel(for prayer: PrayerName) -> String {

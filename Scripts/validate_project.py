@@ -23,6 +23,13 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # When a risky source file changes, at least one paired test file must change too.
 RISKY_SOURCE_TO_TESTS: dict[str, list[str]] = {
+    "IqraLockKit/Models/SwiftDataModels.swift": [
+        "Tests/IqraLockKitTests/PrayerLogTests.swift",
+    ],
+    "IqraLockKit/Habit/PrayerLogStore.swift": [
+        "Tests/IqraLockKitTests/PrayerLogTests.swift",
+        "Tests/IqraLockKitTests/PrayerProgressSyncTests.swift",
+    ],
     "IqraLockKit/Prayer/PrayerTimesCalculator.swift": [
         "Tests/IqraLockKitTests/PrayerTimesCalculatorTests.swift",
     ],
