@@ -30,6 +30,7 @@ struct ReaderView: View {
     @State private var casualMode: Bool = false
     @State private var showBookmarkToast = false
     @State private var bookmarkToastLabel = ""
+    @State private var programmaticIndex: Int?
 
     private let bottomBarHeight: CGFloat = 118
     private var profile: UserProfile? { profiles.first }
@@ -112,11 +113,11 @@ struct ReaderView: View {
         }
         .task { await load() }
         .onAppear {
-            syncIfResumeMovedElsewhere()
+            syncToOpenTargetIfNeeded()
             syncFromProfile()
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { syncIfResumeMovedElsewhere() }
+            if phase == .active { syncToOpenTargetIfNeeded() }
         }
         .onChange(of: textSize) { _, new in
             profile?.arabicTextSize = Double(new)
@@ -316,6 +317,11 @@ struct ReaderView: View {
     }
 
     private func handleIndexChange(from previous: Int, to newIndex: Int) {
+        if programmaticIndex == newIndex {
+            programmaticIndex = nil
+            return
+        }
+        programmaticIndex = nil
         if newIndex > previous {
             creditAyah(at: previous)
         } else {
@@ -343,7 +349,6 @@ struct ReaderView: View {
             return
         }
         appModel.store.advanceKhatmCursor(toAyahID: ayah.id + 1)
-        ReaderResume.syncResumeFromKhatmIfNeeded(store: appModel.store)
         lastSeenResumeID = ReaderResume.resumeGlobalID(store: appModel.store)
         justCredited = true
         appModel.syncDailyProgress(
@@ -394,8 +399,7 @@ struct ReaderView: View {
         surahs = (try? repo.allSurahs()) ?? []
         syncFromProfile()
         casualMode = appModel.store.casualReadingMode
-        ReaderResume.syncResumeFromKhatmIfNeeded(store: appModel.store)
-        syncToResumePosition()
+        syncToOpenTarget()
     }
 
     private func syncFromProfile() {
@@ -403,24 +407,35 @@ struct ReaderView: View {
         readingStyle = profile?.readingStyle ?? .arabicTranslation
     }
 
-    private func syncToResumePosition() {
+    private func syncToOpenTarget() {
         guard let repository else { return }
-        let resumeID = ReaderResume.resumeGlobalID(store: appModel.store)
-        let target = (try? repository.ayah(globalID: resumeID))
-            ?? (try? repository.ayah(surah: 1, ayah: 1))
-        guard let target else { return }
-        lastSeenResumeID = resumeID
-        surahNumber = target.surah
-        surah = try? repository.surah(number: target.surah)
-        ayahs = (try? repository.ayahs(forSurah: target.surah)) ?? []
-        index = ayahs.firstIndex(where: { $0.id == target.id }) ?? 0
+        let target = try? ReaderResume.openAyah(
+            bookmarks: bookmarks,
+            store: appModel.store,
+            repository: repository
+        )
+        let resolvedTarget = target ?? (try? repository.ayah(surah: 1, ayah: 1))
+        guard let resolvedTarget else { return }
+        lastSeenResumeID = resolvedTarget.id
+        surahNumber = resolvedTarget.surah
+        surah = try? repository.surah(number: resolvedTarget.surah)
+        ayahs = (try? repository.ayahs(forSurah: resolvedTarget.surah)) ?? []
+        let targetIndex = ayahs.firstIndex(where: { $0.id == resolvedTarget.id }) ?? 0
+        if targetIndex != index {
+            programmaticIndex = targetIndex
+        }
+        index = targetIndex
     }
 
-    private func syncIfResumeMovedElsewhere() {
-        ReaderResume.syncResumeFromKhatmIfNeeded(store: appModel.store)
-        let resumeID = ReaderResume.resumeGlobalID(store: appModel.store)
-        guard repository != nil, resumeID != lastSeenResumeID else { return }
-        syncToResumePosition()
+    private func syncToOpenTargetIfNeeded() {
+        guard let repository else { return }
+        let targetID = (try? ReaderResume.openAyah(
+            bookmarks: bookmarks,
+            store: appModel.store,
+            repository: repository
+        ))?.id
+        guard targetID != lastSeenResumeID else { return }
+        syncToOpenTarget()
     }
 
     private func savePosition() {

@@ -63,4 +63,21 @@ final class PrayerProgressSyncTests: XCTestCase {
         XCTAssertEqual(inputs.count, 1)
         XCTAssertTrue(inputs[0].goalMet)
     }
+
+    func testPrayerOnlyCreatesOneDayStreakAndFillsTodayBubble() {
+        let store = AppGroupStore(suiteName: "test.prayer.only.streak.\(UUID().uuidString)")
+        let today = Calendar.current.startOfDay(for: Date())
+        let log = PrayerLog(day: today, completed: [PrayerName.fajr.rawValue])
+
+        let records = DailyProgressSync.recordsIncludingToday(
+            stored: [],
+            store: store,
+            prayerLogs: [log]
+        )
+        let stats = HabitStatsCalculator.compute(records: records, now: today)
+
+        XCTAssertEqual(stats.streakDays, 1)
+        XCTAssertTrue(stats.weekCompletion[6])
+        XCTAssertTrue(PrayerProgressSync.hasPrayersLogged(on: today, logs: [log]))
+    }
 }

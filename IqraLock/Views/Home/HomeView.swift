@@ -11,6 +11,7 @@ struct HomeView: View {
     @Query private var profiles: [UserProfile]
     @Query(sort: \DailyRecord.day, order: .reverse) private var records: [DailyRecord]
     @Query(sort: \PrayerLog.day, order: .reverse) private var prayerLogs: [PrayerLog]
+    @Query(sort: \Bookmark.createdAt, order: .reverse) private var bookmarks: [Bookmark]
 
     @State private var ayah: Ayah?
     @State private var needsReadConfirmation = false
@@ -25,7 +26,8 @@ struct HomeView: View {
     private var arabicSize: CGFloat { CGFloat(profiles.first?.arabicTextSize ?? 27) }
 
     private var stats: HabitStats {
-        HabitStatsCalculator.compute(
+        _ = appModel.prayerLogVersion
+        return HabitStatsCalculator.compute(
             records: DailyProgressSync.recordsIncludingToday(
                 stored: records,
                 store: store,
@@ -202,7 +204,9 @@ struct HomeView: View {
             return
         }
         store.advanceKhatmCursor()
-        ReaderResume.save(globalID: store.khatmCursor, store: store)
+        if bookmarks.isEmpty {
+            ReaderResume.save(globalID: store.khatmCursor, store: store)
+        }
         justRead = true
         revision += 1
         appModel.syncDailyProgress(
@@ -224,7 +228,10 @@ struct HomeView: View {
 
     private func loadAyah() async {
         guard let repository else { return }
-        let resumeID = ReaderResume.resumeGlobalID(store: store)
-        ayah = try? repository.ayah(globalID: resumeID)
+        ayah = try? ReaderResume.openAyah(
+            bookmarks: bookmarks,
+            store: store,
+            repository: repository
+        )
     }
 }

@@ -54,6 +54,8 @@ final class AppModel {
     var pendingDeepLink: URL?
     /// Bumped whenever the prayer city or time adjustments change so views refresh.
     var prayerScheduleVersion = 0
+    /// Bumped after a prayer-log save so Home and Progress recompute from the shared context.
+    var prayerLogVersion = 0
 
     let analytics: AnalyticsService
     let purchases: PurchaseService

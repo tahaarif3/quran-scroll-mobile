@@ -137,12 +137,28 @@ public final class ReadingSession {
 @Model
 public final class PrayerLog {
     public var day: Date
-    /// PrayerName raw values completed today, e.g. "fajr", "dhuhr".
-    public var completed: [String]
+    /// Primitive storage so SwiftData observes every prayer completion change.
+    public var completedRaw: String = ""
 
     public init(day: Date = Date(), completed: [String] = []) {
         self.day = Calendar.current.startOfDay(for: day)
-        self.completed = completed
+        self.completedRaw = Self.encode(completed)
+    }
+
+    /// PrayerName raw values completed today, e.g. "fajr", "dhuhr".
+    public var completed: [String] {
+        get {
+            completedRaw
+                .split(separator: "|")
+                .map(String.init)
+        }
+        set {
+            completedRaw = Self.encode(newValue)
+        }
+    }
+
+    private static func encode(_ values: [String]) -> String {
+        Array(Set(values.filter { !$0.isEmpty })).sorted().joined(separator: "|")
     }
 }
 
