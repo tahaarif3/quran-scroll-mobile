@@ -15,22 +15,6 @@ final class ReaderResumeTests: XCTestCase {
         XCTAssertEqual(ReaderResume.resumeGlobalID(store: store), 842)
     }
 
-    func testSyncResumePullsForwardWhenShieldAdvancesKhatm() {
-        let store = AppGroupStore(suiteName: "test.resume.\(UUID().uuidString)")
-        store.readerResumeGlobalID = 100
-        store.khatmCursor = 150
-        ReaderResume.syncResumeFromKhatmIfNeeded(store: store)
-        XCTAssertEqual(store.readerResumeGlobalID, 150)
-    }
-
-    func testSyncResumeDoesNotMoveBackward() {
-        let store = AppGroupStore(suiteName: "test.resume.\(UUID().uuidString)")
-        store.readerResumeGlobalID = 500
-        store.khatmCursor = 120
-        ReaderResume.syncResumeFromKhatmIfNeeded(store: store)
-        XCTAssertEqual(ReaderResume.resumeGlobalID(store: store), 500)
-    }
-
     func testSaveClampsToMushafBounds() {
         let store = AppGroupStore(suiteName: "test.resume.\(UUID().uuidString)")
         ReaderResume.save(globalID: 999_999, store: store)
@@ -56,7 +40,6 @@ final class ReaderResumeTests: XCTestCase {
             ReaderResume.openTarget(bookmarks: [bookmark], store: store),
             .bookmark(surahNumber: 2, ayahNumber: 255)
         )
-        XCTAssertTrue(store.readerResumePinnedByBookmark)
     }
 
     func testBookmarkBehindKhatmResolvesToBookmarkGlobalID() throws {
@@ -74,6 +57,7 @@ final class ReaderResumeTests: XCTestCase {
 
         XCTAssertEqual(target.id, 262)
         XCTAssertNotEqual(target.id, 498)
+        XCTAssertEqual(store.readerResumeGlobalID, 262)
     }
 
     func testOpenTargetUsesResumeWhenThereIsNoBookmark() {
@@ -97,17 +81,40 @@ final class ReaderResumeTests: XCTestCase {
         )
     }
 
-    func testShieldAdvanceDoesNotMoveBookmarkPin() {
-        let store = AppGroupStore(suiteName: "test.resume.pin.\(UUID().uuidString)")
-        store.readerResumeGlobalID = 262
+    func testShieldUsesReaderCursorInsteadOfKhatmCursor() {
+        let store = AppGroupStore(suiteName: "test.shield.reader.cursor.\(UUID().uuidString)")
         store.khatmCursor = 498
-        _ = ReaderResume.openTarget(
-            bookmarks: [Bookmark(surahNumber: 2, ayahNumber: 255)],
-            store: store
-        )
+        store.readerResumeGlobalID = 262
+        store.cachedAyahs = [
+            AppGroupStore.CachedAyah(
+                id: 262,
+                verseKey: "2:255",
+                arabic: "آية الكرسي",
+                translation: "Ayat al-Kursi"
+            ),
+            AppGroupStore.CachedAyah(
+                id: 498,
+                verseKey: "4:5",
+                arabic: "النساء",
+                translation: "An-Nisa"
+            )
+        ]
 
-        ReaderResume.syncResumeFromKhatmIfNeeded(store: store)
+        let shieldAyah = ShieldAyahProvider.ayah(for: store)
 
-        XCTAssertEqual(store.readerResumeGlobalID, 262)
+        XCTAssertEqual(ReaderResume.shieldGlobalID(store: store), 262)
+        XCTAssertEqual(shieldAyah?.id, 262)
+        XCTAssertEqual(shieldAyah?.verseKey, "2:255")
+    }
+
+    func testShieldReadAdvancesFromDisplayedReaderCursor() {
+        let store = AppGroupStore(suiteName: "test.shield.reader.advance.\(UUID().uuidString)")
+        store.khatmCursor = 498
+        store.readerResumeGlobalID = 262
+
+        ReaderResume.advanceAfterShieldRead(globalID: 262, store: store)
+
+        XCTAssertEqual(store.readerResumeGlobalID, 263)
+        XCTAssertEqual(store.khatmCursor, 498)
     }
 }

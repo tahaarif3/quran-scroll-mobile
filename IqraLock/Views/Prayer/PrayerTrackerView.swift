@@ -6,7 +6,6 @@ struct PrayerTrackerView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [UserProfile]
-    @Query(sort: \PrayerLog.day, order: .reverse) private var logs: [PrayerLog]
 
     @State private var lastLoggedPrayer: PrayerName?
     @State private var showLoggedToast = false
@@ -29,15 +28,6 @@ struct PrayerTrackerView: View {
 
     private var adjustments: PrayerTimeAdjustments {
         PrayerTimeSettings.load(profile: profile, store: appModel.store)
-    }
-
-    private var persistedCompletedToday: Set<String> {
-        let today = Calendar.current.startOfDay(for: Date())
-        return Set(
-            logs
-                .filter { Calendar.current.isDate($0.day, inSameDayAs: today) }
-                .flatMap(\.completed)
-        )
     }
 
     private var completedCount: Int {
@@ -78,6 +68,7 @@ struct PrayerTrackerView: View {
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: completedToday)
         .onAppear { refreshCompletedToday() }
+        .onChange(of: appModel.prayerLogVersion) { _, _ in refreshCompletedToday() }
     }
 
     private var header: some View {
@@ -209,7 +200,13 @@ struct PrayerTrackerView: View {
     }
 
     private func refreshCompletedToday() {
-        completedToday = persistedCompletedToday
+        do {
+            completedToday = try PrayerLogStore.completed(context: modelContext)
+        } catch {
+            #if DEBUG
+            print("Prayer log reload failed: \(error)")
+            #endif
+        }
     }
 
     private func offsetLabel(for prayer: PrayerName) -> String {
