@@ -18,6 +18,7 @@ struct HomeView: View {
     @State private var repository: BundledQuranRepository?
     @State private var justRead = false
     @State private var revision = 0
+    @State private var showBookmarks = false
 
     private var store: AppGroupStore { appModel.store }
     private var name: String { profiles.first?.displayName ?? store.userDisplayName }
@@ -60,6 +61,7 @@ struct HomeView: View {
                     HomeHeroCard(state: heroState, unlockMinutes: store.ayahUnlockMinutes)
                         .id(revision)
                     ayahCard
+                    bookmarkCard
                     readerLink
                     bathroomBreakNote
                 }
@@ -86,6 +88,11 @@ struct HomeView: View {
                 .presentationDetents([.height(340)])
                 .presentationDragIndicator(.hidden)
             }
+            .sheet(isPresented: $showBookmarks) {
+                BookmarksView { bookmark in
+                    continueFromBookmark(bookmark)
+                }
+            }
         }
     }
 
@@ -103,9 +110,9 @@ struct HomeView: View {
     }
 
     private var continueLabel: String {
-        ReaderResume.resumeGlobalID(store: store) > 1 || store.totalAyahsToday > 0
-            ? "CONTINUE WHERE YOU LEFT OFF"
-            : "START HERE"
+        store.khatmCursor > 1 || store.totalAyahsToday > 0
+            ? "NEXT IN YOUR KHATM"
+            : "START YOUR KHATM"
     }
 
     private var ayahCard: some View {
@@ -137,6 +144,41 @@ struct HomeView: View {
                 }
 
                 primaryAction
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var bookmarkCard: some View {
+        if let bookmark = bookmarks.first {
+            SectionCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("SAVED BOOKMARK")
+                            .font(.custom("Nunito-ExtraBold", size: 11))
+                            .tracking(0.8)
+                            .foregroundStyle(IQColor.accentOlive)
+                        Spacer()
+                        Text("\(bookmarks.count) saved")
+                            .iqraStyle(.caption, color: IQColor.textMuted)
+                    }
+
+                    Text(bookmark.note.isEmpty
+                         ? "Surah \(bookmark.surahNumber), ayah \(bookmark.ayahNumber)"
+                         : bookmark.note)
+                        .iqraStyle(.bodyStrong, color: IQColor.textInk)
+
+                    ChunkyButton("Continue from bookmarked ayah") {
+                        continueFromBookmark(bookmark)
+                    }
+
+                    Button { showBookmarks = true } label: {
+                        Text("View all bookmarks →")
+                            .iqraStyle(.captionStrong, color: IQColor.brandPrimary)
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
     }
@@ -204,9 +246,7 @@ struct HomeView: View {
             return
         }
         store.advanceKhatmCursor()
-        if bookmarks.isEmpty {
-            ReaderResume.save(globalID: store.khatmCursor, store: store)
-        }
+        ReaderResume.save(globalID: store.khatmCursor, store: store)
         justRead = true
         revision += 1
         appModel.syncDailyProgress(
@@ -228,10 +268,17 @@ struct HomeView: View {
 
     private func loadAyah() async {
         guard let repository else { return }
-        ayah = try? ReaderResume.openAyah(
-            bookmarks: bookmarks,
-            store: store,
-            repository: repository
-        )
+        ayah = try? repository.ayah(globalID: store.khatmCursor)
+    }
+
+    private func continueFromBookmark(_ bookmark: Bookmark) {
+        guard let source = repository ?? (try? BundledQuranRepository()),
+              let bookmarkedAyah = try? source.ayah(
+                surah: bookmark.surahNumber,
+                ayah: bookmark.ayahNumber
+              ) else { return }
+        ReaderResume.save(ayah: bookmarkedAyah, store: store)
+        showBookmarks = false
+        appModel.showReader = true
     }
 }

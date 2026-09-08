@@ -39,9 +39,9 @@ struct ReaderView: View {
     private var current: Ayah? { ayahs.indices.contains(index) ? ayahs[index] : nil }
     private var isBookmarkedHere: Bool {
         guard let current else { return false }
-        return bookmarks.first.map {
+        return bookmarks.contains {
             $0.surahNumber == current.surah && $0.ayahNumber == current.ayah
-        } ?? false
+        }
     }
 
     var body: some View {
@@ -324,6 +324,9 @@ struct ReaderView: View {
         programmaticIndex = nil
         if newIndex > previous {
             creditAyah(at: previous)
+            if let nextAyah = ayahs.indices.contains(newIndex) ? ayahs[newIndex] : nil {
+                savePosition(for: nextAyah)
+            }
         } else {
             savePosition()
         }
@@ -364,16 +367,21 @@ struct ReaderView: View {
 
     private func setBookmarkHere() {
         guard let ayah = current else { return }
-        ReaderResume.setBookmark(
-            ayah: ayah,
-            bookmarks: bookmarks,
-            positions: positions,
-            context: modelContext,
-            store: appModel.store
-        )
-        refreshShieldCacheIfNeeded()
-        lastSeenResumeID = ayah.id
-        bookmarkToastLabel = "Bookmarked · \(ayah.verseKey)"
+        let wasAdded: Bool
+        do {
+            wasAdded = try ReaderResume.toggleBookmark(
+                ayah: ayah,
+                context: modelContext
+            )
+        } catch {
+            #if DEBUG
+            print("Bookmark save failed: \(error)")
+            #endif
+            return
+        }
+        bookmarkToastLabel = wasAdded
+            ? "Bookmarked · \(ayah.verseKey)"
+            : "Bookmark removed · \(ayah.verseKey)"
         showBookmarkToast = true
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         Task {
@@ -411,7 +419,6 @@ struct ReaderView: View {
     private func syncToOpenTarget() {
         guard let repository else { return }
         let target = try? ReaderResume.openAyah(
-            bookmarks: bookmarks,
             store: appModel.store,
             repository: repository
         )
@@ -431,7 +438,6 @@ struct ReaderView: View {
     private func syncToOpenTargetIfNeeded() {
         guard let repository else { return }
         let targetID = (try? ReaderResume.openAyah(
-            bookmarks: bookmarks,
             store: appModel.store,
             repository: repository
         ))?.id
@@ -446,15 +452,8 @@ struct ReaderView: View {
 
     private func savePosition(for ayah: Ayah) {
         ReaderResume.save(ayah: ayah, store: appModel.store)
-        refreshShieldCacheIfNeeded()
         ReaderResume.upsertReadingPosition(ayah: ayah, positions: positions, context: modelContext)
         lastSeenResumeID = ayah.id
-    }
-
-    private func refreshShieldCacheIfNeeded() {
-        Task.detached(priority: .utility) { [store = appModel.store] in
-            ShieldAyahProvider.refreshCacheIfNeeded(store: store)
-        }
     }
 
     private func arabicIndic(_ n: Int) -> String {

@@ -68,7 +68,6 @@ struct PrayerTrackerView: View {
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: completedToday)
         .onAppear { refreshCompletedToday() }
-        .onChange(of: appModel.prayerLogVersion) { _, _ in refreshCompletedToday() }
     }
 
     private var header: some View {

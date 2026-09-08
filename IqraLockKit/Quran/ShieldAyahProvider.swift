@@ -12,7 +12,7 @@ import UIKit
 /// `ShieldConfiguration` truncates rather than shrinking, so an ayah too long for the slot is
 /// divided at a waqf mark instead.
 public enum ShieldAyahProvider {
-    /// The next ayah at the user's shared reader cursor.
+    /// The next unread ayah at the forward-only khatm cursor.
     ///
     /// Sequential rather than a curated list, so that reading from the shield genuinely moves
     /// the reader through the Qur'an. A rotating pool of short verses made the khatm counter
@@ -36,7 +36,7 @@ public enum ShieldAyahProvider {
     /// them. The direct lookup stays as a fallback for the first run, before the app has filled
     /// the window.
     public static func ayah(for store: AppGroupStore = .shared) -> Ayah? {
-        let targetID = ReaderResume.shieldGlobalID(store: store)
+        let targetID = store.khatmCursor
         if let cached = store.cachedAyah(globalID: targetID) {
             return Ayah(
                 id: cached.id,
@@ -55,7 +55,7 @@ public enum ShieldAyahProvider {
     /// Fills the window from the cursor forward. Called by the app, never the extension.
     public static func refreshCache(store: AppGroupStore = .shared) {
         guard let repository = try? BundledQuranRepository() else { return }
-        let start = ReaderResume.shieldGlobalID(store: store)
+        let start = store.khatmCursor
         var window: [AppGroupStore.CachedAyah] = []
         window.reserveCapacity(cacheWindow)
         for offset in 0..<cacheWindow {
@@ -72,13 +72,6 @@ public enum ShieldAyahProvider {
             )
         }
         store.cachedAyahs = window
-    }
-
-    /// Rebase the cache only when the user jumps outside its current window.
-    public static func refreshCacheIfNeeded(store: AppGroupStore = .shared) {
-        let targetID = ReaderResume.shieldGlobalID(store: store)
-        guard !store.cachedAyahs.contains(where: { $0.id == targetID }) else { return }
-        refreshCache(store: store)
     }
 
     public struct Segmented {

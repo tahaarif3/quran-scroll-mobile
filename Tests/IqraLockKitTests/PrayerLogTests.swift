@@ -55,6 +55,18 @@ final class PrayerLogTests: XCTestCase {
         XCTAssertEqual(Set(logs[0].completed), Set(["fajr", "dhuhr"]))
     }
 
+    func testSavedPrayerDoesNotDisappearOnImmediateReload() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        try PrayerLogStore.setCompleted([PrayerName.fajr.rawValue], context: context)
+
+        XCTAssertEqual(
+            try PrayerLogStore.completed(context: context),
+            Set([PrayerName.fajr.rawValue])
+        )
+    }
+
     private func makeContainer() throws -> ModelContainer {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         return try ModelContainer(for: PrayerLog.self, configurations: configuration)
