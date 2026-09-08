@@ -1,4 +1,5 @@
 import XCTest
+import SwiftData
 @testable import IqraLockKit
 
 final class ReaderResumeTests: XCTestCase {
@@ -30,59 +31,25 @@ final class ReaderResumeTests: XCTestCase {
         XCTAssertEqual(ReaderResume.resumeGlobalID(store: store), 250)
     }
 
-    func testBookmarkBehindKhatmIsTheOpenTarget() {
-        let store = AppGroupStore(suiteName: "test.resume.bookmark.\(UUID().uuidString)")
-        store.khatmCursor = 498
-        store.readerResumeGlobalID = 498
-        let bookmark = Bookmark(surahNumber: 2, ayahNumber: 255)
-
-        XCTAssertEqual(
-            ReaderResume.openTarget(bookmarks: [bookmark], store: store),
-            .bookmark(surahNumber: 2, ayahNumber: 255)
-        )
-    }
-
-    func testBookmarkBehindKhatmResolvesToBookmarkGlobalID() throws {
+    func testReaderOpensFromResumeRatherThanBookmark() throws {
         guard let repository = try? BundledQuranRepository() else {
             throw XCTSkip("quran.sqlite not in test host bundle — run on Mac after xcodegen")
         }
-        let store = AppGroupStore(suiteName: "test.resume.bookmark.id.\(UUID().uuidString)")
+        let store = AppGroupStore(suiteName: "test.resume.open.\(UUID().uuidString)")
         store.khatmCursor = 498
+        store.readerResumeGlobalID = 262
 
         let target = try ReaderResume.openAyah(
-            bookmarks: [Bookmark(surahNumber: 2, ayahNumber: 255)],
             store: store,
             repository: repository
         )
 
         XCTAssertEqual(target.id, 262)
         XCTAssertNotEqual(target.id, 498)
-        XCTAssertEqual(store.readerResumeGlobalID, 262)
     }
 
-    func testOpenTargetUsesResumeWhenThereIsNoBookmark() {
-        let store = AppGroupStore(suiteName: "test.resume.position.\(UUID().uuidString)")
-        store.khatmCursor = 498
-        store.readerResumeGlobalID = 842
-
-        XCTAssertEqual(
-            ReaderResume.openTarget(bookmarks: [], store: store),
-            .globalID(842)
-        )
-    }
-
-    func testOpenTargetFallsBackToKhatmWhenBookmarkAndResumeAreUnset() {
-        let store = AppGroupStore(suiteName: "test.resume.khatm.\(UUID().uuidString)")
-        store.khatmCursor = 498
-
-        XCTAssertEqual(
-            ReaderResume.openTarget(bookmarks: [], store: store),
-            .globalID(498)
-        )
-    }
-
-    func testShieldUsesReaderCursorInsteadOfKhatmCursor() {
-        let store = AppGroupStore(suiteName: "test.shield.reader.cursor.\(UUID().uuidString)")
+    func testShieldUsesKhatmCursorInsteadOfReaderOrBookmark() {
+        let store = AppGroupStore(suiteName: "test.shield.khatm.cursor.\(UUID().uuidString)")
         store.khatmCursor = 498
         store.readerResumeGlobalID = 262
         store.cachedAyahs = [
@@ -102,19 +69,48 @@ final class ReaderResumeTests: XCTestCase {
 
         let shieldAyah = ShieldAyahProvider.ayah(for: store)
 
-        XCTAssertEqual(ReaderResume.shieldGlobalID(store: store), 262)
-        XCTAssertEqual(shieldAyah?.id, 262)
-        XCTAssertEqual(shieldAyah?.verseKey, "2:255")
+        XCTAssertEqual(shieldAyah?.id, 498)
+        XCTAssertEqual(shieldAyah?.verseKey, "4:5")
     }
 
-    func testShieldReadAdvancesFromDisplayedReaderCursor() {
-        let store = AppGroupStore(suiteName: "test.shield.reader.advance.\(UUID().uuidString)")
+    func testBookmarkListPersistsWithoutMovingResumeOrKhatm() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Bookmark.self, configurations: configuration)
+        let context = ModelContext(container)
+        let store = AppGroupStore(suiteName: "test.bookmark.list.\(UUID().uuidString)")
         store.khatmCursor = 498
-        store.readerResumeGlobalID = 262
+        store.readerResumeGlobalID = 600
+        let first = sampleAyah(id: 262, surah: 2, ayah: 255)
+        let second = sampleAyah(id: 293, surah: 2, ayah: 286)
 
-        ReaderResume.advanceAfterShieldRead(globalID: 262, store: store)
+        XCTAssertTrue(try ReaderResume.toggleBookmark(ayah: first, context: context))
+        XCTAssertTrue(try ReaderResume.toggleBookmark(
+            ayah: second,
+            context: context
+        ))
 
-        XCTAssertEqual(store.readerResumeGlobalID, 263)
+        let verificationContext = ModelContext(container)
+        let saved = try verificationContext.fetch(FetchDescriptor<Bookmark>())
+        XCTAssertEqual(saved.count, 2)
+        XCTAssertEqual(Set(saved.map(\.note)), Set(["2:255", "2:286"]))
+        XCTAssertEqual(store.readerResumeGlobalID, 600)
         XCTAssertEqual(store.khatmCursor, 498)
+
+        XCTAssertFalse(try ReaderResume.toggleBookmark(ayah: first, context: context))
+        let afterRemoval = try ModelContext(container).fetch(FetchDescriptor<Bookmark>())
+        XCTAssertEqual(afterRemoval.count, 1)
+        XCTAssertEqual(afterRemoval.first?.note, "2:286")
+    }
+
+    private func sampleAyah(id: Int, surah: Int, ayah: Int) -> Ayah {
+        Ayah(
+            id: id,
+            surah: surah,
+            ayah: ayah,
+            verseKey: "\(surah):\(ayah)",
+            textUthmani: "test",
+            translationEn: "test",
+            page: 1
+        )
     }
 }

@@ -86,7 +86,6 @@ final class ShieldActionExtension: ShieldActionDelegate {
     /// which is why "Read another ayah" opened the app instead of showing another ayah.
     private func readAyah(thenContinue: Bool) -> ShieldActionResponse {
         let now = Date()
-        let displayedGlobalID = ReaderResume.shieldGlobalID(store: store)
 
         // A long ayah is served in waqf-bounded pieces. Every piece earns a window, because
         // every piece is a real act of reading — but the ayah only counts toward the goal and
@@ -116,8 +115,9 @@ final class ShieldActionExtension: ShieldActionDelegate {
             return .defer
         }
 
-        // Advance from the ayah the shield actually showed, not from a separate khatm position.
-        ReaderResume.advanceAfterShieldRead(globalID: displayedGlobalID, store: store)
+        // The shield always displays the khatm cursor, so advance that forward by exactly one.
+        store.advanceKhatmCursor()
+        ReaderResume.save(globalID: store.khatmCursor, store: store)
         store.shieldSegmentIndex = 0
 
         // Finishing the day's goal is worth more than a single window.
