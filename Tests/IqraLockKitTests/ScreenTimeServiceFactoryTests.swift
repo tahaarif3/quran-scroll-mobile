@@ -59,5 +59,36 @@ final class ScreenTimeServiceFactoryTests: XCTestCase {
         coordinator.unlockForRestOfDay()
         XCTAssertFalse(store.isLockedNow)
     }
+
+    func testFailedShieldApplicationDoesNotClaimAppsAreLocked() {
+        let store = makeStore()
+        store.ensureCurrentDay()
+        store.selectedAppsCount = 2
+        store.unlockedUntil = Date(timeIntervalSince1970: 1)
+        let screenTime = MockScreenTimeService(store: store)
+        screenTime.applyShieldSucceeds = false
+        let coordinator = ShieldCoordinator(store: store, screenTime: screenTime)
+
+        coordinator.reevaluate(now: Date(timeIntervalSince1970: 2))
+
+        XCTAssertFalse(store.isLockedNow)
+        XCTAssertFalse(screenTime.isShielded)
+    }
+
+    func testReevaluationRepairsExpiredUnlockWindow() {
+        let store = makeStore()
+        store.ensureCurrentDay()
+        store.selectedAppsCount = 2
+        store.unlockedUntil = Date(timeIntervalSince1970: 10)
+        let screenTime = MockScreenTimeService(store: store)
+        screenTime.clearShield()
+        let coordinator = ShieldCoordinator(store: store, screenTime: screenTime)
+
+        coordinator.reevaluate(now: Date(timeIntervalSince1970: 11))
+
+        XCTAssertTrue(store.isLockedNow)
+        XCTAssertTrue(screenTime.isShielded)
+        XCTAssertNil(store.unlockedUntil)
+    }
 }
 

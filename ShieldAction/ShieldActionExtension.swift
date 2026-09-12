@@ -160,18 +160,24 @@ final class ShieldActionExtension: ShieldActionDelegate {
     /// IqraLock, which for someone avoiding the app is indefinitely.
     private func scheduleReshield(at date: Date) {
         let calendar = Calendar.current
-        let start = calendar.dateComponents([.hour, .minute, .second], from: Date())
-        let end = calendar.dateComponents([.hour, .minute, .second], from: date)
+        let window = ReshieldScheduleWindow(now: Date(), unlockUntil: date)
         let schedule = DeviceActivitySchedule(
-            intervalStart: start,
-            intervalEnd: end,
+            intervalStart: window.components(for: window.start, calendar: calendar),
+            intervalEnd: window.components(for: window.end, calendar: calendar),
             repeats: false
         )
         let center = DeviceActivityCenter()
         // See ScreenTimeService.scheduleReshield: restarting a live activity ends its interval,
         // and the end handler re-applies the shield.
         center.stopMonitoring([.emergencyReshield])
-        try? center.startMonitoring(.emergencyReshield, during: schedule)
+        do {
+            try center.startMonitoring(.emergencyReshield, during: schedule)
+        } catch {
+            // The host reconciles the deadline on foreground. Keeping the deadline intact here
+            // is essential; clearing it would make the UI and the next launch believe the
+            // failed schedule had successfully re-shielded.
+            store.isLockedNow = false
+        }
     }
 
     private func notify(title: String, body: String) {

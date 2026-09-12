@@ -23,6 +23,10 @@ struct IqraLockApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
                     appModel.store.ensureCurrentDay()
+                    // DeviceActivity callbacks are not precise timers and may not run until the
+                    // device is used after an interval. Reconcile every foreground transition so
+                    // an expired window cannot leave iOS unshielded while Home says it is locked.
+                    appModel.shield.reevaluate()
                     Task.detached(priority: .utility) { [store = appModel.store] in
                         ShieldAyahProvider.refreshCache(store: store)
                     }
