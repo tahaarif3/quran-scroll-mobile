@@ -6,6 +6,34 @@ import ManagedSettings
 import DeviceActivity
 #endif
 
+/// A one-shot monitoring interval whose end is the requested re-shield deadline.
+///
+/// DeviceActivity rejects intervals shorter than fifteen minutes. For a five- or ten-minute
+/// unlock, beginning the interval in the recent past keeps the requested end time while meeting
+/// that platform requirement. Full date components also keep an unlock crossing midnight on the
+/// correct day instead of turning it into an ambiguous time-of-day schedule.
+public struct ReshieldScheduleWindow: Equatable, Sendable {
+    public static let minimumDuration: TimeInterval = 15 * 60
+
+    public let start: Date
+    public let end: Date
+
+    public init(now: Date, unlockUntil: Date) {
+        end = unlockUntil
+        start = min(now, unlockUntil.addingTimeInterval(-Self.minimumDuration))
+    }
+
+    public func components(for date: Date, calendar: Calendar) -> DateComponents {
+        var components = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: date
+        )
+        components.calendar = calendar
+        components.timeZone = calendar.timeZone
+        return components
+    }
+}
+
 public enum ScreenTimeAuthStatus: String, Sendable {
     case notDetermined
     case approved
@@ -21,7 +49,8 @@ public protocol ScreenTimeService: AnyObject, Sendable {
     /// thing that gets an app deleted rather than reconfigured.
     func disconnect() async
     func persistSelectionCount(_ count: Int)
-    func applyShield()
+    /// Applies the saved selection and returns whether a real shield was installed.
+    @discardableResult func applyShield() -> Bool
     func clearShield()
     /// Clears and re-applies the shield so configuration extensions reload immediately.
     func refreshShieldAppearance()
@@ -148,22 +177,31 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         analytics.track("apps_selected", properties: ["count": count])
     }
 
-    public func applyShield() {
+    @discardableResult
+    public func applyShield() -> Bool {
         store.ensureCurrentDay()
-        store.isLockedNow = true
-        store.unlockedUntil = nil
         #if canImport(FamilyControls)
         // This is what actually blocks apps. Setting `isLockedNow` above only records intent —
         // until `shield.applications` is populated, iOS has been told nothing and every selected
         // app opens normally.
         guard let managedSettings,
-              let selection = FamilyActivitySelectionStore.load(from: store) else { return }
+              let selection = FamilyActivitySelectionStore.load(from: store),
+              !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty else {
+            store.isLockedNow = false
+            return false
+        }
         managedSettings.shield.applications = selection.applicationTokens.isEmpty
             ? nil
             : selection.applicationTokens
         managedSettings.shield.applicationCategories = selection.categoryTokens.isEmpty
             ? nil
             : .specific(selection.categoryTokens)
+        store.unlockedUntil = nil
+        store.isLockedNow = true
+        return true
+        #else
+        store.isLockedNow = false
+        return false
         #endif
     }
 
@@ -207,9 +245,10 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         #if canImport(FamilyControls)
         guard ScreenTimeAvailability.isSupported, authStatus == .approved else { return }
         let calendar = Calendar.current
+        let window = ReshieldScheduleWindow(now: Date(), unlockUntil: date)
         let schedule = DeviceActivitySchedule(
-            intervalStart: calendar.dateComponents([.hour, .minute, .second], from: Date()),
-            intervalEnd: calendar.dateComponents([.hour, .minute, .second], from: date),
+            intervalStart: window.components(for: window.start, calendar: calendar),
+            intervalEnd: window.components(for: window.end, calendar: calendar),
             repeats: false
         )
         let center = DeviceActivityCenter()
@@ -219,7 +258,14 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         // instead. The monitor now checks the clock too; this keeps the callback from firing at
         // all.
         center.stopMonitoring([.emergencyReshield])
-        try? center.startMonitoring(.emergencyReshield, during: schedule)
+        do {
+            try center.startMonitoring(.emergencyReshield, during: schedule)
+        } catch {
+            analytics.track("reshield_schedule_failed", properties: [
+                "error": String(describing: error),
+                "requestedMinutes": max(0, Int(date.timeIntervalSinceNow / 60))
+            ])
+        }
         #endif
     }
 
@@ -287,6 +333,7 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
     public var authStatus: ScreenTimeAuthStatus = .notDetermined
     public var selectedAppCount: Int = 0
     public var isShielded: Bool = true
+    public var applyShieldSucceeds: Bool = true
     private let store: AppGroupStore
 
     public init(store: AppGroupStore = AppGroupStore(suiteName: "mock.iqralock")) {
@@ -310,9 +357,14 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
         store.selectedAppsCount = count
     }
 
-    public func applyShield() {
-        isShielded = true
-        store.isLockedNow = true
+    @discardableResult
+    public func applyShield() -> Bool {
+        isShielded = applyShieldSucceeds
+        store.isLockedNow = applyShieldSucceeds
+        if applyShieldSucceeds {
+            store.unlockedUntil = nil
+        }
+        return applyShieldSucceeds
     }
 
     public func clearShield() {

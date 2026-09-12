@@ -33,8 +33,9 @@ public final class ShieldCoordinator: @unchecked Sendable {
         // records a count without any real tokens, and the count is also what survives when a
         // selection is cleared, so it is the reliable signal for "the user chose to shield".
         if store.selectedAppsCount > 0 {
-            store.isLockedNow = true
             screenTime.applyShield()
+        } else {
+            store.isLockedNow = false
         }
     }
 
@@ -57,7 +58,6 @@ public final class ShieldCoordinator: @unchecked Sendable {
     }
 
     public func lockSelectedApps() {
-        store.isLockedNow = true
         screenTime.applyShield()
     }
 
