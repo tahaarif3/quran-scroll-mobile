@@ -7,6 +7,8 @@ public protocol NotificationScheduling: AnyObject, Sendable {
     func scheduleStreakAtRiskIfNeeded(goalMet: Bool)
     func scheduleAppsUnlocked()
     func scheduleReadPromptFromShield()
+    func scheduleShieldNeedsAttention()
+    func cancelShieldNeedsAttention()
     func schedulePrayerNotifications(
         latitude: Double,
         longitude: Double,
@@ -66,6 +68,25 @@ public final class LocalNotificationScheduler: NotificationScheduling, @unchecke
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.5, repeats: false)
         center.add(UNNotificationRequest(identifier: "shield_read_prompt", content: content, trigger: trigger))
         AppGroupStore.shared.pendingDeepLink = "iqralock://read"
+    }
+
+    public func scheduleShieldNeedsAttention() {
+        let identifier = "shield_needs_attention"
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        center.removeDeliveredNotifications(withIdentifiers: [identifier])
+        let content = UNMutableNotificationContent()
+        content.title = "Shield needs attention"
+        content.body = "IqraLock couldn't restore your selected app locks. Open IqraLock to reconnect them."
+        content.sound = .default
+        content.userInfo = ["deepLink": "iqralock://focus"]
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+    }
+
+    public func cancelShieldNeedsAttention() {
+        let identifiers = ["shield_needs_attention"]
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
     }
 
     public func schedulePrayerNotifications(

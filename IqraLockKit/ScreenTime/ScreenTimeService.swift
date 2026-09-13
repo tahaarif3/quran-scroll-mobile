@@ -86,10 +86,16 @@ public enum ScreenTimeAvailability {
 public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecked Sendable {
     private let store: AppGroupStore
     private let analytics: AnalyticsService
+    private let notifications: NotificationScheduling
 
-    public init(store: AppGroupStore = .shared, analytics: AnalyticsService = NoopAnalytics()) {
+    public init(
+        store: AppGroupStore = .shared,
+        analytics: AnalyticsService = NoopAnalytics(),
+        notifications: NotificationScheduling = LocalNotificationScheduler()
+    ) {
         self.store = store
         self.analytics = analytics
+        self.notifications = notifications
     }
 
     #if canImport(FamilyControls)
@@ -188,6 +194,7 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
               let selection = FamilyActivitySelectionStore.load(from: store),
               !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty else {
             store.isLockedNow = false
+            notifications.scheduleShieldNeedsAttention()
             return false
         }
         managedSettings.shield.applications = selection.applicationTokens.isEmpty
@@ -198,6 +205,7 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
             : .specific(selection.categoryTokens)
         store.unlockedUntil = nil
         store.isLockedNow = true
+        notifications.cancelShieldNeedsAttention()
         return true
         #else
         store.isLockedNow = false
@@ -207,6 +215,7 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
 
     public func clearShield() {
         store.isLockedNow = false
+        notifications.cancelShieldNeedsAttention()
         #if canImport(FamilyControls)
         managedSettings?.shield.applications = nil
         managedSettings?.shield.applicationCategories = nil
@@ -260,11 +269,13 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         center.stopMonitoring([.emergencyReshield])
         do {
             try center.startMonitoring(.emergencyReshield, during: schedule)
+            notifications.cancelShieldNeedsAttention()
         } catch {
             analytics.track("reshield_schedule_failed", properties: [
                 "error": String(describing: error),
                 "requestedMinutes": max(0, Int(date.timeIntervalSinceNow / 60))
             ])
+            notifications.scheduleShieldNeedsAttention()
         }
         #endif
     }
@@ -311,12 +322,17 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
 public enum ScreenTimeServiceFactory {
     public static func make(
         store: AppGroupStore = .shared,
-        analytics: AnalyticsService = NoopAnalytics()
+        analytics: AnalyticsService = NoopAnalytics(),
+        notifications: NotificationScheduling = LocalNotificationScheduler()
     ) -> ScreenTimeService {
         guard ScreenTimeAvailability.isSupported else {
-            return MockScreenTimeService(store: store)
+            return MockScreenTimeService(store: store, notifications: notifications)
         }
-        return FamilyControlsScreenTimeService(store: store, analytics: analytics)
+        return FamilyControlsScreenTimeService(
+            store: store,
+            analytics: analytics,
+            notifications: notifications
+        )
     }
 }
 
@@ -334,10 +350,16 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
     public var selectedAppCount: Int = 0
     public var isShielded: Bool = true
     public var applyShieldSucceeds: Bool = true
+    public var scheduleReshieldSucceeds: Bool = true
     private let store: AppGroupStore
+    private let notifications: NotificationScheduling
 
-    public init(store: AppGroupStore = AppGroupStore(suiteName: "mock.iqralock")) {
+    public init(
+        store: AppGroupStore = AppGroupStore(suiteName: "mock.iqralock"),
+        notifications: NotificationScheduling = LocalNotificationScheduler()
+    ) {
         self.store = store
+        self.notifications = notifications
         store.bathroomBreaksRemaining = 5
     }
 
@@ -363,6 +385,9 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
         store.isLockedNow = applyShieldSucceeds
         if applyShieldSucceeds {
             store.unlockedUntil = nil
+            notifications.cancelShieldNeedsAttention()
+        } else {
+            notifications.scheduleShieldNeedsAttention()
         }
         return applyShieldSucceeds
     }
@@ -370,6 +395,7 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
     public func clearShield() {
         isShielded = false
         store.isLockedNow = false
+        notifications.cancelShieldNeedsAttention()
     }
 
     public func refreshShieldAppearance() {
@@ -380,7 +406,13 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
     }
 
     public func scheduleMidnightReset() {}
-    public func scheduleReshield(at date: Date) {}
+    public func scheduleReshield(at date: Date) {
+        if scheduleReshieldSucceeds {
+            notifications.cancelShieldNeedsAttention()
+        } else {
+            notifications.scheduleShieldNeedsAttention()
+        }
+    }
 
     public func consumeBathroomBreak(durationMinutes: Int = 5) -> Bool {
         guard store.bathroomBreaksRemaining > 0 else { return false }

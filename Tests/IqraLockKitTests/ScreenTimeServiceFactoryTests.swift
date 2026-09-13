@@ -65,7 +65,8 @@ final class ScreenTimeServiceFactoryTests: XCTestCase {
         store.ensureCurrentDay()
         store.selectedAppsCount = 2
         store.unlockedUntil = Date(timeIntervalSince1970: 1)
-        let screenTime = MockScreenTimeService(store: store)
+        let notifications = NotificationTestDouble()
+        let screenTime = MockScreenTimeService(store: store, notifications: notifications)
         screenTime.applyShieldSucceeds = false
         let coordinator = ShieldCoordinator(store: store, screenTime: screenTime)
 
@@ -73,6 +74,7 @@ final class ScreenTimeServiceFactoryTests: XCTestCase {
 
         XCTAssertFalse(store.isLockedNow)
         XCTAssertFalse(screenTime.isShielded)
+        XCTAssertTrue(notifications.shieldNeedsAttentionScheduled)
     }
 
     func testReevaluationRepairsExpiredUnlockWindow() {
@@ -89,6 +91,20 @@ final class ScreenTimeServiceFactoryTests: XCTestCase {
         XCTAssertTrue(store.isLockedNow)
         XCTAssertTrue(screenTime.isShielded)
         XCTAssertNil(store.unlockedUntil)
+    }
+
+    func testFailedReshieldScheduleNotifiesAndSuccessfulRetryClearsWarning() {
+        let store = makeStore()
+        let notifications = NotificationTestDouble()
+        let screenTime = MockScreenTimeService(store: store, notifications: notifications)
+        screenTime.scheduleReshieldSucceeds = false
+
+        screenTime.scheduleReshield(at: Date().addingTimeInterval(5 * 60))
+        XCTAssertTrue(notifications.shieldNeedsAttentionScheduled)
+
+        screenTime.scheduleReshieldSucceeds = true
+        screenTime.scheduleReshield(at: Date().addingTimeInterval(5 * 60))
+        XCTAssertFalse(notifications.shieldNeedsAttentionScheduled)
     }
 }
 

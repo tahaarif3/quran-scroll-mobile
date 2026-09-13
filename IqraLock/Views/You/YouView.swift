@@ -204,10 +204,11 @@ struct YouView: View {
 
     #if DEBUG
     private var debugSection: some View {
-        Section {
+        Section("Developer Testing") {
+            Button("Test shield warning notification") {
+                appModel.notifications.scheduleShieldNeedsAttention()
+            }
             Button("Reset to first run", role: .destructive) { showResetConfirm = true }
-        } header: {
-            Text("Debug")
         }
     }
     #endif

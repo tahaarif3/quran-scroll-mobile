@@ -88,7 +88,8 @@ final class AppModel {
     ) {
         let resolvedScreenTime = screenTime ?? ScreenTimeServiceFactory.make(
             store: store,
-            analytics: analytics
+            analytics: analytics,
+            notifications: notifications
         )
         self.analytics = analytics
         self.purchases = purchases

@@ -156,7 +156,7 @@ targets:
           - Amiri-Regular.ttf
           - Amiri-Bold.ttf
         NSFamilyControlsUsageDescription: IqraLock uses Screen Time to shield distracting apps until you finish your daily Qur'an reading.
-        NSUserNotificationsUsageDescription: IqraLock sends reading reminders and unlock confirmations.
+        NSUserNotificationsUsageDescription: IqraLock sends reading and prayer reminders, unlock confirmations, and shield status warnings.
     entitlements:
       path: IqraLock/IqraLock.entitlements
       properties:

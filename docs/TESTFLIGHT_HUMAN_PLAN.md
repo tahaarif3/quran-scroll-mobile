@@ -154,6 +154,8 @@ Family Controls **cannot** be tested in Simulator.
 - [ ] Airplane mode: Arabic + bundled translation render.
 - [ ] Translation switch (if Pro) hits API + cache.
 - [ ] Notifications: daily reminder, streak-at-risk 20:00, unlock confirmation, shield deep link.
+- [ ] Development build: You → Developer Testing → Test shield warning notification; background
+      IqraLock and confirm the warning arrives once and opens the app.
 - [ ] VoiceOver pass on progress ring, week dots, chart, option rows.
 - [ ] iPhone SE → Pro Max layout smoke test.
 - [ ] Privacy Nutrition Labels in App Store Connect match `PrivacyInfo.xcprivacy` + PostHog/RevenueCat.

@@ -153,6 +153,7 @@ final class ShieldActionExtension: ShieldActionDelegate {
         let managed = ManagedSettingsStore()
         managed.shield.applications = nil
         managed.shield.applicationCategories = nil
+        LocalNotificationScheduler().cancelShieldNeedsAttention()
     }
 
     /// ManagedSettings has no expiry of its own — a lifted shield stays lifted until something
@@ -172,11 +173,13 @@ final class ShieldActionExtension: ShieldActionDelegate {
         center.stopMonitoring([.emergencyReshield])
         do {
             try center.startMonitoring(.emergencyReshield, during: schedule)
+            LocalNotificationScheduler().cancelShieldNeedsAttention()
         } catch {
             // The host reconciles the deadline on foreground. Keeping the deadline intact here
             // is essential; clearing it would make the UI and the next launch believe the
             // failed schedule had successfully re-shielded.
             store.isLockedNow = false
+            LocalNotificationScheduler().scheduleShieldNeedsAttention()
         }
     }
 

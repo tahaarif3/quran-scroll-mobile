@@ -28,6 +28,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         guard let selection = FamilyActivitySelectionStore.load(from: store),
               !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty else {
             store.isLockedNow = false
+            LocalNotificationScheduler().scheduleShieldNeedsAttention()
             return
         }
         managed.shield.applications = selection.applicationTokens.isEmpty
@@ -37,6 +38,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             ? nil
             : .specific(selection.categoryTokens)
         store.isLockedNow = true
+        LocalNotificationScheduler().cancelShieldNeedsAttention()
     }
 
     override func intervalDidEnd(for activity: DeviceActivityName) {
@@ -54,10 +56,15 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         // The window an ayah bought has run out. Re-applying the tokens here is what makes it a
         // window at all — clearing a shield is permanent until something puts it back, and the
         // app cannot be relied on to be opened.
-        guard !store.goalMetToday,
-              let selection = FamilyActivitySelectionStore.load(from: store),
+        guard !store.goalMetToday else {
+            store.isLockedNow = false
+            LocalNotificationScheduler().cancelShieldNeedsAttention()
+            return
+        }
+        guard let selection = FamilyActivitySelectionStore.load(from: store),
               !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty else {
             store.isLockedNow = false
+            LocalNotificationScheduler().scheduleShieldNeedsAttention()
             return
         }
         managed.shield.applications = selection.applicationTokens.isEmpty
@@ -67,5 +74,6 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             ? nil
             : .specific(selection.categoryTokens)
         store.isLockedNow = true
+        LocalNotificationScheduler().cancelShieldNeedsAttention()
     }
 }
