@@ -21,6 +21,8 @@ struct ReaderView: View {
     @State private var textSize: CGFloat = 26
     @State private var readingStyle: ReadingStyleAnswer = .arabicTranslation
     @State private var showSettings = false
+    @State private var showSettingsPINEntry = false
+    @State private var pendingSettingsAction: (() -> Void)?
     @State private var showSurahList = false
     @State private var repository: BundledQuranRepository?
     @State private var surahs: [SurahMeta] = []
@@ -111,6 +113,22 @@ struct ReaderView: View {
                 onDismiss: { showSettings = false }
             )
         }
+        .sheet(isPresented: $showSettingsPINEntry) {
+            PINEntryView(
+                title: "Family PIN",
+                subtitle: "Enter your PIN to change settings for this session.",
+                onSuccess: {
+                    appModel.familyPINSession.unlock()
+                    showSettingsPINEntry = false
+                    pendingSettingsAction?()
+                    pendingSettingsAction = nil
+                },
+                onCancel: {
+                    showSettingsPINEntry = false
+                    pendingSettingsAction = nil
+                }
+            )
+        }
         .task { await load() }
         .onAppear {
             syncToOpenTargetIfNeeded()
@@ -171,7 +189,7 @@ struct ReaderView: View {
             }
             .accessibilityLabel(isBookmarkedHere ? "Bookmarked here" : "Bookmark this ayah")
 
-            Button { showSettings = true } label: {
+            Button { requireSettingsAccess { showSettings = true } } label: {
                 Text("Aa")
                     .font(.custom("Nunito-Bold", size: 17))
                     .foregroundStyle(IQColor.brandGold)
@@ -185,7 +203,12 @@ struct ReaderView: View {
 
     private var modeBanner: some View {
         HStack {
-            Toggle(isOn: $casualMode) {
+            Toggle(isOn: Binding(
+                get: { casualMode },
+                set: { newValue in
+                    requireSettingsAccess { casualMode = newValue }
+                }
+            )) {
                 Text(casualMode ? "Free read — won't affect Screen Time" : "Focus mode — reading unlocks apps")
                     .iqraStyle(.caption, color: casualMode ? IQColor.textMuted : IQColor.accentOlive)
             }
@@ -194,6 +217,15 @@ struct ReaderView: View {
         .padding(.horizontal, IQSpace.gutter)
         .padding(.vertical, 8)
         .background(IQColor.savePill.opacity(0.5))
+    }
+
+    private func requireSettingsAccess(_ action: @escaping () -> Void) {
+        if PINStore.isConfigured && !appModel.settingsChangesAllowed {
+            pendingSettingsAction = action
+            showSettingsPINEntry = true
+        } else {
+            action()
+        }
     }
 
     private var dailyProgressBar: some View {

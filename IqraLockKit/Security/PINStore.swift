@@ -1,5 +1,27 @@
 import Foundation
+import Observation
 import Security
+
+/// In-memory authorization for protected settings. It deliberately is not persisted: quitting
+/// and relaunching the app creates a new locked session and requires the family PIN again.
+@Observable
+public final class FamilyPINSession {
+    public private(set) var isUnlocked = false
+
+    public init() {}
+
+    public func allowsSettingsChanges(pinConfigured: Bool) -> Bool {
+        !pinConfigured || isUnlocked
+    }
+
+    public func unlock() {
+        isUnlocked = true
+    }
+
+    public func lock() {
+        isUnlocked = false
+    }
+}
 
 /// Stores a parent PIN in the Keychain for child-mode restrictions.
 public enum PINStore {

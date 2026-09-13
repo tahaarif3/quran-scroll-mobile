@@ -50,4 +50,33 @@ final class BathroomBreakTests: XCTestCase {
         store.emergencyPassesRemaining = 1
         XCTAssertEqual(store.bathroomBreaksRemaining, 1)
     }
+
+    func testChangingAllowancePreservesBreaksAlreadyUsedThisMonth() {
+        let store = makeStore()
+        store.resetBathroomBreaksIfNeeded(monthlyAllowance: 5)
+        store.bathroomBreaksRemaining = 3
+
+        store.updateBathroomBreakMonthlyAllowance(8)
+        XCTAssertEqual(store.bathroomBreakMonthlyAllowance, 8)
+        XCTAssertEqual(store.bathroomBreaksRemaining, 6)
+
+        store.updateBathroomBreakMonthlyAllowance(3)
+        XCTAssertEqual(store.bathroomBreaksRemaining, 1)
+    }
+
+    func testConfiguredAllowanceRefillsAtTheNextMonth() {
+        let store = makeStore()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let january = Date(timeIntervalSince1970: 1_767_225_600)
+        let february = Date(timeIntervalSince1970: 1_769_904_000)
+        store.bathroomBreakMonthlyAllowance = 7
+
+        store.resetBathroomBreaksIfNeeded(now: january, calendar: calendar)
+        XCTAssertEqual(store.bathroomBreaksRemaining, 7)
+        store.bathroomBreaksRemaining = 1
+
+        store.resetBathroomBreaksIfNeeded(now: february, calendar: calendar)
+        XCTAssertEqual(store.bathroomBreaksRemaining, 7)
+    }
 }

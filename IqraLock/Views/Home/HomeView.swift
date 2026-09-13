@@ -50,7 +50,9 @@ struct HomeView: View {
                 ? .partway(until: until, ayahsRead: store.totalAyahsToday, goal: store.dailyGoalAyahs)
                 : .unlocked(until: until)
         }
-        return .locked(closedApps: lockedCount)
+        return store.isLockedNow
+            ? .locked(closedApps: lockedCount)
+            : .shieldNeedsAttention(closedApps: lockedCount)
     }
 
     var body: some View {

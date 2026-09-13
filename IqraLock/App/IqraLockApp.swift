@@ -23,6 +23,10 @@ struct IqraLockApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
                     appModel.store.ensureCurrentDay()
+                    // DeviceActivity callbacks are not precise timers and may not run until the
+                    // device is used after an interval. Reconcile every foreground transition so
+                    // an expired window cannot leave iOS unshielded while Home says it is locked.
+                    appModel.shield.reevaluate()
                     Task.detached(priority: .utility) { [store = appModel.store] in
                         ShieldAyahProvider.refreshCache(store: store)
                     }
@@ -62,6 +66,7 @@ final class AppModel {
     let screenTime: ScreenTimeService
     let store: AppGroupStore
     let notifications: NotificationScheduling
+    let familyPINSession = FamilyPINSession()
 
     /// The one shield/unlock pair for the whole app. Views must resolve these from here rather
     /// than constructing their own — a locally-built coordinator reaches the real FamilyControls
@@ -84,7 +89,8 @@ final class AppModel {
     ) {
         let resolvedScreenTime = screenTime ?? ScreenTimeServiceFactory.make(
             store: store,
-            analytics: analytics
+            analytics: analytics,
+            notifications: notifications
         )
         self.analytics = analytics
         self.purchases = purchases
@@ -107,6 +113,10 @@ final class AppModel {
     /// the app claiming to shield apps it can no longer touch.
     var screenTimeConnection: ScreenTimeConnectionState {
         ScreenTimeConnection.state(screenTime: screenTime, store: store)
+    }
+
+    var settingsChangesAllowed: Bool {
+        familyPINSession.allowsSettingsChanges(pinConfigured: PINStore.isConfigured)
     }
 
     /// Number of consecutive launches that died before the app was healthy, after which the

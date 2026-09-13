@@ -111,6 +111,13 @@ Family Controls **cannot** be tested in Simulator.
   5. Consume an emergency pass → temporary unlock → re-shield.
   6. **You → Locked apps** → change the selection → confirm added apps shield and removed apps
      unblock immediately, without a relaunch.
+  7. Set a Family PIN → leave and return to **You** → confirm all settings controls are disabled.
+     Enter the PIN once and confirm settings remain editable while switching tabs, then force-quit
+     and relaunch and confirm they are locked again.
+  8. While settings are PIN-locked, use a bathroom break and change its monthly allowance. Confirm
+     both remain available, already-used breaks stay deducted, and the five-minute re-shield works.
+  9. Confirm **Change PIN** requires the current PIN while locked, the new PIN replaces the old one,
+     and **Remove PIN** always asks for the current PIN before removing protection.
 
 ---
 
@@ -154,6 +161,8 @@ Family Controls **cannot** be tested in Simulator.
 - [ ] Airplane mode: Arabic + bundled translation render.
 - [ ] Translation switch (if Pro) hits API + cache.
 - [ ] Notifications: daily reminder, streak-at-risk 20:00, unlock confirmation, shield deep link.
+- [ ] Development build: You → Developer Testing → Test shield warning notification; background
+      IqraLock and confirm the warning arrives once and opens the app.
 - [ ] VoiceOver pass on progress ring, week dots, chart, option rows.
 - [ ] iPhone SE → Pro Max layout smoke test.
 - [ ] Privacy Nutrition Labels in App Store Connect match `PrivacyInfo.xcprivacy` + PostHog/RevenueCat.

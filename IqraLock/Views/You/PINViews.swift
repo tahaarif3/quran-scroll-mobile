@@ -71,6 +71,7 @@ struct PINEntryView: View {
 
 struct ParentPINSetupView: View {
     @Environment(\.dismiss) private var dismiss
+    let onSaved: () -> Void
     @State private var pin = ""
     @State private var confirm = ""
     @State private var message: String?
@@ -84,16 +85,7 @@ struct ParentPINSetupView: View {
                     SecureField("Confirm PIN", text: $confirm)
                         .keyboardType(.numberPad)
                 } footer: {
-                    Text("Child mode locks settings, bathroom breaks, and turning off blocking behind this PIN.")
-                }
-
-                if PINStore.isConfigured {
-                    Section {
-                        Button("Remove PIN", role: .destructive) {
-                            PINStore.delete()
-                            dismiss()
-                        }
-                    }
+                    Text("This PIN protects settings. Enter it once per app session to make changes; bathroom breaks stay available.")
                 }
 
                 if let message {
@@ -102,7 +94,7 @@ struct ParentPINSetupView: View {
                     }
                 }
             }
-            .navigationTitle("Parent PIN")
+            .navigationTitle(PINStore.isConfigured ? "Change Family PIN" : "New Family PIN")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -125,6 +117,7 @@ struct ParentPINSetupView: View {
             message = "Could not save PIN."
             return
         }
+        onSaved()
         dismiss()
     }
 }

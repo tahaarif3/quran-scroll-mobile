@@ -34,23 +34,36 @@ struct YouView: View {
 
     private var profile: UserProfile? { profiles.first }
     private var connection: ScreenTimeConnectionState { appModel.screenTimeConnection }
+    private var settingsLocked: Bool { !appModel.settingsChangesAllowed }
 
     var body: some View {
         NavigationStack {
             List {
+                settingsAccessSection
                 profileSection
+                    .disabled(settingsLocked)
                 YouPrayerSettingsSection(
                     prayerNotifications: $prayerNotifications,
                     prayerCityID: $prayerCityID,
                     profile: profile
                 )
+                .disabled(settingsLocked)
                 YouShieldLayoutSection(
                     shieldLayoutMode: $shieldLayoutMode,
                     showShieldPreview: $showShieldPreview,
                     profile: profile
                 )
+                .disabled(settingsLocked)
                 focusSection
-                YouFamilySection(showPINSetup: $showPINSetup)
+                    .disabled(settingsLocked)
+                bathroomBreakSection
+                YouFamilySection(
+                    settingsUnlocked: appModel.settingsChangesAllowed,
+                    onUnlock: { requirePIN {} },
+                    onChangePIN: { requirePIN { showPINSetup = true } },
+                    onRemovePIN: removePINAfterVerification,
+                    onSetupPIN: { showPINSetup = true }
+                )
                 legalSection
                 #if DEBUG
                 debugSection
@@ -152,7 +165,7 @@ struct YouView: View {
                     }
                 }
                 Button("Turn off app blocking", role: .destructive) {
-                    requirePIN { showDisconnectConfirm = true }
+                    showDisconnectConfirm = true
                 }
             case .unsupported:
                 LabeledContent("Locked apps", value: "Needs a device")
@@ -185,12 +198,29 @@ struct YouView: View {
                 }
             }
             .onChange(of: ayahMinutes) { _, new in appModel.store.ayahUnlockMinutes = new }
+        }
+    }
+
+    private var bathroomBreakSection: some View {
+        Section {
+            Stepper(value: bathroomAllowanceBinding, in: 0...30) {
+                HStack {
+                    Text("Monthly allowance")
+                    Spacer()
+                    Text("\(appModel.store.bathroomBreakMonthlyAllowance)")
+                        .foregroundStyle(IQColor.textSecondary)
+                }
+            }
 
             LabeledContent("Bathroom breaks", value: "\(appModel.store.bathroomBreaksRemaining) left")
             Button("Use a bathroom break (5 min)") {
-                requirePIN { showPassConfirm = true }
+                showPassConfirm = true
             }
             .disabled(appModel.store.bathroomBreaksRemaining == 0)
+        } header: {
+            Text("Bathroom breaks")
+        } footer: {
+            Text("Bathroom breaks stay available without the family PIN. Changing the allowance preserves breaks already used this month.")
         }
     }
 
@@ -204,13 +234,38 @@ struct YouView: View {
 
     #if DEBUG
     private var debugSection: some View {
-        Section {
+        Section("Developer Testing") {
+            Button("Test shield warning notification") {
+                appModel.notifications.scheduleShieldNeedsAttention()
+            }
             Button("Reset to first run", role: .destructive) { showResetConfirm = true }
-        } header: {
-            Text("Debug")
         }
     }
     #endif
+
+    @ViewBuilder
+    private var settingsAccessSection: some View {
+        if PINStore.isConfigured {
+            Section {
+                if settingsLocked {
+                    Button {
+                        requirePIN {}
+                    } label: {
+                        Label("Unlock settings", systemImage: "lock.fill")
+                    }
+                } else {
+                    LabeledContent("Settings", value: "Unlocked this session")
+                    Button("Lock settings now") {
+                        appModel.familyPINSession.lock()
+                    }
+                }
+            } footer: {
+                Text(settingsLocked
+                     ? "Enter the family PIN once to change settings until IqraLock is closed."
+                     : "Settings will lock again after IqraLock is closed.")
+            }
+        }
+    }
 
     private var nameBinding: Binding<String> {
         Binding(
@@ -231,6 +286,13 @@ struct YouView: View {
         }
         let pages = Int(ceil(Double(goalAyahs) / Double(perPage)))
         return pages == 1 ? "1 page" : "\(pages) pages"
+    }
+
+    private var bathroomAllowanceBinding: Binding<Int> {
+        Binding(
+            get: { appModel.store.bathroomBreakMonthlyAllowance },
+            set: { appModel.store.updateBathroomBreakMonthlyAllowance($0) }
+        )
     }
 
     private func syncFromStore() {
@@ -256,12 +318,20 @@ struct YouView: View {
     }
 
     private func requirePIN(_ action: @escaping () -> Void) {
-        if PINStore.isConfigured {
+        if PINStore.isConfigured && !appModel.settingsChangesAllowed {
             pendingProtectedAction = action
             showPINEntry = true
         } else {
             action()
         }
+    }
+
+    private func removePINAfterVerification() {
+        pendingProtectedAction = {
+            PINStore.delete()
+            appModel.familyPINSession.lock()
+        }
+        showPINEntry = true
     }
 }
 
@@ -288,12 +358,17 @@ private struct YouViewSheets: ViewModifier {
             } message: {
                 Text("Your apps open for 5 minutes.")
             }
-            .sheet(isPresented: $showPINSetup) { ParentPINSetupView() }
+            .sheet(isPresented: $showPINSetup) {
+                ParentPINSetupView {
+                    appModel.familyPINSession.unlock()
+                }
+            }
             .sheet(isPresented: $showPINEntry) {
                 PINEntryView(
-                    title: "Parent PIN",
+                    title: "Family PIN",
                     subtitle: "Enter your PIN to continue.",
                     onSuccess: {
+                        appModel.familyPINSession.unlock()
                         showPINEntry = false
                         pendingProtectedAction?()
                         pendingProtectedAction = nil
