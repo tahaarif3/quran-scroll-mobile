@@ -1,5 +1,7 @@
 # Production App Store submission — what only you can finish
 
+**This file ships on both branches.** The **production code flavor** is `cursor/production-submission-fa08`: Release does **not** set `INTERNAL_TESTFLIGHT`, so `PurchaseServiceFactory` uses `StoreKitPurchaseService`.
+
 The code for a production flavor lives on `cursor/production-submission-fa08`. It uses **real StoreKit 2**, no mock paywall, and no internal reset menu.
 
 The cloud agent cannot: sign with your team, create App Store Connect products, accept legal agreements, request entitlements, publish your website, or upload a build. Those steps are below.

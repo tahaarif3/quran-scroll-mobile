@@ -10,6 +10,8 @@ This is the **debug / internal** upload. It is a Release archive with `INTERNAL_
 
 Branch: `cursor/testflight-internal-fa08`
 
+The production flavor is a different branch: `cursor/production-submission-fa08` (real StoreKit, no reset menu). Do not mix them up.
+
 The cloud agent **cannot** start the upload. GitHub Actions returns 403 for `workflow_dispatch` from this environment. You run it in the browser.
 
 ## You do this (about 15–25 minutes)
