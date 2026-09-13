@@ -360,7 +360,7 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
     ) {
         self.store = store
         self.notifications = notifications
-        store.bathroomBreaksRemaining = 5
+        store.resetBathroomBreaksIfNeeded()
     }
 
     public func requestAuthorization() async throws {

@@ -378,20 +378,28 @@ struct YouShieldLayoutSection: View {
 }
 
 struct YouFamilySection: View {
-    @Binding var showPINSetup: Bool
+    let settingsUnlocked: Bool
+    let onUnlock: () -> Void
+    let onChangePIN: () -> Void
+    let onRemovePIN: () -> Void
+    let onSetupPIN: () -> Void
 
     var body: some View {
         Section {
             if PINStore.isConfigured {
-                LabeledContent("Parent PIN", value: "On")
-                Button("Change PIN") { showPINSetup = true }
+                LabeledContent("Family PIN", value: settingsUnlocked ? "Unlocked" : "Locked")
+                if !settingsUnlocked {
+                    Button("Unlock settings") { onUnlock() }
+                }
+                Button("Change PIN") { onChangePIN() }
+                Button("Remove PIN", role: .destructive) { onRemovePIN() }
             } else {
-                Button("Set up parent PIN") { showPINSetup = true }
+                Button("Set up family PIN") { onSetupPIN() }
             }
         } header: {
             Text("Family")
         } footer: {
-            Text("Bathroom breaks and turning off blocking require the parent PIN when set.")
+            Text("The family PIN protects settings for each app session. Bathroom breaks remain available without it.")
         }
     }
 }

@@ -66,6 +66,7 @@ final class AppModel {
     let screenTime: ScreenTimeService
     let store: AppGroupStore
     let notifications: NotificationScheduling
+    let familyPINSession = FamilyPINSession()
 
     /// The one shield/unlock pair for the whole app. Views must resolve these from here rather
     /// than constructing their own — a locally-built coordinator reaches the real FamilyControls
@@ -112,6 +113,10 @@ final class AppModel {
     /// the app claiming to shield apps it can no longer touch.
     var screenTimeConnection: ScreenTimeConnectionState {
         ScreenTimeConnection.state(screenTime: screenTime, store: store)
+    }
+
+    var settingsChangesAllowed: Bool {
+        familyPINSession.allowsSettingsChanges(pinConfigured: PINStore.isConfigured)
     }
 
     /// Number of consecutive launches that died before the app was healthy, after which the

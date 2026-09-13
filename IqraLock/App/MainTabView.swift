@@ -66,6 +66,7 @@ struct MainTabView: View {
         // sheet is still up; without the guard that re-presents it on top of itself. The second
         // flag covers onAppear and the scene-phase change both firing on a cold launch.
         guard !showScreenTimeSetup, !isPromptScheduled else { return }
+        guard appModel.settingsChangesAllowed else { return }
         guard appModel.screenTimeConnection.needsAttention else { return }
         isPromptScheduled = true
         Task {

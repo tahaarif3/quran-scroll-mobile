@@ -2,6 +2,19 @@ import XCTest
 @testable import IqraLockKit
 
 final class PINStoreTests: XCTestCase {
+    func testFamilyPINSessionUnlockLastsUntilSessionIsLocked() {
+        let session = FamilyPINSession()
+
+        XCTAssertTrue(session.allowsSettingsChanges(pinConfigured: false))
+        XCTAssertFalse(session.allowsSettingsChanges(pinConfigured: true))
+
+        session.unlock()
+        XCTAssertTrue(session.allowsSettingsChanges(pinConfigured: true))
+
+        session.lock()
+        XCTAssertFalse(session.allowsSettingsChanges(pinConfigured: true))
+    }
+
     override func tearDown() {
         PINStore.delete()
         super.tearDown()
