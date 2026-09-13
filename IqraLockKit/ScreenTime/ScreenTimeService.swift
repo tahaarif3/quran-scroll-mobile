@@ -280,7 +280,7 @@ public final class FamilyControlsScreenTimeService: ScreenTimeService, @unchecke
         #endif
     }
 
-    #if DEBUG
+    #if DEBUG || INTERNAL_TESTFLIGHT
     /// Short schedule so the midnight re-shield can be verified in minutes rather than by
     /// waiting for a real day roll.
     public func scheduleDebugReshield(minutes: Int = 2) {

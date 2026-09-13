@@ -81,11 +81,7 @@ final class AppModel {
 
     init(
         analytics: AnalyticsService = NoopAnalytics(),
-        // Temporarily mocked for testing. StoreKitPurchaseService is finished and wired — swap
-        // this line back once the App Store Connect products exist and the Paid Apps Agreement
-        // is active, otherwise every purchase throws "Subscriptions aren't available" and Pro,
-        // which gates blocking, can never be reached on a test build.
-        purchases: PurchaseService = MockPurchaseService(),
+        purchases: PurchaseService? = nil,
         screenTime: ScreenTimeService? = nil,
         store: AppGroupStore = .shared,
         notifications: NotificationScheduling = LocalNotificationScheduler()
@@ -96,7 +92,7 @@ final class AppModel {
             notifications: notifications
         )
         self.analytics = analytics
-        self.purchases = purchases
+        self.purchases = purchases ?? PurchaseServiceFactory.make(analytics: analytics)
         self.screenTime = resolvedScreenTime
         self.store = store
         self.notifications = notifications
@@ -163,7 +159,7 @@ final class AppModel {
     }
 
     func bootstrap() {
-        #if DEBUG
+        #if DEBUG || INTERNAL_TESTFLIGHT
         IQFontAudit.verify()
         #endif
         recoverFromFailedLaunchesIfNeeded()
@@ -194,7 +190,7 @@ final class AppModel {
         UserDefaults.standard.set(true, forKey: onboardingFlagKey)
     }
 
-    #if DEBUG
+    #if DEBUG || INTERNAL_TESTFLIGHT
     /// Return the app to a genuine first-run state without reinstalling.
     ///
     /// State lives in three places and all three must go, or onboarding either doesn't reappear

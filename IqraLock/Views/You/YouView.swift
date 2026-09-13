@@ -28,7 +28,7 @@ struct YouView: View {
     @State private var activitySelection = FamilyActivitySelection()
     @State private var showActivityPicker = false
     #endif
-    #if DEBUG
+    #if DEBUG || INTERNAL_TESTFLIGHT
     @State private var showResetConfirm = false
     #endif
 
@@ -65,7 +65,7 @@ struct YouView: View {
                     onSetupPIN: { showPINSetup = true }
                 )
                 legalSection
-                #if DEBUG
+                #if DEBUG || INTERNAL_TESTFLIGHT
                 debugSection
                 #endif
             }
@@ -83,7 +83,7 @@ struct YouView: View {
                 appModel: appModel,
                 modelContext: modelContext
             ))
-            #if DEBUG
+            #if DEBUG || INTERNAL_TESTFLIGHT
             .confirmationDialog("Reset to first run?", isPresented: $showResetConfirm, titleVisibility: .visible) {
                 Button("Reset everything", role: .destructive) {
                     appModel.resetToFirstRun(modelContext: modelContext)
@@ -236,18 +236,28 @@ struct YouView: View {
     private var legalSection: some View {
         Section("About") {
             Button("About & attributions") { showAbout = true }
-            Link("Privacy Policy", destination: URL(string: "https://iqralock.app/privacy")!)
-            Link("Terms of Use", destination: URL(string: "https://iqralock.app/terms")!)
+            Link("Privacy Policy", destination: LegalLinks.privacy)
+            Link("Terms of Use", destination: LegalLinks.terms)
         }
     }
 
-    #if DEBUG
+    #if DEBUG || INTERNAL_TESTFLIGHT
     private var debugSection: some View {
-        Section("Developer Testing") {
+        Section {
             Button("Test shield warning notification") {
                 appModel.notifications.scheduleShieldNeedsAttention()
             }
+            Button("Schedule 2-minute re-lock") {
+                #if canImport(FamilyControls)
+                (appModel.screenTime as? FamilyControlsScreenTimeService)?
+                    .scheduleDebugReshield(minutes: 2)
+                #endif
+            }
             Button("Reset to first run", role: .destructive) { showResetConfirm = true }
+        } header: {
+            Text("Internal TestFlight")
+        } footer: {
+            Text("This build uses mock purchases. Pro unlocks instantly and is not billed. Do not use this branch for App Store review.")
         }
     }
     #endif

@@ -1,6 +1,6 @@
 # IqraLock — Privacy Policy
 
-**Last updated: 21 August 2026**
+**Last updated: 13 September 2026**
 
 IqraLock is an iOS app that helps you build a daily Qur'an reading habit by shielding distracting
 apps until you finish today's pages.
@@ -21,7 +21,10 @@ Group shared with its Screen Time extensions:
 - Reading progress: ayahs and pages read, daily records, streaks, bookmarks, your position in the mushaf and your khatm progress
 - Your daily reading goal and reading preferences
 - Which apps you chose to shield, and whether the shield is currently on
-- Emergency passes remaining
+- Bathroom-break allowance and remaining breaks this month
+- Family PIN (stored in the device Keychain, never transmitted)
+- Prayer logs and prayer-time adjustments
+- Emergency passes remaining (legacy key; same as bathroom breaks)
 
 None of this is transmitted to us. We cannot see it. Deleting IqraLock removes all of it from
 your device.

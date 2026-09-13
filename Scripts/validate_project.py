@@ -243,6 +243,7 @@ def check_feature_tests() -> list[str]:
         "PINStoreTests.swift",
         "ProgressIntegrationTests.swift",
         "ScreenTimeConnectionTests.swift",
+        "IqraBuildTests.swift",
     ]
     for name in required:
         if not (tests / name).exists():

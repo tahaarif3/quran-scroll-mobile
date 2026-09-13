@@ -569,7 +569,7 @@ public final class AppGroupStore: @unchecked Sendable {
         )
     }
 
-    #if DEBUG
+    #if DEBUG || INTERNAL_TESTFLIGHT
     /// Wipe every key this store owns, returning the app-group side to a first-run state.
     /// Debug builds only — this is the reset path for TestFlight/device testing, where
     /// reinstalling to re-run onboarding is slow.

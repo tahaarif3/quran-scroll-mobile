@@ -19,6 +19,8 @@ Resources/Fonts/            # Nunito + Amiri
 Resources/Quran/quran.sqlite
 Tests/
 docs/TESTFLIGHT_HUMAN_PLAN.md
+docs/TESTFLIGHT_INTERNAL.md     # tonight: mock-purchase TestFlight
+docs/PRODUCTION_SUBMISSION.md   # App Store blockers only you can finish
 ```
 
 ## Mac bootstrap

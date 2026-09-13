@@ -88,9 +88,14 @@ Roughly 20–30 minutes end to end. Slower than a Simulator, so:
 Debug builds have **You → Debug → Reset to first run**, which clears the onboarding flag, the
 SwiftData store and the App Group in one go.
 
-Caveat: TestFlight builds are **Release**, so `#if DEBUG` is compiled out and the button is not
-there. To get it on a device, either build Debug to the device from a Mac, or temporarily change
-the archive step's `-configuration Release` to `Debug` (do not ship that).
+Caveat: TestFlight archives **Release**, so `#if DEBUG` is compiled out.
+
+The **internal** branch (`cursor/testflight-internal-fa08`) sets `INTERNAL_TESTFLIGHT` on
+Release. That keeps **You → Internal TestFlight → Reset to first run**, mock purchases, and
+the 2-minute re-lock button. Upload that branch for device QA.
+
+The **production** branch must not set that flag. See [PRODUCTION_SUBMISSION.md](PRODUCTION_SUBMISSION.md)
+and [TESTFLIGHT_INTERNAL.md](TESTFLIGHT_INTERNAL.md).
 
 ## OUTSTANDING: the certificate limit
 

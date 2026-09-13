@@ -65,6 +65,10 @@ struct HomeView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
                     header
+                    if IqraBuild.showsInternalTools {
+                        Text("Internal TestFlight · mock purchases · You → Internal TestFlight for reset")
+                            .iqraStyle(.caption, color: IQColor.accentOlive)
+                    }
                     HomeHeroCard(
                         state: heroState,
                         unlockMinutes: store.ayahUnlockMinutes,
