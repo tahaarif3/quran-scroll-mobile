@@ -323,7 +323,7 @@ public enum ScreenTimeServiceFactory {
     public static func make(
         store: AppGroupStore = .shared,
         analytics: AnalyticsService = NoopAnalytics(),
-        notifications: NotificationScheduling = LocalNotificationScheduler()
+        notifications: NotificationScheduling = NoopNotificationScheduler()
     ) -> ScreenTimeService {
         guard ScreenTimeAvailability.isSupported else {
             return MockScreenTimeService(store: store, notifications: notifications)
