@@ -356,7 +356,7 @@ public final class MockScreenTimeService: ScreenTimeService, @unchecked Sendable
 
     public init(
         store: AppGroupStore = AppGroupStore(suiteName: "mock.iqralock"),
-        notifications: NotificationScheduling = LocalNotificationScheduler()
+        notifications: NotificationScheduling = NoopNotificationScheduler()
     ) {
         self.store = store
         self.notifications = notifications

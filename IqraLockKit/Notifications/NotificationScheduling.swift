@@ -17,6 +17,24 @@ public protocol NotificationScheduling: AnyObject, Sendable {
     func cancelPrayerNotifications()
 }
 
+public final class NoopNotificationScheduler: NotificationScheduling, @unchecked Sendable {
+    public init() {}
+
+    public func requestPermission() async -> Bool { false }
+    public func scheduleDailyReminder(hour: Int, minute: Int) {}
+    public func scheduleStreakAtRiskIfNeeded(goalMet: Bool) {}
+    public func scheduleAppsUnlocked() {}
+    public func scheduleReadPromptFromShield() {}
+    public func scheduleShieldNeedsAttention() {}
+    public func cancelShieldNeedsAttention() {}
+    public func schedulePrayerNotifications(
+        latitude: Double,
+        longitude: Double,
+        adjustments: PrayerTimeAdjustments
+    ) {}
+    public func cancelPrayerNotifications() {}
+}
+
 public final class LocalNotificationScheduler: NotificationScheduling, @unchecked Sendable {
     private let center = UNUserNotificationCenter.current()
 
