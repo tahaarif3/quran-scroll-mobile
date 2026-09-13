@@ -50,6 +50,13 @@ struct HomeView: View {
                 ? .partway(until: until, ayahsRead: store.totalAyahsToday, goal: store.dailyGoalAyahs)
                 : .unlocked(until: until)
         }
+        if HomeShieldPresentation.reportsFailedShield(
+            isLockedNow: store.isLockedNow,
+            selectedAppsCount: lockedCount,
+            hasPersistedAppSelection: store.hasPersistedAppSelection
+        ) {
+            return .shieldNeedsAttention(closedApps: lockedCount)
+        }
         return .locked(closedApps: lockedCount)
     }
 
@@ -58,7 +65,15 @@ struct HomeView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
                     header
-                    HomeHeroCard(state: heroState, unlockMinutes: store.ayahUnlockMinutes)
+                    if IqraBuild.showsInternalTools {
+                        Text("Internal TestFlight · mock purchases · You → Internal TestFlight for reset")
+                            .iqraStyle(.caption, color: IQColor.accentOlive)
+                    }
+                    HomeHeroCard(
+                        state: heroState,
+                        unlockMinutes: store.ayahUnlockMinutes,
+                        onShieldAttentionTap: { appModel.showFocusSettings = true }
+                    )
                         .id(revision)
                     ayahCard
                     bookmarkCard

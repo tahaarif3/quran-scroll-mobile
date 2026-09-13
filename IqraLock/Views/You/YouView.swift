@@ -28,31 +28,44 @@ struct YouView: View {
     @State private var activitySelection = FamilyActivitySelection()
     @State private var showActivityPicker = false
     #endif
-    #if DEBUG
+    #if DEBUG || INTERNAL_TESTFLIGHT
     @State private var showResetConfirm = false
     #endif
 
     private var profile: UserProfile? { profiles.first }
     private var connection: ScreenTimeConnectionState { appModel.screenTimeConnection }
+    private var settingsLocked: Bool { !appModel.settingsChangesAllowed }
 
     var body: some View {
         NavigationStack {
             List {
+                settingsAccessSection
                 profileSection
+                    .disabled(settingsLocked)
                 YouPrayerSettingsSection(
                     prayerNotifications: $prayerNotifications,
                     prayerCityID: $prayerCityID,
                     profile: profile
                 )
+                .disabled(settingsLocked)
                 YouShieldLayoutSection(
                     shieldLayoutMode: $shieldLayoutMode,
                     showShieldPreview: $showShieldPreview,
                     profile: profile
                 )
+                .disabled(settingsLocked)
                 focusSection
-                YouFamilySection(showPINSetup: $showPINSetup)
+                    .disabled(settingsLocked)
+                bathroomBreakSection
+                YouFamilySection(
+                    settingsUnlocked: appModel.settingsChangesAllowed,
+                    onUnlock: { requirePIN {} },
+                    onChangePIN: { requirePIN { showPINSetup = true } },
+                    onRemovePIN: removePINAfterVerification,
+                    onSetupPIN: { showPINSetup = true }
+                )
                 legalSection
-                #if DEBUG
+                #if DEBUG || INTERNAL_TESTFLIGHT
                 debugSection
                 #endif
             }
@@ -70,7 +83,7 @@ struct YouView: View {
                 appModel: appModel,
                 modelContext: modelContext
             ))
-            #if DEBUG
+            #if DEBUG || INTERNAL_TESTFLIGHT
             .confirmationDialog("Reset to first run?", isPresented: $showResetConfirm, titleVisibility: .visible) {
                 Button("Reset everything", role: .destructive) {
                     appModel.resetToFirstRun(modelContext: modelContext)
@@ -137,7 +150,7 @@ struct YouView: View {
     }
 
     private var focusSection: some View {
-        Section("Focus") {
+        Section {
             switch connection {
             case .connected:
                 Button { showActivityPicker = true } label: {
@@ -152,17 +165,22 @@ struct YouView: View {
                     }
                 }
                 Button("Turn off app blocking", role: .destructive) {
-                    requirePIN { showDisconnectConfirm = true }
+                    showDisconnectConfirm = true
+                }
+                if !appModel.store.isLockedNow {
+                    Button("Reconnect locks") {
+                        _ = appModel.screenTime.applyShield()
+                    }
                 }
             case .unsupported:
                 LabeledContent("Locked apps", value: "Needs a device")
-            case .noAppsChosen, .notConnected, .declined:
+            case .noAppsChosen, .selectionUnavailable, .notConnected, .declined:
                 Button { showScreenTimeSetup = true } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(IQColor.star)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Set up app blocking")
+                            Text(connection == .selectionUnavailable ? "Restore app locks" : "Set up app blocking")
                                 .foregroundStyle(IQColor.textPrimary)
                             Text(connection.summary)
                                 .font(.footnote)
@@ -185,32 +203,88 @@ struct YouView: View {
                 }
             }
             .onChange(of: ayahMinutes) { _, new in appModel.store.ayahUnlockMinutes = new }
+        } header: {
+            Text("Focus")
+        } footer: {
+            Text("IqraLock tells iOS which apps to block. If a selected app still opens, reconnect the locks here — iOS is what actually enforces the shield.")
+        }
+    }
+
+    private var bathroomBreakSection: some View {
+        Section {
+            Stepper(value: bathroomAllowanceBinding, in: 0...30) {
+                HStack {
+                    Text("Monthly allowance")
+                    Spacer()
+                    Text("\(appModel.store.bathroomBreakMonthlyAllowance)")
+                        .foregroundStyle(IQColor.textSecondary)
+                }
+            }
 
             LabeledContent("Bathroom breaks", value: "\(appModel.store.bathroomBreaksRemaining) left")
             Button("Use a bathroom break (5 min)") {
-                requirePIN { showPassConfirm = true }
+                showPassConfirm = true
             }
             .disabled(appModel.store.bathroomBreaksRemaining == 0)
+        } header: {
+            Text("Bathroom breaks")
+        } footer: {
+            Text("Bathroom breaks stay available without the family PIN. Changing the allowance preserves breaks already used this month.")
         }
     }
 
     private var legalSection: some View {
         Section("About") {
             Button("About & attributions") { showAbout = true }
-            Link("Privacy Policy", destination: URL(string: "https://iqralock.app/privacy")!)
-            Link("Terms of Use", destination: URL(string: "https://iqralock.app/terms")!)
+            Link("Privacy Policy", destination: LegalLinks.privacy)
+            Link("Terms of Use", destination: LegalLinks.terms)
         }
     }
 
-    #if DEBUG
+    #if DEBUG || INTERNAL_TESTFLIGHT
     private var debugSection: some View {
         Section {
+            Button("Test shield warning notification") {
+                appModel.notifications.scheduleShieldNeedsAttention()
+            }
+            Button("Schedule 2-minute re-lock") {
+                #if canImport(FamilyControls)
+                (appModel.screenTime as? FamilyControlsScreenTimeService)?
+                    .scheduleDebugReshield(minutes: 2)
+                #endif
+            }
             Button("Reset to first run", role: .destructive) { showResetConfirm = true }
         } header: {
-            Text("Debug")
+            Text("Internal TestFlight")
+        } footer: {
+            Text("This build uses mock purchases. Pro unlocks instantly and is not billed. Do not use this branch for App Store review.")
         }
     }
     #endif
+
+    @ViewBuilder
+    private var settingsAccessSection: some View {
+        if PINStore.isConfigured {
+            Section {
+                if settingsLocked {
+                    Button {
+                        requirePIN {}
+                    } label: {
+                        Label("Unlock settings", systemImage: "lock.fill")
+                    }
+                } else {
+                    LabeledContent("Settings", value: "Unlocked this session")
+                    Button("Lock settings now") {
+                        appModel.familyPINSession.lock()
+                    }
+                }
+            } footer: {
+                Text(settingsLocked
+                     ? "Enter the family PIN once to change settings until IqraLock is closed."
+                     : "Settings will lock again after IqraLock is closed.")
+            }
+        }
+    }
 
     private var nameBinding: Binding<String> {
         Binding(
@@ -231,6 +305,13 @@ struct YouView: View {
         }
         let pages = Int(ceil(Double(goalAyahs) / Double(perPage)))
         return pages == 1 ? "1 page" : "\(pages) pages"
+    }
+
+    private var bathroomAllowanceBinding: Binding<Int> {
+        Binding(
+            get: { appModel.store.bathroomBreakMonthlyAllowance },
+            set: { appModel.store.updateBathroomBreakMonthlyAllowance($0) }
+        )
     }
 
     private func syncFromStore() {
@@ -256,12 +337,20 @@ struct YouView: View {
     }
 
     private func requirePIN(_ action: @escaping () -> Void) {
-        if PINStore.isConfigured {
+        if PINStore.isConfigured && !appModel.settingsChangesAllowed {
             pendingProtectedAction = action
             showPINEntry = true
         } else {
             action()
         }
+    }
+
+    private func removePINAfterVerification() {
+        pendingProtectedAction = {
+            PINStore.delete()
+            appModel.familyPINSession.lock()
+        }
+        showPINEntry = true
     }
 }
 
@@ -288,12 +377,17 @@ private struct YouViewSheets: ViewModifier {
             } message: {
                 Text("Your apps open for 5 minutes.")
             }
-            .sheet(isPresented: $showPINSetup) { ParentPINSetupView() }
+            .sheet(isPresented: $showPINSetup) {
+                ParentPINSetupView {
+                    appModel.familyPINSession.unlock()
+                }
+            }
             .sheet(isPresented: $showPINEntry) {
                 PINEntryView(
-                    title: "Parent PIN",
+                    title: "Family PIN",
                     subtitle: "Enter your PIN to continue.",
                     onSuccess: {
+                        appModel.familyPINSession.unlock()
                         showPINEntry = false
                         pendingProtectedAction?()
                         pendingProtectedAction = nil

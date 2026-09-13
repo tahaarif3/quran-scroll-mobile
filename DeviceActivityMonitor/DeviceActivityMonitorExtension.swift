@@ -19,20 +19,26 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         store.ensureCurrentDay()
         store.pagesReadToday = 0
         store.ayahsReadToday = 0
-        store.isLockedNow = true
         store.unlockedUntil = nil
         // Re-shield from the saved selection. Relying on the app to re-apply on next foreground
         // left a hole: finishing yesterday's goal cleared `shield.applications`, and if the user
         // never reopened IqraLock the apps stayed unblocked all of the next day despite the
         // counter having reset above. This extension shares the App Group and the default
         // ManagedSettingsStore, so it can restore the shield itself.
-        guard let selection = FamilyActivitySelectionStore.load(from: store) else { return }
+        guard let selection = FamilyActivitySelectionStore.load(from: store),
+              !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty else {
+            store.isLockedNow = false
+            LocalNotificationScheduler().scheduleShieldNeedsAttention()
+            return
+        }
         managed.shield.applications = selection.applicationTokens.isEmpty
             ? nil
             : selection.applicationTokens
         managed.shield.applicationCategories = selection.categoryTokens.isEmpty
             ? nil
             : .specific(selection.categoryTokens)
+        store.isLockedNow = true
+        LocalNotificationScheduler().cancelShieldNeedsAttention()
     }
 
     override func intervalDidEnd(for activity: DeviceActivityName) {
@@ -46,18 +52,28 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         // re-locked everything, and reading from the shield looked like it granted nothing at
         // all. The callback is now only believed when the window has genuinely run out.
         if let until = store.unlockedUntil, until > Date() { return }
-        store.isLockedNow = true
         store.unlockedUntil = nil
         // The window an ayah bought has run out. Re-applying the tokens here is what makes it a
         // window at all — clearing a shield is permanent until something puts it back, and the
         // app cannot be relied on to be opened.
-        guard !store.goalMetToday,
-              let selection = FamilyActivitySelectionStore.load(from: store) else { return }
+        guard !store.goalMetToday else {
+            store.isLockedNow = false
+            LocalNotificationScheduler().cancelShieldNeedsAttention()
+            return
+        }
+        guard let selection = FamilyActivitySelectionStore.load(from: store),
+              !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty else {
+            store.isLockedNow = false
+            LocalNotificationScheduler().scheduleShieldNeedsAttention()
+            return
+        }
         managed.shield.applications = selection.applicationTokens.isEmpty
             ? nil
             : selection.applicationTokens
         managed.shield.applicationCategories = selection.categoryTokens.isEmpty
             ? nil
             : .specific(selection.categoryTokens)
+        store.isLockedNow = true
+        LocalNotificationScheduler().cancelShieldNeedsAttention()
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 import IqraLockKit
 
 @main
@@ -23,6 +24,10 @@ struct IqraLockApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
                     appModel.store.ensureCurrentDay()
+                    // DeviceActivity callbacks are not precise timers and may not run until the
+                    // device is used after an interval. Reconcile every foreground transition so
+                    // an expired window cannot leave iOS unshielded while Home says it is locked.
+                    appModel.shield.reevaluate()
                     Task.detached(priority: .utility) { [store = appModel.store] in
                         ShieldAyahProvider.refreshCache(store: store)
                     }
@@ -51,7 +56,9 @@ struct IqraLockApp: App {
 final class AppModel {
     var hasCompletedOnboarding: Bool
     var showReader: Bool = false
+    var showFocusSettings: Bool = false
     var pendingDeepLink: URL?
+    private let notificationDeepLinks = NotificationDeepLinkCenter()
     /// Bumped whenever the prayer city or time adjustments change so views refresh.
     var prayerScheduleVersion = 0
     /// Bumped after a prayer-log save so Home and Progress recompute from the shared context.
@@ -62,6 +69,7 @@ final class AppModel {
     let screenTime: ScreenTimeService
     let store: AppGroupStore
     let notifications: NotificationScheduling
+    let familyPINSession = FamilyPINSession()
 
     /// The one shield/unlock pair for the whole app. Views must resolve these from here rather
     /// than constructing their own — a locally-built coordinator reaches the real FamilyControls
@@ -73,21 +81,18 @@ final class AppModel {
 
     init(
         analytics: AnalyticsService = NoopAnalytics(),
-        // Temporarily mocked for testing. StoreKitPurchaseService is finished and wired — swap
-        // this line back once the App Store Connect products exist and the Paid Apps Agreement
-        // is active, otherwise every purchase throws "Subscriptions aren't available" and Pro,
-        // which gates blocking, can never be reached on a test build.
-        purchases: PurchaseService = MockPurchaseService(),
+        purchases: PurchaseService? = nil,
         screenTime: ScreenTimeService? = nil,
         store: AppGroupStore = .shared,
         notifications: NotificationScheduling = LocalNotificationScheduler()
     ) {
         let resolvedScreenTime = screenTime ?? ScreenTimeServiceFactory.make(
             store: store,
-            analytics: analytics
+            analytics: analytics,
+            notifications: notifications
         )
         self.analytics = analytics
-        self.purchases = purchases
+        self.purchases = purchases ?? PurchaseServiceFactory.make(analytics: analytics)
         self.screenTime = resolvedScreenTime
         self.store = store
         self.notifications = notifications
@@ -100,6 +105,10 @@ final class AppModel {
             notifications: notifications
         )
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: onboardingFlagKey)
+        notificationDeepLinks.handler = { [weak self] url in
+            self?.handle(url: url)
+        }
+        UNUserNotificationCenter.current().delegate = notificationDeepLinks
     }
 
     /// How far Screen Time setup actually got. Read live rather than cached: authorization can
@@ -107,6 +116,10 @@ final class AppModel {
     /// the app claiming to shield apps it can no longer touch.
     var screenTimeConnection: ScreenTimeConnectionState {
         ScreenTimeConnection.state(screenTime: screenTime, store: store)
+    }
+
+    var settingsChangesAllowed: Bool {
+        familyPINSession.allowsSettingsChanges(pinConfigured: PINStore.isConfigured)
     }
 
     /// Number of consecutive launches that died before the app was healthy, after which the
@@ -146,7 +159,7 @@ final class AppModel {
     }
 
     func bootstrap() {
-        #if DEBUG
+        #if DEBUG || INTERNAL_TESTFLIGHT
         IQFontAudit.verify()
         #endif
         recoverFromFailedLaunchesIfNeeded()
@@ -177,7 +190,7 @@ final class AppModel {
         UserDefaults.standard.set(true, forKey: onboardingFlagKey)
     }
 
-    #if DEBUG
+    #if DEBUG || INTERNAL_TESTFLIGHT
     /// Return the app to a genuine first-run state without reinstalling.
     ///
     /// State lives in three places and all three must go, or onboarding either doesn't reappear
@@ -200,6 +213,7 @@ final class AppModel {
         try? modelContext.save()
 
         showReader = false
+        showFocusSettings = false
         pendingDeepLink = nil
         hasCompletedOnboarding = false
     }
@@ -207,8 +221,14 @@ final class AppModel {
 
     func handle(url: URL) {
         pendingDeepLink = url
-        if url.host == "read" || url.path.contains("read") {
+        let target = (url.host ?? url.path)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
+        if target == "read" || url.path.contains("read") {
             showReader = true
+        }
+        if target == "focus" || url.path.contains("focus") {
+            showFocusSettings = true
         }
     }
 
@@ -259,6 +279,28 @@ final class AppModel {
         try? context.save()
         prayerScheduleVersion += 1
         schedulePrayerNotificationsIfEnabled(context: context)
+    }
+}
+
+/// Local notification taps do not go through `onOpenURL`. Without this, `iqralock://focus`
+/// in the shield-attention payload never reached `handle(url:)`.
+final class NotificationDeepLinkCenter: NSObject, UNUserNotificationCenterDelegate {
+    var handler: ((URL) -> Void)?
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        guard let raw = response.notification.request.content.userInfo["deepLink"] as? String,
+              let url = URL(string: raw) else { return }
+        handler?(url)
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
     }
 }
 

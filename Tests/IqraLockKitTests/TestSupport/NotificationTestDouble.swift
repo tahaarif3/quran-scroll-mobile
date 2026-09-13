@@ -4,6 +4,7 @@ import Foundation
 /// Shared no-op notification scheduler for unit tests.
 final class NotificationTestDouble: NotificationScheduling, @unchecked Sendable {
     var streakAtRiskScheduled = false
+    var shieldNeedsAttentionScheduled = false
     var prayerNotificationsScheduled = false
     var prayerNotificationsCancelled = false
 
@@ -14,6 +15,8 @@ final class NotificationTestDouble: NotificationScheduling, @unchecked Sendable 
     }
     func scheduleAppsUnlocked() {}
     func scheduleReadPromptFromShield() {}
+    func scheduleShieldNeedsAttention() { shieldNeedsAttentionScheduled = true }
+    func cancelShieldNeedsAttention() { shieldNeedsAttentionScheduled = false }
     func schedulePrayerNotifications(
         latitude: Double,
         longitude: Double,

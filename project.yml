@@ -17,6 +17,12 @@ settings:
     MARKETING_VERSION: "1.0.0"
     DEVELOPMENT_TEAM: "" # set on Mac in Xcode or via xcconfig
     CODE_SIGN_STYLE: Automatic
+  configs:
+    # TestFlight archives Release, so `#if DEBUG` never reaches a device. This flag keeps the
+    # mock paywall, first-run reset, and shield test buttons on the internal TestFlight branch.
+    # The production-submission branch must not set this.
+    Release:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: INTERNAL_TESTFLIGHT
 
 packages:
   SnapshotTesting:
@@ -156,7 +162,11 @@ targets:
           - Amiri-Regular.ttf
           - Amiri-Bold.ttf
         NSFamilyControlsUsageDescription: IqraLock uses Screen Time to shield distracting apps until you finish your daily Qur'an reading.
-        NSUserNotificationsUsageDescription: IqraLock sends reading reminders and unlock confirmations.
+        NSUserNotificationsUsageDescription: IqraLock sends reading and prayer reminders, unlock confirmations, and shield status warnings.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.tahaarif.iqralock
+            CFBundleURLSchemes:
+              - iqralock
     entitlements:
       path: IqraLock/IqraLock.entitlements
       properties:

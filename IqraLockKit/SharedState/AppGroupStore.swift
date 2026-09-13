@@ -20,6 +20,7 @@ public final class AppGroupStore: @unchecked Sendable {
         public static let unlockedUntil = "unlockedUntil"
         public static let bathroomBreaksRemaining = "bathroomBreaksRemaining"
         public static let bathroomBreaksMonthKey = "bathroomBreaksMonthKey"
+        public static let bathroomBreakMonthlyAllowance = "bathroomBreakMonthlyAllowance"
         /// Legacy keys — migrated on read.
         public static let emergencyPassesRemaining = "emergencyPassesRemaining"
         public static let emergencyPassesMonthKey = "emergencyPassesMonthKey"
@@ -332,6 +333,24 @@ public final class AppGroupStore: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Key.isLockedNow) }
     }
 
+    /// True when a saved Family Controls selection can still be turned into tokens.
+    ///
+    /// `selectedAppsCount` alone is not enough: a leftover count with a missing or unreadable
+    /// blob is how Home used to say apps were locked while iOS had nothing to shield.
+    public var hasPersistedAppSelection: Bool {
+        guard selectedAppsCount > 0, let data = selectedAppsData, !data.isEmpty else {
+            return false
+        }
+        #if canImport(FamilyControls)
+        guard let selection = FamilyActivitySelectionStore.load(from: self) else {
+            return false
+        }
+        return !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
+        #else
+        return true
+        #endif
+    }
+
     public var unlockedUntil: Date? {
         get { defaults.object(forKey: Key.unlockedUntil) as? Date }
         set { defaults.set(newValue, forKey: Key.unlockedUntil) }
@@ -349,6 +368,25 @@ public final class AppGroupStore: @unchecked Sendable {
             return defaults.integer(forKey: Key.bathroomBreaksRemaining)
         }
         set { defaults.set(newValue, forKey: Key.bathroomBreaksRemaining) }
+    }
+
+    public var bathroomBreakMonthlyAllowance: Int {
+        get {
+            guard defaults.object(forKey: Key.bathroomBreakMonthlyAllowance) != nil else {
+                return 5
+            }
+            return max(0, defaults.integer(forKey: Key.bathroomBreakMonthlyAllowance))
+        }
+        set { defaults.set(min(max(0, newValue), 30), forKey: Key.bathroomBreakMonthlyAllowance) }
+    }
+
+    /// Changes this month's allowance without giving back passes that were already used.
+    public func updateBathroomBreakMonthlyAllowance(_ newValue: Int) {
+        let oldAllowance = bathroomBreakMonthlyAllowance
+        resetBathroomBreaksIfNeeded(monthlyAllowance: oldAllowance)
+        let usedThisMonth = max(0, oldAllowance - bathroomBreaksRemaining)
+        bathroomBreakMonthlyAllowance = newValue
+        bathroomBreaksRemaining = max(0, bathroomBreakMonthlyAllowance - usedThisMonth)
     }
 
     /// @deprecated Use bathroomBreaksRemaining
@@ -435,7 +473,7 @@ public final class AppGroupStore: @unchecked Sendable {
     public func resetBathroomBreaksIfNeeded(
         now: Date = Date(),
         calendar: Calendar = .current,
-        monthlyAllowance: Int = 5
+        monthlyAllowance: Int? = nil
     ) {
         migrateEmergencyPassesIfNeeded()
         let comps = calendar.dateComponents([.year, .month], from: now)
@@ -443,7 +481,7 @@ public final class AppGroupStore: @unchecked Sendable {
         let stored = defaults.string(forKey: Key.bathroomBreaksMonthKey) ?? ""
         if stored != monthKey {
             defaults.set(monthKey, forKey: Key.bathroomBreaksMonthKey)
-            bathroomBreaksRemaining = monthlyAllowance
+            bathroomBreaksRemaining = monthlyAllowance ?? bathroomBreakMonthlyAllowance
         }
     }
 
@@ -531,7 +569,7 @@ public final class AppGroupStore: @unchecked Sendable {
         )
     }
 
-    #if DEBUG
+    #if DEBUG || INTERNAL_TESTFLIGHT
     /// Wipe every key this store owns, returning the app-group side to a first-run state.
     /// Debug builds only — this is the reset path for TestFlight/device testing, where
     /// reinstalling to re-run onboarding is slow.
@@ -539,6 +577,7 @@ public final class AppGroupStore: @unchecked Sendable {
         for key in [
             Key.pagesReadToday, Key.dailyGoalPages, Key.isLockedNow, Key.unlockedUntil,
             Key.bathroomBreaksRemaining, Key.bathroomBreaksMonthKey,
+            Key.bathroomBreakMonthlyAllowance,
             Key.emergencyPassesRemaining, Key.emergencyPassesMonthKey,
             Key.casualReadingMode, Key.selectedAppsData,
             Key.selectedAppsCount, Key.userDisplayName, Key.dayKey, Key.pendingDeepLink,

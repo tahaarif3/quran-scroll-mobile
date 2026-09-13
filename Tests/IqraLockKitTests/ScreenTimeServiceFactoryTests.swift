@@ -59,5 +59,52 @@ final class ScreenTimeServiceFactoryTests: XCTestCase {
         coordinator.unlockForRestOfDay()
         XCTAssertFalse(store.isLockedNow)
     }
+
+    func testFailedShieldApplicationDoesNotClaimAppsAreLocked() {
+        let store = makeStore()
+        store.ensureCurrentDay()
+        store.selectedAppsCount = 2
+        store.unlockedUntil = Date(timeIntervalSince1970: 1)
+        let notifications = NotificationTestDouble()
+        let screenTime = MockScreenTimeService(store: store, notifications: notifications)
+        screenTime.applyShieldSucceeds = false
+        let coordinator = ShieldCoordinator(store: store, screenTime: screenTime)
+
+        coordinator.reevaluate(now: Date(timeIntervalSince1970: 2))
+
+        XCTAssertFalse(store.isLockedNow)
+        XCTAssertFalse(screenTime.isShielded)
+        XCTAssertTrue(notifications.shieldNeedsAttentionScheduled)
+    }
+
+    func testReevaluationRepairsExpiredUnlockWindow() {
+        let store = makeStore()
+        store.ensureCurrentDay()
+        store.selectedAppsCount = 2
+        store.unlockedUntil = Date(timeIntervalSince1970: 10)
+        let screenTime = MockScreenTimeService(store: store)
+        screenTime.clearShield()
+        let coordinator = ShieldCoordinator(store: store, screenTime: screenTime)
+
+        coordinator.reevaluate(now: Date(timeIntervalSince1970: 11))
+
+        XCTAssertTrue(store.isLockedNow)
+        XCTAssertTrue(screenTime.isShielded)
+        XCTAssertNil(store.unlockedUntil)
+    }
+
+    func testFailedReshieldScheduleNotifiesAndSuccessfulRetryClearsWarning() {
+        let store = makeStore()
+        let notifications = NotificationTestDouble()
+        let screenTime = MockScreenTimeService(store: store, notifications: notifications)
+        screenTime.scheduleReshieldSucceeds = false
+
+        screenTime.scheduleReshield(at: Date().addingTimeInterval(5 * 60))
+        XCTAssertTrue(notifications.shieldNeedsAttentionScheduled)
+
+        screenTime.scheduleReshieldSucceeds = true
+        screenTime.scheduleReshield(at: Date().addingTimeInterval(5 * 60))
+        XCTAssertFalse(notifications.shieldNeedsAttentionScheduled)
+    }
 }
 

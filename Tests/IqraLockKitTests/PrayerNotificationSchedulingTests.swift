@@ -51,4 +51,16 @@ final class PrayerNotificationSchedulingTests: XCTestCase {
             PrayerProgressSync.contributesToStreak(readingGoalMet: false, prayersLogged: true)
         )
     }
+
+    func testShieldAttentionWarningCanBeScheduledAndCleared() {
+        // The live UNUserNotificationCenter requires a host app and permission, so the protocol
+        // double verifies the state transition here; a DEBUG button covers delivery on device.
+        let notifications = NotificationTestDouble()
+
+        notifications.scheduleShieldNeedsAttention()
+        XCTAssertTrue(notifications.shieldNeedsAttentionScheduled)
+
+        notifications.cancelShieldNeedsAttention()
+        XCTAssertFalse(notifications.shieldNeedsAttentionScheduled)
+    }
 }

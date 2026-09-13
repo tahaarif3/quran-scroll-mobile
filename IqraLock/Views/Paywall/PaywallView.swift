@@ -21,6 +21,13 @@ struct PaywallView: View {
 
     @State private var canSkip = false
 
+    private var renewalDisclosure: String {
+        if selectedPlan == .annual {
+            return "3-day free trial, then \(purchases.annualPriceLabel)/year. Cancel anytime."
+        }
+        return "Billed \(purchases.weeklyPriceLabel)/week. Cancel anytime."
+    }
+
     var body: some View {
         ZStack {
             // Flat sand, matching 2r in the design. The radial belongs to Welcome only.
@@ -91,11 +98,8 @@ struct PaywallView: View {
 
                         HStack(alignment: .top, spacing: 12) {
                             IQIconView(.globe, size: 30)
-                            // One flowing sentence with the figure emphasised, as in the design —
-                            // it was two stacked lines, which reads as a heading over a caption
-                            // rather than a single claim.
                             HighlightedText(
-                                "**10% of every subscription** becomes sadaqah jariyah — wells, mushafs & meals.",
+                                "**Subscriptions are optional.** They support development. Every feature is already free — there is no active donation program claimed here.",
                                 style: .caption,
                                 color: IQColor.textMuted2,
                                 highlight: IQColor.textInk
@@ -121,10 +125,15 @@ struct PaywallView: View {
                     kind: .primary,
                     action: onPurchase
                 )
-                HStack(spacing: 4) {
-                    Text("Then \(purchases.annualPriceLabel)/year · cancel anytime ·")
-                        .iqraStyle(.finePrint, color: IQColor.textFaint)
+                Text(renewalDisclosure)
+                    .iqraStyle(.finePrint, color: IQColor.textFaint)
+                    .multilineTextAlignment(.center)
+                HStack(spacing: 12) {
                     Button("Restore", action: onRestore)
+                        .iqraStyle(.finePrint, color: IQColor.brandPrimary)
+                    Link("Privacy Policy", destination: LegalLinks.privacy)
+                        .iqraStyle(.finePrint, color: IQColor.brandPrimary)
+                    Link("Terms of Use", destination: LegalLinks.terms)
                         .iqraStyle(.finePrint, color: IQColor.brandPrimary)
                 }
             }

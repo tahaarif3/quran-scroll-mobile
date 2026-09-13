@@ -13,6 +13,7 @@ import IqraLockKit
 struct HomeHeroCard: View {
     enum State: Equatable {
         case locked(closedApps: Int)
+        case shieldNeedsAttention(closedApps: Int)
         case unlocked(until: Date)
         case partway(until: Date, ayahsRead: Int, goal: Int)
         case goalMet(ayahs: Int, pages: Int, sittings: Int)
@@ -20,6 +21,7 @@ struct HomeHeroCard: View {
 
     let state: State
     let unlockMinutes: Int
+    var onShieldAttentionTap: (() -> Void)? = nil
 
     /// Pinned so the content below cannot shift between states.
     static let height: CGFloat = 232
@@ -31,6 +33,8 @@ struct HomeHeroCard: View {
             switch state {
             case .locked(let closedApps):
                 lockedBody(closedApps: closedApps)
+            case .shieldNeedsAttention(let closedApps):
+                shieldNeedsAttentionBody(closedApps: closedApps)
             case .unlocked(let until):
                 unlockedBody(until: until, goal: nil)
             case .partway(let until, let read, let goal):
@@ -93,6 +97,36 @@ struct HomeHeroCard: View {
                 .padding(.top, 6)
             Spacer(minLength: 0)
         }
+    }
+
+    private func shieldNeedsAttentionBody(closedApps: Int) -> some View {
+        let appsLabel = closedApps == 1 ? "1 selected app" : "\(closedApps) selected apps"
+        return Button {
+            onShieldAttentionTap?()
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("SHIELD NEEDS ATTENTION")
+                    .font(.custom("Nunito-ExtraBold", size: 13))
+                    .tracking(0.8)
+                    .foregroundStyle(IQColor.accentGoldOnDark)
+                Text("Your apps may still be open")
+                    .font(.custom("Nunito-Black", size: 26))
+                    .foregroundStyle(.white)
+                    .padding(.top, 4)
+
+                hairline.padding(.vertical, 16)
+
+                Text("Open You → Focus and reconnect the \(appsLabel). IqraLock can apply the locks; iOS is what actually blocks the apps.")
+                    .font(.custom("Nunito-SemiBold", size: 15))
+                    .foregroundStyle(IQColor.track)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens You, Focus settings")
     }
 
     // MARK: - Unlocked and partway
