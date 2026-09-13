@@ -150,7 +150,7 @@ struct YouView: View {
     }
 
     private var focusSection: some View {
-        Section("Focus") {
+        Section {
             switch connection {
             case .connected:
                 Button { showActivityPicker = true } label: {
@@ -203,6 +203,8 @@ struct YouView: View {
                 }
             }
             .onChange(of: ayahMinutes) { _, new in appModel.store.ayahUnlockMinutes = new }
+        } header: {
+            Text("Focus")
         } footer: {
             Text("IqraLock tells iOS which apps to block. If a selected app still opens, reconnect the locks here — iOS is what actually enforces the shield.")
         }
