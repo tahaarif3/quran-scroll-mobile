@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 import IqraLockKit
 
 @main
@@ -55,7 +56,9 @@ struct IqraLockApp: App {
 final class AppModel {
     var hasCompletedOnboarding: Bool
     var showReader: Bool = false
+    var showFocusSettings: Bool = false
     var pendingDeepLink: URL?
+    private let notificationDeepLinks = NotificationDeepLinkCenter()
     /// Bumped whenever the prayer city or time adjustments change so views refresh.
     var prayerScheduleVersion = 0
     /// Bumped after a prayer-log save so Home and Progress recompute from the shared context.
@@ -106,6 +109,10 @@ final class AppModel {
             notifications: notifications
         )
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: onboardingFlagKey)
+        notificationDeepLinks.handler = { [weak self] url in
+            self?.handle(url: url)
+        }
+        UNUserNotificationCenter.current().delegate = notificationDeepLinks
     }
 
     /// How far Screen Time setup actually got. Read live rather than cached: authorization can
@@ -210,6 +217,7 @@ final class AppModel {
         try? modelContext.save()
 
         showReader = false
+        showFocusSettings = false
         pendingDeepLink = nil
         hasCompletedOnboarding = false
     }
@@ -217,8 +225,14 @@ final class AppModel {
 
     func handle(url: URL) {
         pendingDeepLink = url
-        if url.host == "read" || url.path.contains("read") {
+        let target = (url.host ?? url.path)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
+        if target == "read" || url.path.contains("read") {
             showReader = true
+        }
+        if target == "focus" || url.path.contains("focus") {
+            showFocusSettings = true
         }
     }
 
@@ -269,6 +283,28 @@ final class AppModel {
         try? context.save()
         prayerScheduleVersion += 1
         schedulePrayerNotificationsIfEnabled(context: context)
+    }
+}
+
+/// Local notification taps do not go through `onOpenURL`. Without this, `iqralock://focus`
+/// in the shield-attention payload never reached `handle(url:)`.
+final class NotificationDeepLinkCenter: NSObject, UNUserNotificationCenterDelegate {
+    var handler: ((URL) -> Void)?
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        guard let raw = response.notification.request.content.userInfo["deepLink"] as? String,
+              let url = URL(string: raw) else { return }
+        handler?(url)
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
     }
 }
 

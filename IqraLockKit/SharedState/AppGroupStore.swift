@@ -333,6 +333,24 @@ public final class AppGroupStore: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Key.isLockedNow) }
     }
 
+    /// True when a saved Family Controls selection can still be turned into tokens.
+    ///
+    /// `selectedAppsCount` alone is not enough: a leftover count with a missing or unreadable
+    /// blob is how Home used to say apps were locked while iOS had nothing to shield.
+    public var hasPersistedAppSelection: Bool {
+        guard selectedAppsCount > 0, let data = selectedAppsData, !data.isEmpty else {
+            return false
+        }
+        #if canImport(FamilyControls)
+        guard let selection = FamilyActivitySelectionStore.load(from: self) else {
+            return false
+        }
+        return !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
+        #else
+        return true
+        #endif
+    }
+
     public var unlockedUntil: Date? {
         get { defaults.object(forKey: Key.unlockedUntil) as? Date }
         set { defaults.set(newValue, forKey: Key.unlockedUntil) }

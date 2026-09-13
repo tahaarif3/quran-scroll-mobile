@@ -167,15 +167,20 @@ struct YouView: View {
                 Button("Turn off app blocking", role: .destructive) {
                     showDisconnectConfirm = true
                 }
+                if !appModel.store.isLockedNow {
+                    Button("Reconnect locks") {
+                        _ = appModel.screenTime.applyShield()
+                    }
+                }
             case .unsupported:
                 LabeledContent("Locked apps", value: "Needs a device")
-            case .noAppsChosen, .notConnected, .declined:
+            case .noAppsChosen, .selectionUnavailable, .notConnected, .declined:
                 Button { showScreenTimeSetup = true } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(IQColor.star)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Set up app blocking")
+                            Text(connection == .selectionUnavailable ? "Restore app locks" : "Set up app blocking")
                                 .foregroundStyle(IQColor.textPrimary)
                             Text(connection.summary)
                                 .font(.footnote)
@@ -198,6 +203,8 @@ struct YouView: View {
                 }
             }
             .onChange(of: ayahMinutes) { _, new in appModel.store.ayahUnlockMinutes = new }
+        } footer: {
+            Text("IqraLock tells iOS which apps to block. If a selected app still opens, reconnect the locks here — iOS is what actually enforces the shield.")
         }
     }
 

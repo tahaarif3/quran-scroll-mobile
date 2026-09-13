@@ -60,6 +60,8 @@ RISKY_SOURCE_TO_TESTS: dict[str, list[str]] = {
         "Tests/IqraLockKitTests/DailyProgressSyncTests.swift",
         "Tests/IqraLockKitTests/ReaderResumeTests.swift",
         "Tests/IqraLockKitTests/PrayerProgressSyncTests.swift",
+        "Tests/IqraLockKitTests/BathroomBreakTests.swift",
+        "Tests/IqraLockKitTests/ScreenTimeConnectionTests.swift",
     ],
     "IqraLockKit/Notifications/NotificationScheduling.swift": [
         "Tests/IqraLockKitTests/PrayerNotificationSchedulingTests.swift",
@@ -240,6 +242,7 @@ def check_feature_tests() -> list[str]:
         "PrayerLogTests.swift",
         "PINStoreTests.swift",
         "ProgressIntegrationTests.swift",
+        "ScreenTimeConnectionTests.swift",
     ]
     for name in required:
         if not (tests / name).exists():

@@ -50,9 +50,14 @@ struct HomeView: View {
                 ? .partway(until: until, ayahsRead: store.totalAyahsToday, goal: store.dailyGoalAyahs)
                 : .unlocked(until: until)
         }
-        return store.isLockedNow
-            ? .locked(closedApps: lockedCount)
-            : .shieldNeedsAttention(closedApps: lockedCount)
+        if HomeShieldPresentation.reportsFailedShield(
+            isLockedNow: store.isLockedNow,
+            selectedAppsCount: lockedCount,
+            hasPersistedAppSelection: store.hasPersistedAppSelection
+        ) {
+            return .shieldNeedsAttention(closedApps: lockedCount)
+        }
+        return .locked(closedApps: lockedCount)
     }
 
     var body: some View {
@@ -60,7 +65,11 @@ struct HomeView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
                     header
-                    HomeHeroCard(state: heroState, unlockMinutes: store.ayahUnlockMinutes)
+                    HomeHeroCard(
+                        state: heroState,
+                        unlockMinutes: store.ayahUnlockMinutes,
+                        onShieldAttentionTap: { appModel.showFocusSettings = true }
+                    )
                         .id(revision)
                     ayahCard
                     bookmarkCard
