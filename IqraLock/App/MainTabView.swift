@@ -53,6 +53,16 @@ struct MainTabView: View {
                 appModel.showReader = false
             }
         }
+        .onChange(of: appModel.showFocusSettings) { _, show in
+            guard show else { return }
+            tab = .you
+            appModel.showFocusSettings = false
+            // The You tab already shows Focus. Only open the repair sheet when setup is
+            // incomplete or the saved selection cannot be applied — and never under a locked PIN.
+            if appModel.settingsChangesAllowed, appModel.screenTimeConnection.needsAttention {
+                showScreenTimeSetup = true
+            }
+        }
     }
 
     /// Asks on every open, for as long as nothing can actually be blocked.

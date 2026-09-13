@@ -118,6 +118,15 @@ Family Controls **cannot** be tested in Simulator.
      both remain available, already-used breaks stay deducted, and the five-minute re-shield works.
   9. Confirm **Change PIN** requires the current PIN while locked, the new PIN replaces the old one,
      and **Remove PIN** always asks for the current PIN before removing protection.
+  10. With no apps chosen, Home should still show the normal Shielded hero — not
+      “SHIELD NEEDS ATTENTION”. After choosing apps, force a failed apply (revoke Screen Time
+      or clear the selection blob) and confirm Home interpolates the selected-app count and a
+      tap opens **You → Focus**.
+  11. Tap the “Shield needs attention” notification and confirm it lands on the You tab (Focus),
+      not the reader.
+  12. You → Focus should say **Connected** only when a saved app list can still be loaded. A
+      leftover count with a missing list should ask to choose apps again. If a selected app
+      still opens after a successful apply, use **Reconnect locks** — iOS enforces the shield.
 
 ---
 

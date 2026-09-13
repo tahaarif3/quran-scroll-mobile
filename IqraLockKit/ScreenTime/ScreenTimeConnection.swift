@@ -15,6 +15,8 @@ public enum ScreenTimeConnectionState: Equatable, Sendable {
     case connected
     /// Authorized, but nothing chosen — usually the picker step was skipped.
     case noAppsChosen
+    /// Authorized, and a leftover count says apps were chosen, but the token blob is gone.
+    case selectionUnavailable
     /// The system prompt was never answered.
     case notConnected
     /// Answered no. iOS does not re-present its prompt for a denied request on every version, so
@@ -30,7 +32,7 @@ public enum ScreenTimeConnectionState: Equatable, Sendable {
     /// action they could take, so a reminder would only be noise.
     public var needsAttention: Bool {
         switch self {
-        case .noAppsChosen, .notConnected, .declined: return true
+        case .noAppsChosen, .selectionUnavailable, .notConnected, .declined: return true
         case .connected, .unsupported: return false
         }
     }
@@ -40,6 +42,7 @@ public enum ScreenTimeConnectionState: Equatable, Sendable {
         switch self {
         case .connected: return "Connected"
         case .noAppsChosen: return "No apps chosen — nothing is being locked"
+        case .selectionUnavailable: return "Saved app list can't be restored — nothing is being locked"
         case .notConnected: return "Not connected — nothing is being locked"
         case .declined: return "Access declined — nothing is being locked"
         case .unsupported: return "Not available on this device"
@@ -62,9 +65,22 @@ public enum ScreenTimeConnection {
         case .notDetermined:
             return .notConnected
         case .approved:
-            // The count, not `selectedAppsData` — same signal `ShieldCoordinator` gates on, so
-            // "connected" here and "will actually shield" there cannot diverge.
-            return store.selectedAppsCount > 0 ? .connected : .noAppsChosen
+            if store.hasPersistedAppSelection { return .connected }
+            // A leftover count without readable tokens is not "connected". That mismatch is
+            // exactly "the app says locked / connected while nothing is shielded".
+            if store.selectedAppsCount > 0 { return .selectionUnavailable }
+            return .noAppsChosen
         }
+    }
+}
+
+/// Home's "shield needs attention" state — only when a lock was expected and is not on.
+public enum HomeShieldPresentation {
+    public static func reportsFailedShield(
+        isLockedNow: Bool,
+        selectedAppsCount: Int,
+        hasPersistedAppSelection: Bool
+    ) -> Bool {
+        !isLockedNow && (hasPersistedAppSelection || selectedAppsCount > 0)
     }
 }

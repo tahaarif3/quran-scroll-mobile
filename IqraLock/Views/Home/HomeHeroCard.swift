@@ -21,6 +21,7 @@ struct HomeHeroCard: View {
 
     let state: State
     let unlockMinutes: Int
+    var onShieldAttentionTap: (() -> Void)? = nil
 
     /// Pinned so the content below cannot shift between states.
     static let height: CGFloat = 232
@@ -99,23 +100,33 @@ struct HomeHeroCard: View {
     }
 
     private func shieldNeedsAttentionBody(closedApps: Int) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("SHIELD NEEDS ATTENTION")
-                .font(.custom("Nunito-ExtraBold", size: 13))
-                .tracking(0.8)
-                .foregroundStyle(IQColor.accentGoldOnDark)
-            Text("Your apps may still be open")
-                .font(.custom("Nunito-Black", size: 26))
-                .foregroundStyle(.white)
-                .padding(.top, 4)
+        let appsLabel = closedApps == 1 ? "1 selected app" : "\(closedApps) selected apps"
+        return Button {
+            onShieldAttentionTap?()
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("SHIELD NEEDS ATTENTION")
+                    .font(.custom("Nunito-ExtraBold", size: 13))
+                    .tracking(0.8)
+                    .foregroundStyle(IQColor.accentGoldOnDark)
+                Text("Your apps may still be open")
+                    .font(.custom("Nunito-Black", size: 26))
+                    .foregroundStyle(.white)
+                    .padding(.top, 4)
 
-            hairline.padding(.vertical, 16)
+                hairline.padding(.vertical, 16)
 
-            Text("Open You → Focus and reconnect the (closedApps) selected apps.")
-                .font(.custom("Nunito-SemiBold", size: 15))
-                .foregroundStyle(IQColor.track)
-            Spacer(minLength: 0)
+                Text("Open You → Focus and reconnect the \(appsLabel). IqraLock can apply the locks; iOS is what actually blocks the apps.")
+                    .font(.custom("Nunito-SemiBold", size: 15))
+                    .foregroundStyle(IQColor.track)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens You, Focus settings")
     }
 
     // MARK: - Unlocked and partway

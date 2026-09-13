@@ -151,13 +151,14 @@ struct ScreenTimeSetupView: View {
     // MARK: - Copy
 
     private var hasAuthorization: Bool {
-        state == .connected || state == .noAppsChosen
+        state == .connected || state == .noAppsChosen || state == .selectionUnavailable
     }
 
     private var title: String {
         switch state {
         case .connected: return "You're all set"
         case .noAppsChosen: return "Choose what to lock"
+        case .selectionUnavailable: return "Restore your app locks"
         case .notConnected: return isReminder ? "Nothing is locked yet" : "Connect to Screen Time"
         case .declined: return "Nothing is locked yet"
         case .unsupported: return "Not available here"
@@ -167,9 +168,11 @@ struct ScreenTimeSetupView: View {
     private var explanation: String {
         switch state {
         case .connected:
-            return "Your apps stay behind the shield until you've read today's ayahs."
+            return "Your apps stay behind the shield until you've read today's ayahs. IqraLock applies the locks; iOS is what blocks the apps."
         case .noAppsChosen:
             return "Screen Time is connected, but no apps are picked — so there's nothing for IqraLock to hold back. Choose the ones you reach for without thinking."
+        case .selectionUnavailable:
+            return "IqraLock still has a count of locked apps, but the list iOS needs is missing. Choose the apps again to reconnect the shield."
         case .notConnected:
             return "IqraLock uses Apple's Screen Time to shield your apps. Until it's connected, everything opens as normal and your reading unlocks nothing."
         case .declined:
@@ -183,6 +186,7 @@ struct ScreenTimeSetupView: View {
         switch state {
         case .connected: return "Done"
         case .noAppsChosen: return "Choose apps to lock"
+        case .selectionUnavailable: return "Choose apps again"
         case .notConnected: return "Connect Screen Time"
         case .declined: return "Allow Screen Time access"
         case .unsupported: return "Close"
@@ -195,7 +199,7 @@ struct ScreenTimeSetupView: View {
         switch state {
         case .connected, .unsupported:
             dismiss()
-        case .noAppsChosen:
+        case .noAppsChosen, .selectionUnavailable:
             presentPicker()
         case .notConnected, .declined:
             requestAuthorization()
@@ -218,7 +222,7 @@ struct ScreenTimeSetupView: View {
             isRequesting = false
 
             switch state {
-            case .noAppsChosen:
+            case .noAppsChosen, .selectionUnavailable:
                 // Authorization on its own blocks nothing. Going straight to the picker is the
                 // difference between finishing setup and landing back in the half-done state
                 // this screen exists to fix.
